@@ -31,6 +31,9 @@
 --       -- or the fallback text if this dealer has none
 -- Calls from a game that isn't on screen are ignored, so only the current
 -- game controls the dealer. Opening a game resets the dealer to its table.
+--
+-- Messages queue up: each one stays up for at least 3 seconds before the
+-- next, and the text fades out and back in whenever it changes.
 
 local ns = CowCasino.ns
 
@@ -87,8 +90,12 @@ local owner         -- the game it belongs to right now
 local showingPlayer -- a player's portrait is up (not the picture)
 local customName    -- the game changed the name line
 local idleText = ""
-local revertAt      -- GetTime() when the message goes back to the idle line
-local saidAt        -- GetTime() of the last message
+local MIN_SHOW  = 3       -- seconds each message stays up before the next one
+local FADE      = 0.2     -- seconds to fade the text out, and again to fade it in
+local MAX_QUEUE = 4       -- messages waiting; the oldest waiting one goes first
+local queue = {}    -- messages waiting: { text, seconds, sound }
+local current       -- the message on screen (with shownAt), or nil for the idle line
+local fade          -- { out = true/false, t0, msg }: the text is changing
 local lastLine = {} -- the line last used for each event, so it doesn't repeat
 
 local function Owns(game)
@@ -134,14 +141,52 @@ local function Build()
     ui.text:SetJustifyH("LEFT")
     ui.text:SetJustifyV("TOP")
 
-    -- a timed message goes back to the idle line
-    ui:SetScript("OnUpdate", function()
-        if revertAt and GetTime() >= revertAt then
-            revertAt = nil
-            ui.text:SetText(idleText)
-        end
-    end)
+    ui:SetScript("OnUpdate", function() Dealer:Update() end)
 end
+
+-- Fade the text out, then in with msg (nil: the idle line).
+local function ChangeTo(msg)
+    fade = { out = true, t0 = GetTime(), msg = msg }
+end
+
+-- Runs every frame while the strip is up: fades, the queue, timed messages.
+function Dealer:Update()
+    local now = GetTime()
+    if fade then
+        local k = (now - fade.t0) / FADE
+        if fade.out then
+            if k < 1 then ui.text:SetAlpha(1 - k) return end
+            current = fade.msg
+            if current then
+                current.shownAt = now
+                ui.text:SetText(current.text)
+                if current.sound then ns:Sound(current.sound) end
+            else
+                ui.text:SetText(idleText)
+            end
+            ui.text:SetAlpha(0)
+            fade = { out = false, t0 = now }
+        elseif k < 1 then
+            ui.text:SetAlpha(k)
+        else
+            ui.text:SetAlpha(1)
+            fade = nil
+        end
+        return
+    end
+    if current then
+        if queue[1] then
+            if now >= current.shownAt + MIN_SHOW then ChangeTo(table.remove(queue, 1)) end
+        elseif current.seconds and now >= current.shownAt + math.max(current.seconds, MIN_SHOW) then
+            ChangeTo(nil)
+        end
+    elseif queue[1] then
+        ChangeTo(table.remove(queue, 1))
+    end
+end
+
+-- Exposed for tests: messages waiting, and the text's fade.
+function Dealer.Pending() return ns.getn(queue) end
 
 -- The game's own picture, or the dealer picked in Options.
 local function DefaultImage()
@@ -169,7 +214,7 @@ end
 -- game's dealer, reset to its table, or hide the strip.
 function Dealer:Attach(game)
     owner = nil
-    revertAt = nil
+    queue, current, fade = {}, nil, nil
     local def = game and game.dealer
     if not def then
         if ui then ui:Hide() end
@@ -182,6 +227,7 @@ function Dealer:Attach(game)
     idleText = def.idle or ""
     ui.name:SetText(DefaultName())
     ui.text:SetText(idleText)
+    ui.text:SetAlpha(1)
     ShowImage(DefaultImage())
     ui:Show()
 end
@@ -196,20 +242,26 @@ end
 
 function Dealer:IsShown() return ui ~= nil and ui:IsShown() end
 
--- A message; seconds (optional) brings back the idle line after that long;
--- sound (optional) plays with it.
+-- A message, after any already waiting; seconds (optional) brings back the
+-- idle line that long after it shows (3 at least); sound (optional) plays
+-- when it shows.
 function Dealer:Say(game, text, seconds, sound)
     if not Owns(game) then return end
-    ui.text:SetText(text or "")
-    revertAt = seconds and (GetTime() + seconds) or nil
-    saidAt = GetTime()
-    if sound then ns:Sound(sound) end
+    if ns.getn(queue) >= MAX_QUEUE then table.remove(queue, 1) end
+    table.insert(queue, { text = text or "", seconds = seconds, sound = sound })
+    if not current and not fade then ChangeTo(table.remove(queue, 1)) end
+end
+
+-- Something is being said, or about to be.
+local function Busy()
+    return queue[1] ~= nil or (fade ~= nil and (not fade.out or fade.msg ~= nil))
+        or (current ~= nil and GetTime() - current.shownAt < MIN_SHOW)
 end
 
 -- A line from the chosen dealer for a moment in the game (event), with
 -- {name} in it filled from vars; or the fallback text when the dealer has
--- no lines for it (nothing is said if there's neither). A quiet reaction
--- doesn't talk over something said a moment ago.
+-- no lines for it (nothing is said if there's neither). A quiet reaction is
+-- skipped while something else is being said.
 function Dealer:Line(event, vars)
     local lines = ns:GetDealer().lines
     lines = lines and lines[event]
@@ -233,7 +285,7 @@ end
 
 function Dealer:React(game, event, vars, seconds, fallback, quiet)
     if not Owns(game) then return end
-    if quiet and saidAt and GetTime() - saidAt < 1.5 then return end
+    if quiet and Busy() then return end
     local text = self:Line(event, vars) or fallback
     if text then self:Say(game, text, seconds) end
 end
@@ -242,13 +294,17 @@ end
 function Dealer:SetIdle(game, text)
     if not Owns(game) then return end
     idleText = text or ""
-    if not revertAt then ui.text:SetText(idleText) end
+    if current then return end            -- shows after the message
+    if not fade then ChangeTo(nil)
+    elseif not fade.out then ui.text:SetText(idleText) end   -- already fading in
+    -- (fading out: the new idle line is what fades in)
 end
 
+-- Back to the idle line now, dropping anything waiting.
 function Dealer:Idle(game)
     if not Owns(game) then return end
-    revertAt = nil
-    ui.text:SetText(idleText)
+    queue = {}
+    if current or (fade and fade.msg) then ChangeTo(nil) end
 end
 
 function Dealer:SetName(game, text)

@@ -445,7 +445,9 @@ local function Hit()
     table.insert(h.cards, shoe:Draw())
     local v = HandValue(h.cards)
     local vars = { before = before, player = v }
-    if v > 21 then React("playerBust", vars, 5)
+    if v > 21 then
+        -- (the last hand busting gets the round's call instead)
+        if S.active < ns.getn(S.hands) then React("playerBust", vars, 5) end
     elseif v == 21 then React("twentyOne", vars, 5)
     elseif before >= 16 and not soft then React("hitHighSafe", vars, 5) end
     if v >= 21 then

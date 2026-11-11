@@ -159,6 +159,7 @@ function methods:SetTexCoord(l, r, t, b)
   assert(type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number", "SetTexCoord needs 4 numbers")
   self.coords = { l, r, t, b }
 end
+function methods:SetAlpha(a) assert(type(a) == "number", "SetAlpha needs a number"); self.alpha = a end
 function methods:SetTextColor(r, g, b, a) assert(type(r) == "number" and type(g) == "number" and type(b) == "number"); self.color = { r, g, b, a or 1 } end
 function methods:SetModelScale(x) assert(type(x) == "number") end
 function methods:SetPosition(x, y, z) assert(type(x) == "number" and type(y) == "number" and type(z) == "number") end

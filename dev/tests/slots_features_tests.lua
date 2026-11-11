@@ -186,9 +186,9 @@ Check("Stop ends Auto", G.S.autoLeft == 0 and d.stats.spins == stoppedAt and d.s
 -- Auto stops when the chips run short
 ns.db.chips = 25
 Press("Auto 25")
-Tick(15)
--- (a free spin round won on the way plays out first)
-for _ = 1, 300 do if not (d.free or G.S.spinning or G.S.waiting) then break end Tick(1) end
+-- (wins on the way can keep it going for a while, and a free spin round
+-- won on the way plays out first)
+for _ = 1, 900 do if G.S.autoLeft == 0 and not (d.free or G.S.spinning or G.S.waiting) then break end Tick(1) end
 Check("Auto stops when there aren't chips for the bet", G.S.autoLeft == 0 and ns.db.chips < 10 + 1000 and not G.S.spinning)
 ns.db.chips = 5000
 Press("Options")

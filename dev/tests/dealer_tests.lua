@@ -18,6 +18,8 @@ local function Visible(o) while o do if not o.shown then return false end; o = o
 local function Find(text) for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == text and Visible(o) then return o end end end
 local function Press(text) local b = assert(Find(text), "no " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
 local function Tick(sec) for _ = 1, math.floor(sec * 10 + 0.5) do env.CLOCK = env.CLOCK + 0.1; for _, o in ipairs(env.all) do if o.scripts.OnUpdate and Visible(o) then env.Fire(o, "OnUpdate", 0.1) end end end end
+-- tick for sec seconds, calling fn with the dealer's text at every step
+local function Watch(sec, fn) for _ = 1, math.floor(sec * 10 + 0.5) do Tick(0.1); fn(D.UI().text.text or "") end end
 local heard = {}
 local realPlay = env.PlaySound
 env.PlaySound = function(n) table.insert(heard, env.SoundName(n)); realPlay(n) end
@@ -48,12 +50,13 @@ for _ = 1, 20 do
   end
   if Find("No thanks") then Press("No thanks") end
   for _ = 1, 6 do if Find("Stand") and Find("Stand").enabled then Press("Stand") end end
-  Tick(3)
-  local t = ui.text.text or ""
-  if string.find(t, "stands on", 1, true) or string.find(t, "bust", 1, true) or string.find(t, "blackjack", 1, true) then called = t break end
+  Watch(8, function(t)
+    if not called and (string.find(t, "stands on", 1, true) or string.find(t, "bust", 1, true) or string.find(t, "blackjack", 1, true)) then called = t end
+  end)
+  if called then break end
 end
 Check("the dealer calls the result of the round", called ~= nil, called)
-Tick(8)
+Tick(12)
 Check("...then goes back to the idle line", ui.text.text == "Place your bet and I'll deal.", ui.text.text)
 
 -- Fizzlecog has his own lines for Blackjack
@@ -78,49 +81,79 @@ for _ = 1, 30 do local l = D:Line("win", { total = 18, win = "25" }); seen[l] = 
 local kinds = 0; for _ in pairs(seen) do kinds = kinds + 1 end
 Check("...picked at random, never the same one twice in a row", kinds > 1 and repeats == 0, kinds .. " kinds, " .. repeats .. " repeats")
 D:React(BJ, "push", nil, 5, "We push.")
+Tick(0.5)
 Check("React says the dealer's line", FromEvents(ui.text.text, { "push" }) == "push", ui.text.text)
 D:React(BJ, "dealerTurn", nil, nil, "My turn.", true)
-Check("...a quiet one doesn't talk over it", FromEvents(ui.text.text, { "push" }) == "push", ui.text.text)
-Tick(2)
+Check("...a quiet one doesn't talk over it", D.Pending() == 0 and FromEvents(ui.text.text, { "push" }) == "push", ui.text.text)
+Tick(3)
 D:React(BJ, "dealerTurn", nil, nil, "My turn.", true)
-Check("...but speaks up a moment later", FromEvents(ui.text.text, { "dealerTurn" }) == "dealerTurn", ui.text.text)
+Tick(0.5)
+Check("...but speaks up once it's had its time", FromEvents(ui.text.text, { "dealerTurn" }) == "dealerTurn", ui.text.text)
+Tick(3)
 D:React(BJ, "noSuchMoment", nil, nil, "Plain words.")
+Tick(0.5)
 Check("a moment without a line gets the plain words", ui.text.text == "Plain words.")
 ns:SetDealer("human")
+Tick(3)
 D:React(BJ, "push", nil, 5, "We push.")
+Tick(0.5)
 Check("a dealer without lines gets the plain words", ui.text.text == "We push.")
 ns:SetDealer("goblin")
-Tick(6)
+Tick(8)
 
 -- a few rounds with Fizzlecog: he talks through the deal and calls the result in his own words
 local dealt, settled, other = nil, nil, nil
-for _ = 1, 30 do
+for _ = 1, 12 do
   local deal = Find("Deal 25") or Find("Deal")
-  if deal and deal.enabled then
-    env.Fire(deal, "OnClick", "LeftButton")
-    local t = ui.text.text or ""
-    if FromEvents(t, { "deal" }) then dealt = t end
-  end
+  if deal and deal.enabled then env.Fire(deal, "OnClick", "LeftButton") end
   if Find("No thanks") then Press("No thanks") end
   for _ = 1, 6 do if Find("Hit") and Find("Hit").enabled then Press("Hit") end end
-  Tick(3)
-  local t = ui.text.text or ""
-  local e = FromEvents(t, SETTLE)
-  if e then settled = settled or t else other = t end
-  Tick(8)
+  Watch(20, function(t)
+    if FromEvents(t, { "deal" }) then dealt = dealt or t end
+    if FromEvents(t, SETTLE) then settled = settled or t end
+  end)
+  if dealt and settled then break end
 end
 Check("Fizzlecog talks when he deals", dealt ~= nil, dealt)
 Check("...and calls results in his own words", settled ~= nil and not string.find(settled, "{", 1, true), settled)
 
 -- the API, from the game on screen
+Check("(quiet before the API checks)", ui.text.text == "Place your bet and I'll deal." and D.Pending() == 0, ui.text.text)
 D:Say(BJ, "Hello there.")
-Check("Say shows a message", ui.text.text == "Hello there.")
+Tick(0.1)
+Check("changing the text fades it out first", ui.text.text == "Place your bet and I'll deal." and ui.text.alpha and ui.text.alpha < 1,
+  tostring(ui.text.alpha))
+Tick(0.2)
+Check("...then the message fades in", ui.text.text == "Hello there." and ui.text.alpha < 1, tostring(ui.text.alpha))
+Tick(0.2)
+Check("...all the way", ui.text.text == "Hello there." and ui.text.alpha == 1, tostring(ui.text.alpha))
 D:Say(ns.games.mines, "Not my table.")
-Check("a game that isn't on screen can't make it talk", ui.text.text == "Hello there.")
-D:Say(BJ, "Back in a moment.", 2)
-Tick(2.5)
-Check("a timed message goes back to the idle line", ui.text.text == "Place your bet and I'll deal.")
+Check("a game that isn't on screen can't make it talk", D.Pending() == 0)
+-- the queue: one at a time, 3 seconds each at least, in order
+D:Say(BJ, "One.")
+D:Say(BJ, "Two.", 4)
+Check("messages wait their turn", D.Pending() == 2 and ui.text.text == "Hello there.")
+local shown = {}
+Watch(12, function(t) if shown[table.getn(shown)] ~= t then table.insert(shown, t) end end)
+Check("...and show one at a time, in order", shown[1] == "Hello there." and shown[2] == "One." and shown[3] == "Two."
+  and shown[4] == "Place your bet and I'll deal.", table.concat(shown, " | "))
+D:Say(BJ, "First.", 1)
+D:Say(BJ, "Second.", 1)
+local firstAt, secondAt
+Watch(6, function(t)
+  if t == "First." and not firstAt then firstAt = env.CLOCK end
+  if t == "Second." and not secondAt then secondAt = env.CLOCK end
+end)
+Check("each stays up at least 3 seconds", firstAt and secondAt and secondAt - firstAt >= 3, firstAt and secondAt and (secondAt - firstAt))
+Tick(4)
+Check("a timed message goes back to the idle line (after 3 seconds at least)", ui.text.text == "Place your bet and I'll deal.", ui.text.text)
+for i = 1, 8 do D:Say(BJ, "Spam " .. i) end
+Check("the queue keeps only the latest few", D.Pending() <= 4, D.Pending())
+D:Idle(BJ)
+Tick(0.5)
+Check("Idle drops what's waiting and goes back to the idle line", D.Pending() == 0 and ui.text.text == "Place your bet and I'll deal.", ui.text.text)
 D:SetIdle(BJ, "Bets, please.")
+Tick(0.5)
 Check("the idle line can change", ui.text.text == "Bets, please.")
 D:SetName(BJ, "Bob - big blind")
 Check("the name can change", ui.name.text == "Bob - big blind")
@@ -143,7 +176,9 @@ D:Sound(ns.games.mines, "RAID_WARNING")
 Check("a game that isn't on screen can't play dealer sounds", not Heard("RaidWarning"))
 heard = {}
 D:Say(BJ, "Winner!", nil, "UI_EPICLOOT_TOAST")
-Check("Say can bring a sound along", Heard("LEVELUPSOUND") and ui.text.text == "Winner!")
+Check("a message's sound waits for the message", not Heard("LEVELUPSOUND"))
+Tick(0.5)
+Check("...and plays when it shows", Heard("LEVELUPSOUND") and ui.text.text == "Winner!")
 
 -- other games: no dealer; coming back resets it
 ns:OpenGame("mines")

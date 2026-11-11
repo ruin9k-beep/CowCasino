@@ -74,33 +74,38 @@ local frame = env.CowCasinoFrame
 
 -- A real drag: every frame the game turns the mouse position into a value
 -- using the slider's size and place on screen right now, which depend on the
--- window's current size. (Slider: 16 from the window's left edge, 200 wide.)
+-- window's current size. (Slider: 114 from the window's left edge, 130 wide;
+-- 75% to 250%.)
 local WINDOW_LEFT = 300
+local MINS, MAXS = 0.75, 2.5
+Check("the size goes from 75% to 250%", ns.MIN_SCALE == MINS and ns.MAX_SCALE == MAXS)
+local function SliderAt(s) return WINDOW_LEFT + 114 * s, 130 * s end
 local function Drag(toX, frames)
   local scales = {}
   for _ = 1, frames do
-    local s = frame:GetScale()
-    local left, width = WINDOW_LEFT + 30 * s, 200 * s
+    local left, width = SliderAt(frame:GetScale())
     local f = math.max(0, math.min(1, (toX - left) / width))
-    slider:SetValue(0.5 + f)
+    slider:SetValue(MINS + f * (MAXS - MINS))
     table.insert(scales, frame:GetScale())
   end
   return scales
 end
 local function Release() env.Fire(slider, "OnMouseUp", "LeftButton") end
-local during = Drag(WINDOW_LEFT + 30, 20)          -- all the way left
+local during = Drag(WINDOW_LEFT, 20)               -- all the way left
 local steady = true
 for _, sc in ipairs(during) do if sc ~= 1 then steady = false end end
 Check("dragging doesn't resize the window under the mouse", steady)
 Release()
-Check("letting go applies it: 50%", frame:GetScale() == 0.5, frame:GetScale())
--- the slider is now half as long; drag it all the way right
-Drag(WINDOW_LEFT + 15 + 100, 20)
+Check("letting go applies it: 75%", frame:GetScale() == 0.75, frame:GetScale())
+-- the slider is now shorter; drag it all the way right
+local l, w = SliderAt(0.75)
+Drag(l + w + 5, 20)
 Release()
-Check("...and it can be dragged back up: 150%", frame:GetScale() == 1.5, frame:GetScale())
-Drag(WINDOW_LEFT + 45 + 150, 20)                    -- the middle, at 150%
+Check("...and it can be dragged back up: 250%", frame:GetScale() == 2.5, frame:GetScale())
+l, w = SliderAt(2.5)
+Drag(l + w * (1 - MINS) / (MAXS - MINS), 20)        -- where 100% is, at 250%
 Release()
-Check("...and to the middle: 100%", frame:GetScale() == 1, frame:GetScale())
+Check("...and down to 100%", frame:GetScale() == 1, frame:GetScale())
 -- not applied until release; closing the screen applies a pending size too
 slider:SetValue(0.75)
 Check("a size isn't applied until the mouse is let go", frame:GetScale() == 1)
@@ -121,7 +126,9 @@ Check("shows the size as a percentage", pct)
 slider:SetValue(1.4); Release()
 Check("slider grows it too", frame:GetScale() == 1.4)
 slider:SetValue(5); Release()
-Check("size stays within 50%-150%", frame:GetScale() == 1.5)
+Check("size stays within 75%-250%", frame:GetScale() == 2.5)
+slider:SetValue(0.1); Release()
+Check("...at both ends", frame:GetScale() == 0.75)
 slider:SetValue(0.8); Release()
 local env5, ns5 = Start(ns.db)
 Check("size is kept after a restart", env5.CowCasinoFrame:GetScale() == 0.8)

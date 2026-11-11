@@ -49,7 +49,7 @@ end
 ---------------------------------------------------------------------------
 -- Scale
 ---------------------------------------------------------------------------
-ns.MIN_SCALE, ns.MAX_SCALE = 0.5, 1.5
+ns.MIN_SCALE, ns.MAX_SCALE = 0.75, 2.5
 
 -- Resize the whole window, keeping its top-left corner where it is.
 function ns:SetScale(scale)
