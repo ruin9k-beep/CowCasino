@@ -31,7 +31,13 @@ local Blackjack = {
     name = "Blackjack",
     description = "Beat the dealer to 21. Double, split, insurance.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (dev/art-src/make_game_icons.py)
+    -- the dealer on top of the window (Dealer.lua)
+    dealer = { name = "Dealer", image = "Interface\\AddOns\\CowCasino\\Art\\DealerPortrait",
+               idle = "Place your bet and I'll deal." },
 }
+
+-- What the dealer says (only while Blackjack is on screen).
+local function DealerSay(text, seconds) ns.Dealer:Say(Blackjack, text, seconds) end
 
 local db      -- ns.db.blackjack
 local shoe
@@ -308,6 +314,15 @@ local function SettleRound()
     s.net = (s.net or 0) + net
     local head
     if dealerTotal > 21 and not dBJ then table.insert(notes, 1, "Dealer busts.") end
+    -- the dealer calls it
+    local call
+    if dBJ then call = "Dealer has blackjack."
+    elseif dealerTotal > 21 then call = "I bust with " .. dealerTotal .. "!"
+    else call = "Dealer stands on " .. dealerTotal .. "." end
+    if net > 0 then call = call .. " Nicely played - you win " .. Fmt(net) .. "."
+    elseif net < 0 then call = call .. " The house takes this one."
+    else call = call .. " We push." end
+    DealerSay(call, 6)
     if net > 0 then
         head = "You win " .. Fmt(net) .. "!"
         SetStatus(head .. " " .. table.concat(notes, " "), 0.25, 1, 0.25)
@@ -364,6 +379,7 @@ local function DealerTurn()
     end
 
     SetStatus("Dealer's turn...")
+    DealerSay("My turn.")
     Refresh()
     local round = S.round
     ns:After(DEALER_DELAY, function() DealerStep(round) end)
@@ -547,8 +563,10 @@ local function Deal()
         S.phase = "insurance"
         if IsBlackjack(h) then
             SetStatus("Blackjack! Dealer shows an Ace - take even money?")
+            DealerSay("Blackjack! But I'm showing an Ace - even money?")
         else
             SetStatus("Dealer shows an Ace. Insurance?")
+            DealerSay("I'm showing an Ace. Insurance, anyone?")
         end
         Refresh()
         return

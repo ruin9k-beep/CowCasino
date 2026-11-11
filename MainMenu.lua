@@ -716,6 +716,7 @@ function ns:ShowMenu()
         if game.OnHide then game:OnHide() end
     end
     self.currentGame = nil
+    if ns.Dealer then ns.Dealer:Attach(nil) end
 
     self.frame.gamePage:Hide()
     self.frame.menu:Show()
@@ -746,6 +747,7 @@ function ns:OpenGame(id)
     self.frame.gamePage:Show()
     game.panel:Show()
     self.frame.title:SetText("CowCasino - " .. (game.name or id))
+    if ns.Dealer then ns.Dealer:Attach(game) end      -- before OnShow, so it can talk straight away
     if game.OnShow then game:OnShow() end
 end
 
