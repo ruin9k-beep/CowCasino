@@ -7,7 +7,7 @@ on the game list) under **Dealer**; the choice is saved and used by every game.
 
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
-- **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`)
+- **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`). He has his own lines for Blackjack.
 - **Human**: Harold, a human croupier (`Art\DealerHuman`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,
@@ -26,6 +26,10 @@ CowCasino.RegisterDealer({
     title  = "Grukk",                 -- the dealer's name, shown on the strip (default "Dealer")
     author = "you",                   -- optional, shown as "by you" in Options
     image  = "Interface\\AddOns\\CowCasino_MyDealer\\Grukk",
+    lines  = {                        -- optional: what this dealer says (below)
+        deal = { "Cards out. {player} for you.", "Grukk deals! {player}." },
+        lose = "Grukk wins! {total} beats you.",
+    },
 })
 ```
 
@@ -35,9 +39,39 @@ CowCasino.RegisterDealer({
 `{ "Interface\\Icons\\INV_Misc_Head_Orc_01", 0.08, 0.92, 0.08, 0.92 }` to trim an
 icon's border.
 
-The picture is shown square, about 44 pixels on screen. A 64x64 or 128x128 image
-works well. For the 1.12 client, images must be .tga or .blp with sides that are a
+The picture is shown square, about 108 pixels on screen. A 128x128 image works
+well. For the 1.12 client, images must be .tga or .blp with sides that are a
 power of two (64, 128, 256...).
+
+## Lines
+
+A dealer can have its own lines for the moments of a game. For each moment,
+give one line or a list; one is picked at random (never the same twice in a
+row). Words in braces are filled in. Any moment without lines gets CowCasino's
+plain words instead (or nothing), so a dealer can have as few lines as you like.
+
+Blackjack (single player):
+
+| Moment | When | Fills in |
+|---|---|---|
+| `deal` | the cards are dealt | `{player}` your total, `{up}` the dealer's card ("an Ace", "a 7") |
+| `insurance` | the dealer shows an Ace | |
+| `evenMoney` | ...and you have blackjack | |
+| `hitHighSafe` | you hit on a hard 16 or more and didn't bust | `{before}`, `{player}` |
+| `twentyOne` | a hit makes 21 | `{player}` |
+| `playerBust` | you bust (and the round's call, if every hand bust) | `{player}` |
+| `standLow` | you stand on 12 or less | `{player}` |
+| `double` | you double down | `{player}`, `{bet}` |
+| `split` | you split | |
+| `dealerTurn` | the dealer plays | `{up}` |
+| `playerBlackjack` | the round's call: you won with a blackjack | `{win}`, `{total}` (dealer), `{player}` |
+| `dealerBlackjack` | ...the dealer had blackjack | same |
+| `dealerBust` | ...you won and the dealer bust | same |
+| `win` / `lose` / `push` | ...otherwise | same, and `{loss}` |
+| `surrender` | ...you surrendered | same |
+| `broke` | you're out of chips after a round | |
+
+`Dealer.lua` has Fizzlecog's lines as an example.
 
 Registering an `id` again replaces that dealer. A dealer without an `id` or an
 `image` is refused with an error.

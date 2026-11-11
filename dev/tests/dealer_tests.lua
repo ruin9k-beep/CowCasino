@@ -37,6 +37,8 @@ Check("...the goblin by default: its name, picture and idle line", ui.name.text 
   and ui.text.text == "Place your bet and I'll deal.", tostring(ui.name.text) .. " " .. tostring(ui.image.tex))
 
 -- a round: the dealer calls the result, then goes back to the idle line
+-- (the human dealer has no lines of his own: the plain calls)
+ns:SetDealer("human")
 ns.db.chips = 1000
 local called
 for _ = 1, 20 do
@@ -51,8 +53,64 @@ for _ = 1, 20 do
   if string.find(t, "stands on", 1, true) or string.find(t, "bust", 1, true) or string.find(t, "blackjack", 1, true) then called = t break end
 end
 Check("the dealer calls the result of the round", called ~= nil, called)
-Tick(7)
+Tick(8)
 Check("...then goes back to the idle line", ui.text.text == "Place your bet and I'll deal.", ui.text.text)
+
+-- Fizzlecog has his own lines for Blackjack
+ns:SetDealer("goblin")
+local G = ns.dealers.goblin.lines
+local function Pattern(line)   -- a line with its {names} filled by anything
+  local p = string.gsub(line, "([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+  return "^" .. string.gsub(p, "{%w+}", ".-") .. "$"
+end
+local function FromEvents(text, events)
+  for _, e in ipairs(events) do for _, l in ipairs(G[e]) do if string.find(text, Pattern(l)) then return e end end end
+end
+local SETTLE = { "playerBlackjack", "dealerBlackjack", "dealerBust", "win", "lose", "push", "playerBust", "surrender" }
+for _, e in ipairs({ "deal", "insurance", "evenMoney", "hitHighSafe", "twentyOne", "playerBust", "standLow", "double", "split",
+                     "dealerTurn", "playerBlackjack", "dealerBlackjack", "dealerBust", "win", "lose", "push", "surrender", "broke" }) do
+  Check("Fizzlecog has lines for " .. e, type(G[e]) == "table" and G[e][1] ~= nil)
+end
+local line = D:Line("deal", { player = 14, up = "an Ace" })
+Check("a line fills in its {names}", line and not string.find(line, "{", 1, true) and FromEvents(line, { "deal" }) == "deal", line)
+local seen, repeats, prev = {}, 0, nil
+for _ = 1, 30 do local l = D:Line("win", { total = 18, win = "25" }); seen[l] = true; if l == prev then repeats = repeats + 1 end; prev = l end
+local kinds = 0; for _ in pairs(seen) do kinds = kinds + 1 end
+Check("...picked at random, never the same one twice in a row", kinds > 1 and repeats == 0, kinds .. " kinds, " .. repeats .. " repeats")
+D:React(BJ, "push", nil, 5, "We push.")
+Check("React says the dealer's line", FromEvents(ui.text.text, { "push" }) == "push", ui.text.text)
+D:React(BJ, "dealerTurn", nil, nil, "My turn.", true)
+Check("...a quiet one doesn't talk over it", FromEvents(ui.text.text, { "push" }) == "push", ui.text.text)
+Tick(2)
+D:React(BJ, "dealerTurn", nil, nil, "My turn.", true)
+Check("...but speaks up a moment later", FromEvents(ui.text.text, { "dealerTurn" }) == "dealerTurn", ui.text.text)
+D:React(BJ, "noSuchMoment", nil, nil, "Plain words.")
+Check("a moment without a line gets the plain words", ui.text.text == "Plain words.")
+ns:SetDealer("human")
+D:React(BJ, "push", nil, 5, "We push.")
+Check("a dealer without lines gets the plain words", ui.text.text == "We push.")
+ns:SetDealer("goblin")
+Tick(6)
+
+-- a few rounds with Fizzlecog: he talks through the deal and calls the result in his own words
+local dealt, settled, other = nil, nil, nil
+for _ = 1, 30 do
+  local deal = Find("Deal 25") or Find("Deal")
+  if deal and deal.enabled then
+    env.Fire(deal, "OnClick", "LeftButton")
+    local t = ui.text.text or ""
+    if FromEvents(t, { "deal" }) then dealt = t end
+  end
+  if Find("No thanks") then Press("No thanks") end
+  for _ = 1, 6 do if Find("Hit") and Find("Hit").enabled then Press("Hit") end end
+  Tick(3)
+  local t = ui.text.text or ""
+  local e = FromEvents(t, SETTLE)
+  if e then settled = settled or t else other = t end
+  Tick(8)
+end
+Check("Fizzlecog talks when he deals", dealt ~= nil, dealt)
+Check("...and calls results in his own words", settled ~= nil and not string.find(settled, "{", 1, true), settled)
 
 -- the API, from the game on screen
 D:Say(BJ, "Hello there.")

@@ -37,7 +37,11 @@ local Blackjack = {
 }
 
 -- What the dealer says (only while Blackjack is on screen).
-local function DealerSay(text, seconds) ns.Dealer:Say(Blackjack, text, seconds) end
+-- The chosen dealer's own line for a moment (DEALERS.md lists them), or the
+-- fallback. Quiet ones don't talk over something just said.
+local function React(event, vars, seconds, fallback, quiet)
+    ns.Dealer:React(Blackjack, event, vars, seconds, fallback, quiet)
+end
 
 local db      -- ns.db.blackjack
 local shoe
@@ -73,6 +77,10 @@ local function CardValue(card)
 end
 
 -- Total and whether it is soft (an ace still counted as 11).
+-- "an Ace", "a 7", "an 8", "a King": how the dealer names a card
+local CARD_NAMES = { "an Ace", "a 2", "a 3", "a 4", "a 5", "a 6", "a 7", "an 8", "a 9", "a 10", "a Jack", "a Queen", "a King" }
+local function CardName(card) return card and CARD_NAMES[card.rank] or "a card" end
+
 local function HandValue(cards, upto)
     local total, aces = 0, 0
     for i = 1, (upto or ns.getn(cards)) do
@@ -314,7 +322,7 @@ local function SettleRound()
     s.net = (s.net or 0) + net
     local head
     if dealerTotal > 21 and not dBJ then table.insert(notes, 1, "Dealer busts.") end
-    -- the dealer calls it
+    -- the dealer calls it: a plain call, or the chosen dealer's own line
     local call
     if dBJ then call = "Dealer has blackjack."
     elseif dealerTotal > 21 then call = "I bust with " .. dealerTotal .. "!"
@@ -322,7 +330,22 @@ local function SettleRound()
     if net > 0 then call = call .. " Nicely played - you win " .. Fmt(net) .. "."
     elseif net < 0 then call = call .. " The house takes this one."
     else call = call .. " We push." end
-    DealerSay(call, 6)
+    local anyBJ, allBust, surrendered = false, true, false
+    for _, h in ipairs(S.hands) do
+        if h.result == "Blackjack" then anyBJ = true end
+        if h.result ~= "Bust" then allBust = false end
+        if h.surrendered then surrendered = true end
+    end
+    local event
+    if net > 0 then
+        event = (anyBJ and "playerBlackjack") or (dealerTotal > 21 and "dealerBust") or "win"
+    elseif net < 0 then
+        event = (dBJ and "dealerBlackjack") or (allBust and "playerBust") or (surrendered and "surrender") or "lose"
+    else
+        event = "push"
+    end
+    local first = S.hands[1] and HandValue(S.hands[1].cards)
+    React(event, { total = dealerTotal, player = first, win = Fmt(net), loss = Fmt(-net) }, 7, call)
     if net > 0 then
         head = "You win " .. Fmt(net) .. "!"
         SetStatus(head .. " " .. table.concat(notes, " "), 0.25, 1, 0.25)
@@ -341,6 +364,7 @@ local function SettleRound()
     end
     if ns.db.chips < MIN_BET then
         SetStatus(ns:LowChipsText(MIN_BET), 1, 0.35, 0.35)
+        if ns.Dealer:Line("broke") then React("broke", nil, 10) end
     end
 
     Refresh()
@@ -379,7 +403,7 @@ local function DealerTurn()
     end
 
     SetStatus("Dealer's turn...")
-    DealerSay("My turn.")
+    React("dealerTurn", { up = CardName(S.dealer[1]) }, nil, "My turn.", true)
     Refresh()
     local round = S.round
     ns:After(DEALER_DELAY, function() DealerStep(round) end)
@@ -417,8 +441,14 @@ end
 local function Hit()
     local h = ActiveHand()
     if not CanHit(h) or h.splitAces then return end
+    local before, soft = HandValue(h.cards)
     table.insert(h.cards, shoe:Draw())
-    if HandValue(h.cards) >= 21 then
+    local v = HandValue(h.cards)
+    local vars = { before = before, player = v }
+    if v > 21 then React("playerBust", vars, 5)
+    elseif v == 21 then React("twentyOne", vars, 5)
+    elseif before >= 16 and not soft then React("hitHighSafe", vars, 5) end
+    if v >= 21 then
         Refresh()
         NextHand()
     else
@@ -427,7 +457,10 @@ local function Hit()
 end
 
 local function Stand()
-    if not CanHit(ActiveHand()) then return end
+    local h = ActiveHand()
+    if not CanHit(h) then return end
+    local v = HandValue(h.cards)
+    if v <= 12 then React("standLow", { player = v }, 5) end
     NextHand()
 end
 
@@ -438,6 +471,7 @@ local function Double()
     h.bet = h.bet * 2
     h.doubled = true
     table.insert(h.cards, shoe:Draw())
+    React("double", { player = HandValue(h.cards), bet = Fmt(h.bet) }, 5)
     Refresh()
     NextHand()
 end
@@ -456,6 +490,7 @@ local function Split()
     h.cards = { h.cards[1] }
     h.fromSplit, nh.fromSplit = true, true
     table.insert(S.hands, S.active + 1, nh)
+    React("split", nil, 5)
 
     if h.cards[1].rank == 1 then
         -- Split aces: one card each, then they stand.
@@ -558,15 +593,16 @@ local function Deal()
     h.cards[2]  = shoe:Draw()
     S.dealer[2] = shoe:Draw()
     ns:PlayGameSound(db, "newHand")
+    React("deal", { player = HandValue(h.cards), up = CardName(S.dealer[1]) }, 6)
 
     if S.dealer[1].rank == 1 and ns.db.chips >= ns.InsuranceCost(h.bet) then
         S.phase = "insurance"
         if IsBlackjack(h) then
             SetStatus("Blackjack! Dealer shows an Ace - take even money?")
-            DealerSay("Blackjack! But I'm showing an Ace - even money?")
+            React("evenMoney", nil, nil, "Blackjack! But I'm showing an Ace - even money?")
         else
             SetStatus("Dealer shows an Ace. Insurance?")
-            DealerSay("I'm showing an Ace. Insurance, anyone?")
+            React("insurance", nil, nil, "I'm showing an Ace. Insurance, anyone?")
         end
         Refresh()
         return

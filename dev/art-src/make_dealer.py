@@ -1,4 +1,4 @@
-# Dealer pictures (Dealer.lua), framed like the game icons. 64x64, 32-bit TGA.
+# Dealer pictures (Dealer.lua), framed like the game icons. 128x128, 32-bit TGA.
 #   DealerGoblin  a goblin croupier: green, long ears, big nose, gold tooth,
 #                 green visor and red bow tie (the default dealer)
 #   DealerHuman   a human croupier with a green visor and bow tie
@@ -80,9 +80,9 @@ def human():
 if __name__ == "__main__":
     out, preview = sys.argv[1], sys.argv[2]
     imgs = [("DealerGoblin", goblin()), ("DealerHuman", human())]
-    sheet = Image.new("RGBA", (420, 200), (30, 30, 30, 255))
+    sheet = Image.new("RGBA", (580, 170), (30, 30, 30, 255))
     for i, (name, img) in enumerate(imgs):
-        img.resize((64, 64), Image.LANCZOS).save(os.path.join(out, name + ".tga"))
-        sheet.paste(img.resize((150, 150), Image.LANCZOS), (10 + i * 210, 10))
-        sheet.paste(img.resize((64, 64), Image.LANCZOS).resize((44, 44), Image.LANCZOS), (170 + i * 210, 116))
+        img.resize((128, 128), Image.LANCZOS).save(os.path.join(out, name + ".tga"))
+        sheet.paste(img.resize((150, 150), Image.LANCZOS), (10 + i * 290, 10))
+        sheet.paste(img.resize((128, 128), Image.LANCZOS).resize((108, 108), Image.LANCZOS), (170 + i * 290, 10))
     sheet.save(preview)

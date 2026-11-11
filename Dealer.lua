@@ -26,14 +26,17 @@
 --   ns.Dealer:SetPlayer(game, "Bob")                 -- a party member's portrait ("player" = you)
 --   ns.Dealer:SetImage(game, "Interface\\Icons\\INV_Misc_Coin_01")   -- back to a picture
 --   ns.Dealer:Idle(game)                             -- the idle line again
+--   ns.Dealer:React(game, "playerBust", { player = 24 }, 5, "Bust!")
+--       -- the chosen dealer's own line for that moment (see DEALERS.md),
+--       -- or the fallback text if this dealer has none
 -- Calls from a game that isn't on screen are ignored, so only the current
 -- game controls the dealer. Opening a game resets the dealer to its table.
 
 local ns = CowCasino.ns
 
-local STRIP_H   = 56
+local STRIP_H   = 118
 local SIDE      = 34      -- clear of the horns at the window's top corners
-local PIC       = 44
+local PIC       = 108
 local BACKDROP = {
     bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -48,7 +51,8 @@ ns.Dealer = Dealer
 
 ---------------------------------------------------------------------------
 -- Dealer packs: { id, name (for the picker), title (the strip's name line),
--- author, image = path or { path, left, right, top, bottom } }
+-- author, image = path or { path, left, right, top, bottom },
+-- lines = { [event] = { "a line", "another, with {player}", ... } } }
 ---------------------------------------------------------------------------
 ns.dealers = {}
 ns.dealerOrder = {}
@@ -84,6 +88,8 @@ local showingPlayer -- a player's portrait is up (not the picture)
 local customName    -- the game changed the name line
 local idleText = ""
 local revertAt      -- GetTime() when the message goes back to the idle line
+local saidAt        -- GetTime() of the last message
+local lastLine = {} -- the line last used for each event, so it doesn't repeat
 
 local function Owns(game)
     return game ~= nil and game == owner and ns.currentGame ~= nil and ns.games[ns.currentGame] == game
@@ -118,13 +124,13 @@ local function Build()
     ui.portrait = ns:CreatePortrait(ui.box, PIC, PIC)
     ui.portrait:SetPoint("CENTER", ui.box, "CENTER", 0, 0)
 
-    ui.name = ui:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    ui.name:SetPoint("TOPLEFT", ui.box, "TOPRIGHT", 8, -1)
+    ui.name = ui:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.name:SetPoint("TOPLEFT", ui.box, "TOPRIGHT", 10, -2)
     ui.name:SetJustifyH("LEFT")
     ui.text = ui:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    ui.text:SetPoint("TOPLEFT", ui.name, "BOTTOMLEFT", 0, -3)
-    ui.text:SetPoint("RIGHT", ui, "RIGHT", -8, 0)
-    ui.text:SetHeight(28)
+    ui.text:SetPoint("TOPLEFT", ui.name, "BOTTOMLEFT", 0, -5)
+    ui.text:SetPoint("RIGHT", ui, "RIGHT", -10, 0)
+    ui.text:SetHeight(STRIP_H - 34)
     ui.text:SetJustifyH("LEFT")
     ui.text:SetJustifyV("TOP")
 
@@ -196,7 +202,40 @@ function Dealer:Say(game, text, seconds, sound)
     if not Owns(game) then return end
     ui.text:SetText(text or "")
     revertAt = seconds and (GetTime() + seconds) or nil
+    saidAt = GetTime()
     if sound then ns:Sound(sound) end
+end
+
+-- A line from the chosen dealer for a moment in the game (event), with
+-- {name} in it filled from vars; or the fallback text when the dealer has
+-- no lines for it (nothing is said if there's neither). A quiet reaction
+-- doesn't talk over something said a moment ago.
+function Dealer:Line(event, vars)
+    local lines = ns:GetDealer().lines
+    lines = lines and lines[event]
+    if type(lines) == "string" then lines = { lines } end
+    if type(lines) ~= "table" then return nil end
+    local n = ns.getn(lines)
+    if n == 0 then return nil end
+    local pick = math.random(n)
+    if n > 1 and lines[pick] == lastLine[event] then pick = ns.Mod(pick, n) + 1 end
+    lastLine[event] = lines[pick]
+    local text = lines[pick]
+    if vars then
+        text = string.gsub(text, "{(%w+)}", function(k)
+            local v = vars[k]
+            if v == nil then return "{" .. k .. "}" end
+            return tostring(v)
+        end)
+    end
+    return text
+end
+
+function Dealer:React(game, event, vars, seconds, fallback, quiet)
+    if not Owns(game) then return end
+    if quiet and saidAt and GetTime() - saidAt < 1.5 then return end
+    local text = self:Line(event, vars) or fallback
+    if text then self:Say(game, text, seconds) end
 end
 
 -- What the dealer says between messages.
@@ -258,6 +297,91 @@ function Dealer.UI() return ui end
 -- CowCasino's own dealers (pictures made by dev/art-src/make_dealer.py)
 ---------------------------------------------------------------------------
 ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author = "ruin9k",
-    image = ART .. "DealerGoblin" })
+    image = ART .. "DealerGoblin",
+    lines = {
+        -- Blackjack
+        deal = {
+            "Cards are flyin'! Time is money, friend.",
+            "Fresh outta the Steamwheedle shoe. {player} for you, and I'm showin' {up}.",
+            "Ante's in, cards are out. No refunds!",
+            "{player} for you. Let's see that famous adventurer luck.",
+            "Dealin'! Keep your hands where I can see 'em.",
+        },
+        insurance = {
+            "Ace up! Want some insurance? Goblin-backed, mostly honest.",
+            "I'm showin' an Ace. Insurance, friend? Small fee, big peace of mind.",
+        },
+        evenMoney = {
+            "Blackjack! But I got an Ace up... take even money? A sure thing's a sure thing.",
+        },
+        hitHighSafe = {
+            "Hittin' on {before}?! Crazier than a Gadgetzan engineer... and luckier. {player}!",
+            "Bold move! That's {player} and you're still breathin'.",
+            "Phew, {player}. I almost had to sweep your chips up.",
+            "Hit on {before} and lived? Somebody's been rubbin' a rabbit's foot.",
+        },
+        twentyOne = {
+            "Twenty-one! Now that's what I call a return on investment.",
+            "21 on the nose! Show-off.",
+        },
+        playerBust = {
+            "{player}! Kaboom! Like a shredder with no oil.",
+            "Bust! Your chips just joined the Steamwheedle Cartel.",
+            "{player}. Too much, friend. Shoulda listened to the goblin.",
+            "Kaboom! {player}. I'll take those, thanks.",
+        },
+        standLow = {
+            "Standin' on {player}? Brave... or cheap. Can't tell with you.",
+            "{player} and you're done? Your call, pal. My profit.",
+        },
+        double = {
+            "Doublin' down? Now we're talkin' business!",
+            "Double the bet, double the fun! Mostly for me.",
+            "Ooh, big spender! One card, make it count.",
+        },
+        split = {
+            "Splittin' 'em up? Two hands, twice the profit... for somebody.",
+            "Split! I like it. More bets, more business.",
+        },
+        dealerTurn = {
+            "My turn. Let's see what the house has got.",
+            "Flippin' the hole card... no peekin'!",
+            "Time to earn my commission.",
+        },
+        playerBlackjack = {
+            "Blackjack! Three to two... ugh, the boss is gonna dock my pay. Take your {win}.",
+            "A natural! Fine, fine, there's your {win}. Don't spend it all in Booty Bay.",
+        },
+        dealerBlackjack = {
+            "Blackjack for the house! Nothin' personal, friend. Just business.",
+            "Twenty-one, baby! The Cartel thanks you for your generous donation.",
+        },
+        dealerBust = {
+            "I bust with {total}?! This shoe is rigged... against ME! You win {win}.",
+            "{total}! Kaboom. Take your {win} before I change my mind.",
+        },
+        win = {
+            "Dealer stands on {total}. You win {win}. Don't get used to it.",
+            "{total} for me, and you beat it. Here's {win}, ya swindler.",
+            "You win {win}! I'm gonna get docked for this.",
+        },
+        lose = {
+            "Dealer stands on {total}. House wins! Time is money, and now it's MY money.",
+            "{total} takes it. Thanks for the chips, friend!",
+            "House wins. Come back anytime! Especially with more chips.",
+        },
+        push = {
+            "We push. Nobody wins... my least favorite kind of math.",
+            "A tie? Bah. Keep your chips, I'll get 'em next round.",
+        },
+        surrender = {
+            "Givin' up half? Smart money... boring, but smart.",
+            "Surrender accepted. Half for you, half for the goblin. Pleasure doin' business.",
+        },
+        broke = {
+            "Outta chips? I could offer a loan... at thirty percent a week.",
+            "Cleaned out! Grab more chips from the menu, friend. The goblin's always open.",
+        },
+    } })
 ns:RegisterDealer({ id = "human", name = "Human", title = "Harold", author = "ruin9k",
     image = ART .. "DealerHuman" })
