@@ -28,7 +28,7 @@ local Crash = {
     id = "crash",
     name = "Crash",
     description = "Watch the multiplier climb. Cash out before it crashes!",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\CrashIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\CrashIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local db

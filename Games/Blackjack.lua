@@ -30,7 +30,7 @@ local Blackjack = {
     id = "blackjack",
     name = "Blackjack",
     description = "Beat the dealer to 21. Double, split, insurance - all of it.",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local db      -- ns.db.blackjack

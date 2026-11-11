@@ -58,7 +58,7 @@ local Mines = {
     id = "mines",
     name = "Mines",
     description = "Uncover gems, dodge the mines, cash out before it blows.",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\MinesIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\MinesIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local db       -- ns.db.mines; db.active holds the game in progress

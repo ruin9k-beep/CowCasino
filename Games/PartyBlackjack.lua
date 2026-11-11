@@ -44,7 +44,7 @@ local Game = {
     id = "partybj",
     name = "Party Blackjack",
     description = "Blackjack with your party against a computer dealer.",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local Net = ns.Net

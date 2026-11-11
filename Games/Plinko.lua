@@ -48,7 +48,7 @@ local Plinko = {
     id = "plinko",
     name = "Plinko",
     description = "Drop balls through the pegs. Edge slots pay up to 1000x.",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\PlinkoIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\PlinkoIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local db

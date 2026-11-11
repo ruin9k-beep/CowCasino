@@ -4,7 +4,7 @@
 --   <prefix>CardFace / <prefix>CardBack  the card in the top-left 92x128 of a 128x128 file
 --   <prefix>Suits  spade, heart, diamond, club, 64x64 each in a 256x64 sheet
 --   <prefix>Court  jack, queen, king, 64x64 each in a 256x64 sheet
--- The images are made by the scripts in art-src (not shipped).
+-- The images are made by the scripts in dev/art-src (not shipped).
 
 local ns = CowCasino.ns
 

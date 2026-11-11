@@ -39,7 +39,7 @@ local Poker = {
     id = "holdem",
     name = "Texas Hold'em",
     description = "No-limit poker against three computer players.",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\HoldemIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\HoldemIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local db      -- ns.db.holdem

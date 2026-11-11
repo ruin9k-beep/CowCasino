@@ -1,7 +1,7 @@
 -- CowCasino card art: Human
 -- The Plain card faces with a painted back: royal blue with a gold border
 -- and lattice, and a heraldic shield on crossed swords under a crown.
--- (Image: Art\HumanCardBack.tga, made by art-src/make_race_cards.py.)
+-- (Image: Art\HumanCardBack.tga, made by dev/art-src/make_race_cards.py.)
 
 local ns = CowCasino.ns
 

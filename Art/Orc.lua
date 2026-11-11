@@ -3,7 +3,7 @@
 -- charcoal with war-paint claw marks, court cards of crossed axes, a troll
 -- voodoo mask and a tusked warlord's helm, and a red leather back with a
 -- spiked iron border and a war shield on crossed tusks.
--- (Images: Art\Orc*.tga, made by art-src/make_race_cards.py.)
+-- (Images: Art\Orc*.tga, made by dev/art-src/make_race_cards.py.)
 
 CowCasino.ns:RegisterPaintedDeck({
     id = "orc",

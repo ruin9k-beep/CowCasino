@@ -2,7 +2,7 @@
 -- A cream hide face with a turquoise and red tribal band, suits painted in
 -- ochre and umber, tribal emblems for the court cards (crossed spears, a
 -- dreamcatcher, a horned shield) and a hide back with a sun and horns.
--- (Images: Art\Tauren*.tga, made by art-src/make_tauren_cards.py.)
+-- (Images: Art\Tauren*.tga, made by dev/art-src/make_tauren_cards.py.)
 
 CowCasino.ns:RegisterPaintedDeck({
     id = "tauren",

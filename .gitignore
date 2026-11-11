@@ -1,5 +1,5 @@
-CowCasino.zip
-tests/mockretail.lua
+dev/CowCasino.zip
+dev/tests/mockretail.lua
 __pycache__/
-art-src/out*/
-art-src/*.png
+dev/art-src/out*/
+dev/art-src/*.png

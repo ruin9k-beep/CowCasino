@@ -57,7 +57,7 @@ local Game = {
     id = "roulette",
     name = "Roulette",
     description = "Single-zero wheel. Straight up pays 35 to 1.",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\RouletteIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\RouletteIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local db          -- ns.db.roulette

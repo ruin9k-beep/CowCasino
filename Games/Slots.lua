@@ -15,7 +15,7 @@
 --   Big wins get a count-up and a banner; Auto spins a run of paid spins.
 -- Every reel's cells see the same symbol mix whatever the line shape, so
 -- every line has the same odds. Each machine returns about 95% over time,
--- free spins included (art-src/slots-math has the working).
+-- free spins included (dev/art-src/slots-math has the working).
 -- Symbols are drawn by the selected slot theme (SlotArt.lua); themes change
 -- the look only. Wild and scatter look the same in every theme.
 -- A spin is saved the moment it starts, and free spins are saved as they're
@@ -175,7 +175,7 @@ local Slots = {
     id = "slots",
     name = "Slots",
     description = "Three slot machines: 3x3, 5x4 and 5x5 reels (pick in Options).",
-    icon = "Interface\\AddOns\\CowCasino\\Art\\SlotsIcon",   -- painted (art-src/make_game_icons.py)
+    icon = "Interface\\AddOns\\CowCasino\\Art\\SlotsIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
 local db      -- ns.db.slots

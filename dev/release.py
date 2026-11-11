@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Build, test and package CowCasino for both clients in one pass.
 
-    python3 release.py              check, test on both clients, write CowCasino.zip
-    python3 release.py --no-zip     check and test only
+    python3 dev/release.py            check, test on both clients, write dev/CowCasino.zip
+    python3 dev/release.py --no-zip   check and test only
+
+The repo root is the addon folder (so git addon managers can clone it
+straight into Interface\\AddOns\\CowCasino); this dev/ folder holds the
+tests, art scripts and this script, and is left out of the zip.
 
 One folder serves both clients:
   CowCasino.toc           read by the 1.12 client (Octo / Turtle), loads Compat112.lua
@@ -12,10 +16,22 @@ CowCasino.toc is the one to edit; this script writes CowCasino_Mainline.toc from
 import os, re, subprocess, sys, zipfile
 from concurrent.futures import ThreadPoolExecutor
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ADDON = os.path.join(HERE, "CowCasino")
+HERE = os.path.dirname(os.path.abspath(__file__))     # dev/
+ADDON = os.path.dirname(HERE)                         # the repo root is the addon folder
 TESTS = os.path.join(HERE, "tests")
 ZIP = os.path.join(HERE, "CowCasino.zip")
+
+
+def addon_walk():
+    """The addon's own files: everything in the repo but dev/ and dot files (.git, .gitignore ...)."""
+    for root, dirs, files in os.walk(ADDON):
+        rel_root = os.path.relpath(root, ADDON)
+        if rel_root == ".":
+            dirs[:] = [d for d in dirs if d != "dev" and not d.startswith(".")]
+        dirs.sort()
+        for name in sorted(files):
+            if not name.startswith("."):
+                yield os.path.join(root, name)
 # A real saved-variables file (WTF\Account\...\SavedVariables\CowCasino.lua) for
 # startup_tests; that test is skipped when there isn't one.
 SAVED = os.environ.get("COWCASINO_SAVE", "/mnt/user-data/uploads/SavedVariables/CowCasino.lua")
@@ -53,10 +69,9 @@ def fail(msg):
 
 
 def lua_files():
-    for root, _, files in os.walk(ADDON):
-        for name in sorted(files):
-            if name.endswith(".lua"):
-                yield os.path.relpath(os.path.join(root, name), ADDON)
+    for path in addon_walk():
+        if path.endswith(".lua"):
+            yield os.path.relpath(path, ADDON)
 
 
 def write_mainline_toc():
@@ -143,10 +158,8 @@ def package():
     if os.path.exists(ZIP):
         os.remove(ZIP)
     with zipfile.ZipFile(ZIP, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, _, files in os.walk(ADDON):
-            for name in sorted(files):
-                path = os.path.join(root, name)
-                z.write(path, os.path.join("CowCasino", os.path.relpath(path, ADDON)))
+        for path in addon_walk():
+            z.write(path, os.path.join("CowCasino", os.path.relpath(path, ADDON)))
 
 
 if __name__ == "__main__":
