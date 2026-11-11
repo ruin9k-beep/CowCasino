@@ -42,10 +42,14 @@ local function Choice(id)
 end
 
 -- Fill in a game's sound settings (and drop any choice that no longer exists).
-function ns:InitSounds(db)
+-- extra: a game's own moments beyond the three above, { { key, label, default } }.
+function ns:InitSounds(db, extra)
     db.sounds = db.sounds or {}
     for key, id in pairs(DEFAULTS) do
         if not Choice(db.sounds[key]) then db.sounds[key] = id end
+    end
+    for _, ev in ipairs(extra or {}) do
+        if not Choice(db.sounds[ev.key]) then db.sounds[ev.key] = ev.default end
     end
 end
 
@@ -55,8 +59,9 @@ function ns:PlayGameSound(db, event)
 end
 
 -- A full-panel overlay: one row per event, each with < name > and Play.
--- getDb returns the game's saved table (with .sounds).
-function ns:CreateSoundOptions(panel, title, getDb)
+-- getDb returns the game's saved table (with .sounds); extra adds a game's
+-- own moments (as for InitSounds).
+function ns:CreateSoundOptions(panel, title, getDb, extra)
     local o = ns.CreateFrame("Frame", nil, panel)
     o:SetAllPoints(panel)
     o:SetFrameLevel(panel:GetFrameLevel() + 80)
@@ -73,8 +78,11 @@ function ns:CreateSoundOptions(panel, title, getDb)
     sub:SetPoint("TOP", head, "BOTTOM", 0, -4)
     sub:SetText("Sound effects")
 
+    local events = {}
+    for _, ev in ipairs(ns.SOUND_EVENTS) do table.insert(events, ev) end
+    for _, ev in ipairs(extra or {}) do table.insert(events, ev) end
     local rows = {}
-    for i, ev in ipairs(ns.SOUND_EVENTS) do
+    for i, ev in ipairs(events) do
         local i, ev = i, ev   -- own copies for closures (Lua 5.0)
         local y = -60 - (i - 1) * 56
         local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -117,7 +125,7 @@ function ns:CreateSoundOptions(panel, title, getDb)
     reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 14)
     reset:SetScript("OnClick", function()
         getDb().sounds = nil
-        ns:InitSounds(getDb())
+        ns:InitSounds(getDb(), extra)
         o:Refresh()
     end)
     local done = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")

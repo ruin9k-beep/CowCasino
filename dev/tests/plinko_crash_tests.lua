@@ -119,6 +119,46 @@ local b = P.balls[1]
 Tick(2)
 Check("one 8-row ball pays from the 8-row table", ns.db.chips == before - 50 + Pay(50, P.PAYOUTS[8].High[b.slot]))
 
+-- an edge slot plays its own sound (the level-up fanfare unless changed)
+local heard = {}
+local realPlay = env.PlaySound
+env.PlaySound = function(n) table.insert(heard, env.SoundName(n)); realPlay(n) end
+local realRandom = math.random
+local function Rigged(step)
+  math.random = function(a, b) if a == 0 and b == 1 then return step end
+    if a == nil then return realRandom() elseif b == nil then return realRandom(a) end return realRandom(a, b) end
+end
+local function HeardAny(name) for _, h in ipairs(heard) do if h == name then return true end end return false end
+Rigged(0)                               -- left at every peg: the far left slot
+Press("Drop", true)
+math.random = realRandom
+Check("a ball heading for the edge slot", P.balls[1].slot == 1)
+heard = {}
+Tick(2)
+Check("an edge slot plays the fanfare", HeardAny("LEVELUPSOUND"), table.concat(heard, ","))
+heard = {}
+local mid = 0
+math.random = function(a, b) if a == 0 and b == 1 then mid = 1 - mid; return mid end
+  if a == nil then return realRandom() elseif b == nil then return realRandom(a) end return realRandom(a, b) end
+Press("Drop", true)
+math.random = realRandom
+Check("a middle ball", P.balls[1].slot ~= 1 and P.balls[1].slot ~= pdb.rows + 1, P.balls[1].slot)
+Tick(2)
+Check("...doesn't", not HeardAny("LEVELUPSOUND"), table.concat(heard, ","))
+env.PlaySound = realPlay
+Press("Options"); Press("Sounds")
+local edgeRow = false
+for _, f in ipairs(env.all) do
+  if f.kind == "FontString" and f.text == "A ball lands in an edge slot" then
+    local o = f
+    local vis = true
+    while o do if not o.shown then vis = false end; o = o.parent end
+    if vis then edgeRow = true end
+  end
+end
+Check("...as its own row", edgeRow)
+Press("Done"); Press("Done")
+
 -- not enough chips for every ball of a drop
 local keep = ns.db.chips
 ns.db.chips = 120

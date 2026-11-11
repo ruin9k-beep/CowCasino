@@ -46,6 +46,9 @@ local PAYOUTS = {
 
 local DEFAULT_STATS = { balls = 0, bestMultiplier = 0, biggestWin = 0, net = 0 }
 
+-- Plinko's own sound: a ball in one of the two edge slots (the biggest pays).
+local EXTRA_SOUNDS = { { key = "edge", label = "A ball lands in an edge slot", default = "fanfare" } }
+
 local Plinko = {
     id = "plinko",
     name = "Plinko",
@@ -203,6 +206,9 @@ local function Land(ball)
     if ball.rows == db.rows and ball.risk == db.risk and ui.slots[ball.slot] then
         ui.slots[ball.slot].flash = 0.4
     end
+    -- an edge slot gets its own sound, the moment the ball lands
+    local edge = ball.slot == 1 or ball.slot == ball.rows + 1
+    if edge then ns:PlayGameSound(db, "edge") end
     -- several balls from one drop: one line and one sound when the last lands
     local batch = ball.batch
     if batch.n > 1 then
@@ -225,7 +231,7 @@ local function Land(ball)
     end
     if win > ball.bet then
         SetStatus(FmtMult(mult) .. "x! You win " .. Fmt(win) .. " (+" .. Fmt(win - ball.bet) .. ").", 0.25, 1, 0.25)
-        ns:PlayGameSound(db, "win")
+        if not edge then ns:PlayGameSound(db, "win") end     -- (the edge sound already played)
     elseif win < ball.bet then
         SetStatus(FmtMult(mult) .. "x: " .. Fmt(win) .. " back from " .. Fmt(ball.bet) .. ".", 1, 0.45, 0.45)
         ns:PlayGameSound(db, "lose")
@@ -444,7 +450,7 @@ function Plinko:Build(panel)
     db.count = math.max(1, math.min(MAX_PER_DROP, db.count or 1))
     db.stats = db.stats or {}
     Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db)
+    ns:InitSounds(db, EXTRA_SOUNDS)
 
     local felt = panel:CreateTexture(nil, "BACKGROUND")
     felt:SetAllPoints(panel)
@@ -556,7 +562,7 @@ function Plinko:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 6)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Plinko Options", function() return db end)
+    ui.sounds = ns:CreateSoundOptions(panel, "Plinko Options", function() return db end, EXTRA_SOUNDS)
 
     -- Balls that were falling when the game closed are refunded.
     if db.inFlight and db.inFlight > 0 then
