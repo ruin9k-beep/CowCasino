@@ -32,8 +32,9 @@ Check("Blackjack has a dealer on top of the window", D:IsShown() and Visible(ui)
 -- (the mock keeps the last point set: the right-hand edge)
 Check("...anchored to the window's top edge, clear of the horns", ui.anchor and ui.anchor[1] == "BOTTOMRIGHT" and ui.anchor[2] == env.CowCasinoFrame
   and ui.anchor[3] == "TOPRIGHT" and ui.anchor[4] <= -30, ui.anchor and (tostring(ui.anchor[1]) .. " " .. tostring(ui.anchor[4])))
-Check("...with its name, picture and idle line", ui.name.text == "Dealer" and ui.image.shown and not ui.portrait.shown
-  and string.find(ui.image.tex, "DealerPortrait", 1, true) ~= nil and ui.text.text == "Place your bet and I'll deal.")
+Check("...the goblin by default: its name, picture and idle line", ui.name.text == "Fizzlecog, your dealer" and ui.image.shown
+  and not ui.portrait.shown and string.find(ui.image.tex, "DealerGoblin", 1, true) ~= nil
+  and ui.text.text == "Place your bet and I'll deal.", tostring(ui.name.text) .. " " .. tostring(ui.image.tex))
 
 -- a round: the dealer calls the result, then goes back to the idle line
 ns.db.chips = 1000
@@ -92,10 +93,54 @@ Check("Mines has no dealer: the strip hides", not D:IsShown())
 D:Say(BJ, "Psst.")
 Check("...and Blackjack, off screen, can't bring it back", not D:IsShown())
 ns:OpenGame("blackjack")
-Check("back at Blackjack it starts fresh", D:IsShown() and ui.name.text == "Dealer" and ui.image.shown
+Check("back at Blackjack it starts fresh", D:IsShown() and ui.name.text == "Fizzlecog, your dealer" and ui.image.shown
   and ui.text.text == "Place your bet and I'll deal.")
+
+-- dealer packs: the built-in two, one from another addon, the picker in Options
+Check("CowCasino has a goblin and a human dealer", ns.dealers.goblin ~= nil and ns.dealers.human ~= nil
+  and ns.dealerOrder[1] == "goblin" and ns:GetDealer().id == "goblin")
+env.CowCasino.RegisterDealer({ id = "tester", name = "Test Orc", author = "someone", title = "Grukk",
+  image = { "Interface\\Icons\\INV_Misc_Head_Orc_01", 0.08, 0.92, 0.08, 0.92 } })
+Check("another addon can add a dealer", ns.dealers.tester ~= nil and ns.dealerOrder[3] == "tester")
+local okErr = pcall(env.CowCasino.RegisterDealer, { id = "broken" })
+Check("...a dealer without a picture is refused", not okErr and ns.dealers.broken == nil)
+ns:SetDealer("tester")
+Check("picking a dealer saves it", ns.db.dealer == "tester" and ns:GetDealer().id == "tester")
+Check("...and the strip shows it at once (picture, crop and name)", ui.image.tex == "Interface\\Icons\\INV_Misc_Head_Orc_01"
+  and ui.image.coords[1] == 0.08 and ui.name.text == "Grukk", tostring(ui.image.tex) .. " " .. tostring(ui.name.text))
+D:SetPlayer(BJ, "player")
+ns:SetDealer("human")
+Check("...but not over a player's portrait", ui.portrait.shown and not ui.image.shown)
+D:SetPlayer(BJ, "Nobody")
+Check("...which falls back to the chosen dealer", ui.image.shown and string.find(ui.image.tex, "DealerHuman", 1, true) ~= nil)
+D:SetName(BJ, "Bob - big blind")
+ns:SetDealer("goblin")
+Check("a name the game set stays when the dealer changes", ui.name.text == "Bob - big blind")
+ns:SetDealer("nobody-here")
+Check("an unknown dealer id is ignored", ns.db.dealer == "goblin")
+ns.db.dealer = "uninstalled"
+Check("a saved dealer whose addon is gone falls back to the goblin", ns:GetDealer().id == "goblin")
+ns.db.dealer = "goblin"
+
+-- the Options picker
 ns:ShowMenu()
 Check("the menu hides it again", not D:IsShown())
+local opts = ns.optionsPage or ns:BuildOptionsPage(env.CowCasinoFrame)
+opts:Show()
+local function DealerNameText() for _, o in ipairs(env.all) do if o.text == "Goblin" or o.text == "Human" or o.text == "Test Orc" then
+  if Visible(o) and o.kind ~= "Button" then return o.text end end end end
+Check("Options shows the chosen dealer", DealerNameText() == "Goblin" and string.find(opts.dealerPic.tex, "DealerGoblin", 1, true) ~= nil)
+-- the dealer row's ">" is the second ">" from the top (card art first)
+local nexts = {}
+for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == ">" and Visible(o) and o.parent == opts then table.insert(nexts, o) end end
+local dealerNext = nexts[2]
+env.Fire(dealerNext, "OnClick", "LeftButton")
+Check("its > button picks the next dealer", ns.db.dealer == "human" and DealerNameText() == "Human"
+  and string.find(opts.dealerPic.tex, "DealerHuman", 1, true) ~= nil, ns.db.dealer)
+env.Fire(dealerNext, "OnClick", "LeftButton")
+env.Fire(dealerNext, "OnClick", "LeftButton")
+Check("...and wraps around", ns.db.dealer == "goblin", ns.db.dealer)
+opts:Hide()
 env.CowCasinoFrame:Hide()
 ns:OpenGame("blackjack")
 Check("closing the window takes it along", not Visible(ui))

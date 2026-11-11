@@ -32,8 +32,8 @@ local Blackjack = {
     description = "Beat the dealer to 21. Double, split, insurance.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (dev/art-src/make_game_icons.py)
     -- the dealer on top of the window (Dealer.lua)
-    dealer = { name = "Dealer", image = "Interface\\AddOns\\CowCasino\\Art\\DealerPortrait",
-               idle = "Place your bet and I'll deal." },
+    -- (the picture and name are the dealer picked in CowCasino Options)
+    dealer = { idle = "Place your bet and I'll deal." },
 }
 
 -- What the dealer says (only while Blackjack is on screen).

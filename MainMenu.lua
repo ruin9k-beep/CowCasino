@@ -182,7 +182,8 @@ function ns:MenuPage(dir)
 end
 
 ---------------------------------------------------------------------------
--- CowCasino options: window scale and the order of the games.
+-- CowCasino options: window scale, the order of the games, card art, the
+-- dealer, table chat and starting over.
 ---------------------------------------------------------------------------
 function ns:BuildOptionsPage(frame)
     local o = ns.CreateFrame("Frame", nil, frame)
@@ -199,19 +200,19 @@ function ns:BuildOptionsPage(frame)
     head:SetPoint("TOP", o, "TOP", 0, -8)
     head:SetText("CowCasino Options")
 
-    -- Window scale
+    -- Window scale, on one line: label, slider, value, 100%
     local scaleLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    scaleLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -44)
+    scaleLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -42)
     scaleLabel:SetText("Window size")
     local sliderName = ns:NewName() or "CowCasinoScaleSlider"
     local slider = ns.CreateFrame("Slider", sliderName, o, "OptionsSliderTemplate")
-    slider:SetWidth(200); slider:SetHeight(16)
-    slider:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -72)
+    slider:SetWidth(130); slider:SetHeight(16)
+    slider:SetPoint("TOPLEFT", o, "TOPLEFT", 100, -40)
     slider:SetMinMaxValues(ns.MIN_SCALE, ns.MAX_SCALE)
     slider:SetValueStep(0.05)
     local low, high, label = ns.getglobal(sliderName .. "Low"), ns.getglobal(sliderName .. "High"), ns.getglobal(sliderName .. "Text")
-    low:SetText(math.floor(ns.MIN_SCALE * 100) .. "%")
-    high:SetText(math.floor(ns.MAX_SCALE * 100) .. "%")
+    low:SetText("")        -- the value beside it says the size
+    high:SetText("")
     label:SetText("")
     local scaleValue = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     scaleValue:SetPoint("LEFT", slider, "RIGHT", 14, 0)
@@ -243,7 +244,8 @@ function ns:BuildOptionsPage(frame)
 
     -- Game order
     local orderLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    orderLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -106)
+    local ROWS_Y = -88
+    orderLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -68)
     orderLabel:SetText("Order of the games")
     -- two columns, read down the left one first
     local slots = {}
@@ -252,7 +254,7 @@ function ns:BuildOptionsPage(frame)
         local i = i   -- own copy for closures (Lua 5.0)
         local col = (i > perColumn) and 1 or 0
         local x = 8 + col * 166
-        local y = -126 - (i - 1 - col * perColumn) * 21
+        local y = ROWS_Y - (i - 1 - col * perColumn) * 21
         local text = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         text:SetPoint("TOPLEFT", o, "TOPLEFT", x, y - 5)
         text:SetWidth(90)
@@ -271,7 +273,7 @@ function ns:BuildOptionsPage(frame)
     end
 
     -- Card art, shared by every card game (Cards.lua), with a small preview
-    local artY = -126 - perColumn * 21 - 8
+    local artY = ROWS_Y - perColumn * 21 - 4
     local artLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     artLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, artY)
     artLabel:SetText("Card art")
@@ -311,8 +313,49 @@ function ns:BuildOptionsPage(frame)
         previews[i] = { widget = w, rank = c[1], suit = c[2], up = c[3] }
     end
 
+    -- The dealer on top of the window (Dealer.lua), with its picture
+    local dealerY = artY - 48
+    local dealerLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    dealerLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, dealerY)
+    dealerLabel:SetText("Dealer")
+    local dealerName = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local dealerBy = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local function StepDealer(dir)
+        local order = ns.dealerOrder
+        local current = ns:GetDealer()
+        local idx = 1
+        for i, id in ipairs(order) do
+            if current and id == current.id then idx = i end
+        end
+        ns:SetDealer(order[ns.Mod(idx - 1 + dir, ns.getn(order)) + 1])
+        ns:Sound("IG_MAINMENU_OPTION")
+        o:Refresh()
+    end
+    local dealerPrev = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    dealerPrev:SetWidth(26); dealerPrev:SetHeight(22)
+    dealerPrev:SetPoint("TOPLEFT", o, "TOPLEFT", 12, dealerY - 18)
+    dealerPrev:SetText("<")
+    dealerPrev:SetScript("OnClick", function() StepDealer(-1) end)
+    dealerName:SetPoint("LEFT", dealerPrev, "RIGHT", 4, 0)
+    dealerName:SetWidth(90)
+    dealerName:SetJustifyH("CENTER")
+    local dealerNext = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    dealerNext:SetWidth(26); dealerNext:SetHeight(22)
+    dealerNext:SetPoint("LEFT", dealerName, "RIGHT", 4, 0)
+    dealerNext:SetText(">")
+    dealerNext:SetScript("OnClick", function() StepDealer(1) end)
+    dealerBy:SetPoint("TOPLEFT", dealerLabel, "TOPRIGHT", 8, -1)
+    local dealerBox = o:CreateTexture(nil, "BORDER")
+    dealerBox:SetWidth(38); dealerBox:SetHeight(38)
+    dealerBox:SetPoint("TOPLEFT", o, "TOPLEFT", 196, dealerY - 1)
+    dealerBox:SetTexture(0.8, 0.65, 0.2, 0.6)
+    local dealerPic = o:CreateTexture(nil, "ARTWORK")
+    dealerPic:SetWidth(36); dealerPic:SetHeight(36)
+    dealerPic:SetPoint("CENTER", dealerBox, "CENTER", 0, 0)
+    o.dealerPic = dealerPic
+
     -- Table chat (Chat.lua), for party tables
-    local chatY = artY - 50
+    local chatY = dealerY - 42
     local chatLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     chatLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, chatY)
     chatLabel:SetText("Table chat at party tables")
@@ -427,6 +470,19 @@ function ns:BuildOptionsPage(frame)
         artName:SetText(pack and pack.name or "?")
         artBy:SetText(pack and pack.author and ("by " .. pack.author) or "")
         for _, p in ipairs(previews) do p.widget:SetCard({ rank = p.rank, suit = p.suit }, p.up) end
+        local dealer = ns:GetDealer()
+        if dealer then
+            dealerName:SetText(dealer.name)
+            dealerBy:SetText(dealer.author and ("by " .. dealer.author) or "")
+            local img = dealer.image
+            if type(img) == "table" then
+                dealerPic:SetTexture(img[1])
+                dealerPic:SetTexCoord(img[2] or 0, img[3] or 1, img[4] or 0, img[5] or 1)
+            else
+                dealerPic:SetTexture(img)
+                dealerPic:SetTexCoord(0, 1, 0, 1)
+            end
+        end
         if ns.Chat then
             local cs = ns.Chat:Settings()
             chatShow:SetChecked(cs.enabled)

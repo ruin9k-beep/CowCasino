@@ -21,8 +21,9 @@ One addon folder runs on two clients:
 - **Crash**, with auto cash-out
 - **Hi-Lo**: higher or lower, with the multiplier growing each right guess
 
-A dealer sits on top of the window and talks you through the game (Blackjack so far);
-`Dealer.lua` explains how a game drives it, including showing a party member's 3D portrait.
+A goblin dealer sits on top of the window and talks you through the game (Blackjack so far).
+Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
+explains how a game drives it, including showing a party member's 3D portrait.
 
 Also: swappable card art (Plain, Tauren, Orc & Troll, Human) and slot themes, 3D player
 portraits and table chat at party tables, a minimap button and per-game sounds.
@@ -43,6 +44,7 @@ clients. Restart the game afterwards.
 
 - Card art packs: [CARD_ART.md](CARD_ART.md)
 - Slot themes: [SLOT_ART.md](SLOT_ART.md)
+- Dealers: [DEALERS.md](DEALERS.md)
 
 The painted images are made by the Python scripts in `dev/art-src` (they need Pillow).
 `dev/art-src/slots-math` has the model the Slots odds were tuned with.

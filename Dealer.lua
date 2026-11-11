@@ -7,8 +7,15 @@
 --     a few seconds
 -- and it can play sounds. It's hidden on the menu and for games without one.
 --
--- A game turns it on with a `dealer` table in its definition:
---   dealer = { name = "Dealer", image = "Interface\\Icons\\...", idle = "Place your bets." }
+-- The picture is the dealer you picked in CowCasino Options (a goblin unless
+-- you change it). Dealers are packs, like card art: CowCasino has a goblin
+-- and a human, and other addons can add more with CowCasino.RegisterDealer
+-- (see DEALERS.md).
+--
+-- A game turns the strip on with a `dealer` table in its definition:
+--   dealer = { idle = "Place your bets." }
+-- It may also give its own name line or picture, instead of the chosen dealer's:
+--   dealer = { name = "Croupier", image = "Interface\\Icons\\...", idle = "..." }
 -- (image may also be { path, left, right, top, bottom } to crop it).
 -- Then, while that game is on screen, it drives the dealer through ns.Dealer:
 --   ns.Dealer:Say(game, "Dealer busts!", 4)          -- 4 seconds, then the idle line
@@ -33,13 +40,48 @@ local BACKDROP = {
     tile = true, tileSize = 16, edgeSize = 14,
     insets = { left = 3, right = 3, top = 3, bottom = 3 },
 }
-local DEFAULT_IMAGE = "Interface\\Icons\\INV_Misc_Coin_01"
+local ART = "Interface\\AddOns\\CowCasino\\Art\\"
+local DEFAULT_DEALER = "goblin"
 
 local Dealer = {}
 ns.Dealer = Dealer
 
+---------------------------------------------------------------------------
+-- Dealer packs: { id, name (for the picker), title (the strip's name line),
+-- author, image = path or { path, left, right, top, bottom } }
+---------------------------------------------------------------------------
+ns.dealers = {}
+ns.dealerOrder = {}
+
+function ns:RegisterDealer(pack)
+    assert(type(pack) == "table" and type(pack.id) == "string", "CowCasino: a dealer needs an id")
+    assert(type(pack.image) == "string" or type(pack.image) == "table",
+        "CowCasino: dealer '" .. pack.id .. "' needs an image")
+    pack.name = pack.name or pack.id
+    pack.title = pack.title or "Dealer"
+    if not self.dealers[pack.id] then table.insert(self.dealerOrder, pack.id) end
+    self.dealers[pack.id] = pack
+    return pack
+end
+
+-- The dealer picked in Options (saved), or the goblin.
+function ns:GetDealer()
+    local id = self.db and self.db.dealer
+    return self.dealers[id] or self.dealers[DEFAULT_DEALER] or self.dealers[self.dealerOrder[1]]
+end
+
+function ns:SetDealer(id)
+    if not self.dealers[id] or not self.db then return end
+    self.db.dealer = id
+    Dealer:Repaint()
+end
+
+function CowCasino.RegisterDealer(pack) return ns:RegisterDealer(pack) end
+
 local ui            -- built the first time a game with a dealer opens
 local owner         -- the game it belongs to right now
+local showingPlayer -- a player's portrait is up (not the picture)
+local customName    -- the game changed the name line
 local idleText = ""
 local revertAt      -- GetTime() when the message goes back to the idle line
 
@@ -95,12 +137,24 @@ local function Build()
     end)
 end
 
+-- The game's own picture, or the dealer picked in Options.
+local function DefaultImage()
+    local def = owner and owner.dealer
+    return (def and def.image) or ns:GetDealer().image
+end
+
+local function DefaultName()
+    local def = owner and owner.dealer
+    return (def and def.name) or ns:GetDealer().title
+end
+
 local function ShowImage(image)
+    showingPlayer = false
     local path, l, r, t, b = image, 0, 1, 0, 1
     if type(image) == "table" then path, l, r, t, b = image[1], image[2] or 0, image[3] or 1, image[4] or 0, image[5] or 1 end
     ui.portrait:ShowUnit(nil)
     ui.portrait:Hide()
-    ui.image:SetTexture(path or DEFAULT_IMAGE)
+    ui.image:SetTexture(path)
     ui.image:SetTexCoord(l, r, t, b)
     ui.image:Show()
 end
@@ -118,11 +172,20 @@ function Dealer:Attach(game)
     Build()
     if not ui then return end
     owner = game
+    customName = nil
     idleText = def.idle or ""
-    ui.name:SetText(def.name or "Dealer")
+    ui.name:SetText(DefaultName())
     ui.text:SetText(idleText)
-    ShowImage(def.image)
+    ShowImage(DefaultImage())
     ui:Show()
+end
+
+-- A different dealer picked in Options: show it now, unless the game has a
+-- player's portrait or its own picture up.
+function Dealer:Repaint()
+    if not ui or not owner then return end
+    if not showingPlayer then ShowImage(DefaultImage()) end
+    if not customName then ui.name:SetText(DefaultName()) end
 end
 
 function Dealer:IsShown() return ui ~= nil and ui:IsShown() end
@@ -151,13 +214,15 @@ end
 
 function Dealer:SetName(game, text)
     if not Owns(game) then return end
-    ui.name:SetText(text or "")
+    customName = text
+    ui.name:SetText(text or DefaultName())
 end
 
--- A picture: a texture path, or { path, left, right, top, bottom }.
+-- A picture: a texture path, or { path, left, right, top, bottom }; nil
+-- goes back to the game's picture (or the dealer picked in Options).
 function Dealer:SetImage(game, image)
     if not Owns(game) then return end
-    ShowImage(image)
+    ShowImage(image or DefaultImage())
 end
 
 -- A player's 3D portrait: "player" for you, or a party or raid member's
@@ -170,9 +235,10 @@ function Dealer:SetPlayer(game, who)
         unit = ns.Net and ns.Net:UnitFor(who)
     end
     if not unit then
-        ShowImage(owner.dealer and owner.dealer.image)
+        ShowImage(DefaultImage())
         return
     end
+    showingPlayer = true
     ui.image:Hide()
     ui.portrait:Show()
     ui.portrait:ShowUnit(unit)
@@ -187,3 +253,11 @@ end
 
 -- Exposed for tests.
 function Dealer.UI() return ui end
+
+---------------------------------------------------------------------------
+-- CowCasino's own dealers (pictures made by dev/art-src/make_dealer.py)
+---------------------------------------------------------------------------
+ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog, your dealer", author = "ruin9k",
+    image = ART .. "DealerGoblin" })
+ns:RegisterDealer({ id = "human", name = "Human", title = "Your dealer", author = "ruin9k",
+    image = ART .. "DealerHuman" })
