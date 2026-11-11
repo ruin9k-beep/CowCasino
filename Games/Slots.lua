@@ -284,11 +284,19 @@ local function SetStatus(text, r, g, b)
     ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
 end
 
+-- What the status line says between spins.
 local function StatsText()
+    return "Pick a line bet and spin. All " .. ns.getn(LINES) .. " lines pay on every spin."
+end
+
+-- The stats line along the bottom, like the other games. Spins counts free
+-- spins too; net is everything won (free spins included) less every bet.
+local function BottomStats()
     local s = db.stats
-    if s.spins == 0 then return "Pick a line bet and spin. All " .. ns.getn(LINES) .. " lines pay on every spin." end
-    return string.format("Spins %d   Paid back %s of %s   Biggest win %s   Free spin rounds %d",
-        s.spins, Fmt(s.won), Fmt(s.wagered), Fmt(s.biggestWin), s.freeRounds)
+    local net = s.won - s.wagered
+    local netText = (net > 0 and ("|cff40ff40+" .. Fmt(net))) or (net < 0 and ("|cffff5050-" .. Fmt(-net))) or "|cffcccccc0"
+    return string.format("Spins %d  Biggest win %s  Free spin rounds %d  Net %s|r",
+        s.spins, Fmt(s.biggestWin), s.freeRounds, netText)
 end
 
 local function InFree() return db.free ~= nil and db.free.machine == M.id end
@@ -365,6 +373,7 @@ local function Refresh()
             .. Fmt(LineBet() * PAYS.seven[REELS]) .. "|r   Wilds 2x-5x")
         ui.felt:SetTexture(0.25, 0.05, 0.08, 0.92)
     end
+    ui.stats:SetText(BottomStats())
     ns:UpdateChipsDisplay()
     if ui.paytable and ui.paytable:IsShown() then ui.paytable:Refresh() end
 end
@@ -1105,7 +1114,7 @@ function Slots:Build(panel)
     -- Bet controls
     local betRow = ns.CreateFrame("Frame", nil, panel)
     betRow:SetWidth(300); betRow:SetHeight(24)
-    betRow:SetPoint("BOTTOM", betRow:GetParent(), "BOTTOM", 0, 48)
+    betRow:SetPoint("BOTTOM", betRow:GetParent(), "BOTTOM", 0, 52)
     ui.lower = MakeButton(betRow, "-", 26, function() ChangeBet(-1) end)
     ui.lower:SetPoint("LEFT", ui.lower:GetParent(), "LEFT", 0, 0)
     ui.bet = betRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -1117,9 +1126,12 @@ function Slots:Build(panel)
     ui.max:SetPoint("LEFT", ui.raise, "RIGHT", 10, 0)
 
     ui.spin = MakeButton(panel, "Spin", 150, function() Spin() end, 32)
-    ui.spin:SetPoint("BOTTOM", ui.spin:GetParent(), "BOTTOM", 0, 10)
+    ui.spin:SetPoint("BOTTOM", ui.spin:GetParent(), "BOTTOM", 0, 16)
     ui.auto = MakeButton(panel, "Auto", 80, ToggleAuto, 26)
     ui.auto:SetPoint("LEFT", ui.spin, "RIGHT", 10, 0)
+
+    ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
     ui.panel = panel
     ShowMachine()
@@ -1178,6 +1190,7 @@ function Slots:ResetStats()
     if not d then return end
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
+    if ui.stats and db then Refresh() end
 end
 
 -- Machine choice, shown in Slots' Options. It can't change while a spin is

@@ -189,6 +189,29 @@ Press(">")  -- reel size
 Press("Done")
 
 ---------------------------------------------------------------------------
+-- The stats line along the bottom
+---------------------------------------------------------------------------
+do
+  local st = ns.db.slots.stats
+  local net = st.won - st.wagered
+  local text = G.ui.stats.text or ""
+  local want = (net > 0 and ("+" .. ns:FormatChips(net))) or (net < 0 and ("-" .. ns:FormatChips(-net))) or "0"
+  Check("the bottom line shows the spin count and net chips", G.ui.stats.shown
+    and string.find(text, "Spins " .. st.spins, 1, true) ~= nil and string.find(text, "Net |cff%x%x%x%x%x%x" .. string.gsub(want, "([%+%-])", "%%%1")) ~= nil, text)
+  local spinsBefore = st.spins
+  local chipsBefore, wonBefore = ns.db.chips, st.won
+  Press("Spin"); Tick(2)
+  G.S.next = (G.S.next or 0) + 1; G.S.waiting = false
+  Check("...and updates after a spin", string.find(G.ui.stats.text, "Spins " .. (spinsBefore + 1), 1, true) ~= nil, G.ui.stats.text)
+  ns.db.slots.free = nil
+  G:OnShow()
+  ns:RebuyChips(1000)
+  Check("...and starts over with a fresh stack", string.find(G.ui.stats.text, "Spins 0", 1, true) ~= nil
+    and string.find(G.ui.stats.text, "Net |cffcccccc0", 1, true) ~= nil, G.ui.stats.text)
+  ns.db.chips = 5000
+end
+
+---------------------------------------------------------------------------
 -- 300 paid spins, each paid exactly as rules written here say
 ---------------------------------------------------------------------------
 G:SetMachine("5x4")

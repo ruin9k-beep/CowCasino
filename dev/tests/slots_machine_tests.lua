@@ -146,6 +146,8 @@ Press("Options")
 local function Arrow() for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == ">" and Visible(o) then return o end end end
 Check("Options: picker disabled during a spin, with a note", not Arrow().enabled and Shown("once your spin (and any free spins) finish") ~= nil)
 Tick(3)
+-- (a spin can win free spins, which play out first)
+for _ = 1, 200 do if not G:ChipsInPlay() then break end Tick(1) end
 Press("Done"); Press("Options")
 Check("...enabled again once it's done", Arrow().enabled)
 Press(">")
