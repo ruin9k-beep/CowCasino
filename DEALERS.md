@@ -8,7 +8,7 @@ on the game list) under **Dealer**; the choice is saved and used by every game.
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
 - **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`)
-- **Human**: a human croupier (`Art\DealerHuman`)
+- **Human**: Harold, a human croupier (`Art\DealerHuman`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,
 say), that replaces the picture until the game puts it back.
@@ -23,7 +23,7 @@ A dealer is one picture and a few words:
 CowCasino.RegisterDealer({
     id     = "myorc",                 -- unique; saved as the player's choice
     name   = "Orc",                   -- shown in the Options picker
-    title  = "Grukk, your dealer",    -- the name line on the strip (default "Dealer")
+    title  = "Grukk",                 -- the dealer's name, shown on the strip (default "Dealer")
     author = "you",                   -- optional, shown as "by you" in Options
     image  = "Interface\\AddOns\\CowCasino_MyDealer\\Grukk",
 })

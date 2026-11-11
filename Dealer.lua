@@ -257,7 +257,7 @@ function Dealer.UI() return ui end
 ---------------------------------------------------------------------------
 -- CowCasino's own dealers (pictures made by dev/art-src/make_dealer.py)
 ---------------------------------------------------------------------------
-ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog, your dealer", author = "ruin9k",
+ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author = "ruin9k",
     image = ART .. "DealerGoblin" })
-ns:RegisterDealer({ id = "human", name = "Human", title = "Your dealer", author = "ruin9k",
+ns:RegisterDealer({ id = "human", name = "Human", title = "Harold", author = "ruin9k",
     image = ART .. "DealerHuman" })

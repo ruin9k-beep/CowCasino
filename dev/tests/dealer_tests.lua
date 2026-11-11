@@ -32,7 +32,7 @@ Check("Blackjack has a dealer on top of the window", D:IsShown() and Visible(ui)
 -- (the mock keeps the last point set: the right-hand edge)
 Check("...anchored to the window's top edge, clear of the horns", ui.anchor and ui.anchor[1] == "BOTTOMRIGHT" and ui.anchor[2] == env.CowCasinoFrame
   and ui.anchor[3] == "TOPRIGHT" and ui.anchor[4] <= -30, ui.anchor and (tostring(ui.anchor[1]) .. " " .. tostring(ui.anchor[4])))
-Check("...the goblin by default: its name, picture and idle line", ui.name.text == "Fizzlecog, your dealer" and ui.image.shown
+Check("...the goblin by default: its name, picture and idle line", ui.name.text == "Fizzlecog" and ui.image.shown
   and not ui.portrait.shown and string.find(ui.image.tex, "DealerGoblin", 1, true) ~= nil
   and ui.text.text == "Place your bet and I'll deal.", tostring(ui.name.text) .. " " .. tostring(ui.image.tex))
 
@@ -93,7 +93,7 @@ Check("Mines has no dealer: the strip hides", not D:IsShown())
 D:Say(BJ, "Psst.")
 Check("...and Blackjack, off screen, can't bring it back", not D:IsShown())
 ns:OpenGame("blackjack")
-Check("back at Blackjack it starts fresh", D:IsShown() and ui.name.text == "Fizzlecog, your dealer" and ui.image.shown
+Check("back at Blackjack it starts fresh", D:IsShown() and ui.name.text == "Fizzlecog" and ui.image.shown
   and ui.text.text == "Place your bet and I'll deal.")
 
 -- dealer packs: the built-in two, one from another addon, the picker in Options
