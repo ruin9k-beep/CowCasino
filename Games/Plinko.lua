@@ -3,7 +3,7 @@
 -- right, and the slot it lands in multiplies the bet. Edge slots pay big
 -- and the middle pays least; pick 8, 12 or 16 rows and a risk level.
 -- The payout tables match the well-known online game (about a 1% house edge).
--- Each press of Drop sends 1 to 10 balls (picked on the table); rows, risk
+-- Each press of Drop sends 1 to 100 balls (picked on the table); rows, risk
 -- and ball speed are in Options. A ball still falling when the game reloads
 -- is refunded.
 
@@ -14,9 +14,11 @@ local MIN_BET, MAX_BET = 5, 1000
 local CHIP_VALUES = { 5, 25, 100, 500 }
 local ROW_CHOICES = { 8, 12, 16 }
 local RISKS       = { "Low", "Medium", "High" }
-local MAX_BALLS   = 20       -- in the air at once
-local MAX_PER_DROP = 10      -- balls one press of Drop can send
-local DROP_GAP    = 0.12     -- seconds between the balls of one drop
+local MAX_BALLS   = 200      -- in the air at once
+local MAX_PER_DROP = 100     -- balls one press of Drop can send
+local COUNT_STEPS = { 1, 5, 10, 50 }   -- the balls-per-drop buttons
+local DROP_GAP    = 0.12     -- seconds between the balls of one drop...
+local DROP_SPREAD = 3        -- ...squeezed so a big drop is all out within this many seconds
 local ROW_TIME    = { normal = 0.11, fast = 0.06 }   -- seconds per row of pegs
 local DOT = "Interface\\AddOns\\CowCasino\\Art\\Dot"
 
@@ -153,8 +155,6 @@ local function Refresh()
     local n = db.count
     ui.setup:SetText(db.rows .. " rows, " .. db.risk .. " risk")
     ui.count:SetText(n == 1 and "1 ball" or (n .. " balls"))
-    ns.SetEnabled(ui.countPrev, n > 1)
-    ns.SetEnabled(ui.countNext, n < MAX_PER_DROP)
     ui.drop:SetText(n == 1 and ("Drop " .. Fmt(db.bet)) or ("Drop " .. n .. " x " .. Fmt(db.bet)))
     ns.SetEnabled(ui.drop, db.bet >= MIN_BET and db.bet * n <= ns.db.chips and InFlight() + n <= MAX_BALLS)
     if ui.options and ui.options:IsShown() then ui.options:Refresh() end
@@ -249,7 +249,7 @@ local function Drop()
     local batch = { n = n, left = n, back = 0 }
     for k = 1, n do
         local ball = { bet = db.bet, rows = db.rows, risk = db.risk, path = {}, batch = batch,
-            t = -(k - 1) * DROP_GAP, speed = ROW_TIME[db.speed] or ROW_TIME.normal }
+            t = -(k - 1) * math.min(DROP_GAP, DROP_SPREAD / n), speed = ROW_TIME[db.speed] or ROW_TIME.normal }
         local rights = 0
         for r = 1, ball.rows do
             local step = math.random(0, 1)
@@ -521,31 +521,36 @@ function Plinko:Build(panel)
     end
     ui.clear = MakeButton(row1, "Clear", 46, function() db.bet = 0; Refresh() end)
     ui.clear:SetPoint("LEFT", row1, "LEFT", x, 0)
-    local function StepCount(dir)
-        db.count = math.max(1, math.min(MAX_PER_DROP, db.count + dir))
-        ns:Sound("IG_MAINMENU_OPTION")
-        Refresh()
-    end
-    ui.countNext = MakeButton(row1, ">", 24, function() StepCount(1) end)
-    ui.countNext:SetPoint("RIGHT", row1, "RIGHT", 0, 0)
-    ui.count = row1:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    ui.count:SetPoint("RIGHT", ui.countNext, "LEFT", -4, 0)
-    ui.count:SetWidth(54)
-    ui.countPrev = MakeButton(row1, "<", 24, function() StepCount(-1) end)
-    ui.countPrev:SetPoint("RIGHT", ui.count, "LEFT", -4, 0)
-    for _, b in ipairs({ ui.countPrev, ui.countNext }) do
+    -- Row 2: drop, and how many balls it sends: +1 +5 +10 +50 (right-click takes away)
+    ui.drop = MakeButton(panel, "Drop", 128, Drop, 26)
+    ui.drop:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, 22)
+    ui.count = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    ui.count:SetPoint("LEFT", ui.drop, "RIGHT", 4, 0)
+    ui.count:SetWidth(62)
+    ui.countButtons = {}
+    local cx = 0
+    for i = ns.getn(COUNT_STEPS), 1, -1 do
+        local step = COUNT_STEPS[i]
+        local w = (step >= 10) and 36 or 30
+        local b = MakeButton(panel, "+" .. step, w, function(_, button)
+            local dir = (button == "RightButton") and -1 or 1
+            db.count = math.max(1, math.min(MAX_PER_DROP, db.count + dir * step))
+            ns:Sound("IG_MAINMENU_OPTION")
+            Refresh()
+        end)
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4 - cx, 24)
         b:SetScript("OnEnter", function()
             GameTooltip:SetOwner(this, "ANCHOR_TOP")
-            GameTooltip:SetText("Balls per drop")
-            GameTooltip:AddLine("Drop sends this many balls, each one a bet.", 1, 1, 1, true)
+            GameTooltip:SetText("Balls per drop: " .. step)
+            GameTooltip:AddLine("Left-click to add " .. step .. ", right-click to take " .. step .. " away (1 to "
+                .. MAX_PER_DROP .. "). Every ball is a bet.", 1, 1, 1, true)
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        ui.countButtons[step] = b
+        cx = cx + w + 2
     end
-
-    -- Row 2: drop
-    ui.drop = MakeButton(panel, "Drop", 200, Drop, 26)
-    ui.drop:SetPoint("BOTTOM", panel, "BOTTOM", 0, 22)
 
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 6)
@@ -580,6 +585,16 @@ end
 -- For the out-of-chips check: balls still falling.
 function Plinko:ChipsInPlay()
     return InFlight() > 0
+end
+
+-- Start over (Options) gives up the balls still falling.
+function Plinko:Abandon()
+    while balls[1] do
+        local b = table.remove(balls)
+        if b.tex then b.tex.used = nil; b.tex:Hide() end
+    end
+    if ns.db.plinko then ns.db.plinko.inFlight = nil end
+    if ui.board then Refresh() end
 end
 
 function Plinko:ResetStats()

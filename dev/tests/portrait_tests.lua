@@ -23,14 +23,25 @@ local function Tick(sec)
 end
 -- A model that, like the game, ignores the camera until it has loaded.
 local LOAD_TIME = 0.33
+-- "face" once the client's face framing lands after loading: camera 0 on
+-- 1.12, portrait zoom on the modern client (whose camera 0 can stay full body).
+local MODERN = env.ROSTER_EVENT == "GROUP_ROSTER_UPDATE"     -- the modern client's mock
 local function Slow(m)
   local setUnit, setCamera = m.SetUnit, m.SetCamera
+  local setZoom = MODERN and m.SetPortraitZoom or nil
   m.cameraCalls = 0
   m.SetUnit = function(self, u) setUnit(self, u); self.loadedAt = env.CLOCK + LOAD_TIME; self.shownCamera = "full body" end
   m.SetCamera = function(self, c)
     self.cameraCalls = self.cameraCalls + 1
     setCamera(self, c)
-    if self.loadedAt and env.CLOCK >= self.loadedAt then self.shownCamera = c end
+    if not MODERN and c == 0 and self.loadedAt and env.CLOCK >= self.loadedAt then self.shownCamera = "face" end
+  end
+  if setZoom then
+    m.SetPortraitZoom = function(self, z)
+      self.cameraCalls = self.cameraCalls + 1
+      setZoom(self, z)
+      if z == 1 and self.loadedAt and env.CLOCK >= self.loadedAt then self.shownCamera = "face" end
+    end
   end
 end
 local parent = env.CreateFrame("Frame", nil, env.CowCasinoFrame)
@@ -39,7 +50,7 @@ Slow(p)
 p:ShowUnit("player")
 Check("right after choosing the model it's still loading (full body)", p.shownCamera == "full body")
 Tick(1)
-Check("once it loads, the portrait is on the face camera", p.shownCamera == 0, tostring(p.shownCamera))
+Check("once it loads, the portrait is on the face camera", p.shownCamera == "face", tostring(p.shownCamera))
 Tick(1)                       -- past the settle time
 local calls = p.cameraCalls
 Tick(1)
@@ -58,16 +69,17 @@ Check("out of range: the question mark, no face camera on it", q.model and strin
 env.UNIT_VISIBLE.party1 = nil
 Tick(2.1)
 Tick(1)
-Check("they come into range: their face, once the model loads", q.unit == "party1" and q.shownCamera == 0, tostring(q.shownCamera))
+Check("they come into range: their face, once the model loads", q.unit == "party1" and q.shownCamera == "face", tostring(q.shownCamera))
 -- the games' portraits: Blackjack's seat portrait
 ns:OpenGame("blackjack")
 local found
 for _, o in ipairs(env.all) do if o.kind == "PlayerModel" and o.unit == "player" and Visible(o) then found = o end end
 Tick(2)
-Check("Blackjack's portrait uses the face camera", found and found.camera == 0)
+Check("Blackjack's portrait frames the face", found and ((not MODERN and found.camera == 0) or (MODERN and found.zoom == 1)))
+if MODERN then Check("on the modern client that's portrait zoom (camera 0 leaves some models full body)", found and found.zoom == 1) end
 -- hidden and shown again: chosen again with the face camera
 p:Hide(); Slow(p); p:Show()
 Tick(1)
-Check("hidden and shown again: back on the face", p.shownCamera == 0, tostring(p.shownCamera))
+Check("hidden and shown again: back on the face", p.shownCamera == "face", tostring(p.shownCamera))
 io.write(ok and "PORTRAITS PASS\n" or "PORTRAITS FAIL\n")
 os.exit(ok and 0 or 1)

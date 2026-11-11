@@ -1216,6 +1216,17 @@ Slots.S, Slots.ui = S, ui
 function Slots:Machine() return M end
 Slots.EvaluateLine, Slots.EvaluateSpin, Slots.SymbolAt, Slots.RollWilds = EvaluateLine, EvaluateSpin, SymbolAt, RollWilds
 
+-- Start over (Options) gives up a spin in progress and any free spins owed.
+function Slots:Abandon()
+    driver:Hide()
+    S.spinning, S.autoLeft, S.waiting = false, 0, false
+    S.next = (S.next or 0) + 1
+    for r = 1, 5 do S.stopped[r] = true end
+    local d = ns.db.slots
+    if d then d.pending, d.free = nil, nil end
+    if ui.status and ui.reels then Refresh() end
+end
+
 -- For the out-of-chips check: a spin is turning or waiting to pay (reloads).
 function Slots:ChipsInPlay()
     local d = ns.db.slots

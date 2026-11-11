@@ -128,6 +128,13 @@ local function CreateGameRow(parent, game, rowH)
     desc:SetText(game.description or "")
     row.desc = desc
 
+    -- marks a game that's still holding chips
+    row.inPlay = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.inPlay:SetPoint("TOPRIGHT", row, "TOPRIGHT", -10, -8)
+    row.inPlay:SetTextColor(1, 0.6, 0.2)
+    row.inPlay:SetText("In progress")
+    row.inPlay:Hide()
+
     row:SetScript("OnClick", function()
         ns:Sound("IG_MAINMENU_OPTION")
         ns:OpenGame(game.id)
@@ -364,7 +371,8 @@ function ns:BuildOptionsPage(frame)
     done:SetScript("OnClick", function() o:Hide() end)
 
     -- Start over: as if you'd run out of chips. A second click within three
-    -- seconds confirms; not while chips are still in play somewhere.
+    -- seconds confirms, and gives up any game still holding chips (named in
+    -- the note above the button). A party table has to be left first.
     local startOver = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
     startOver:SetWidth(126); startOver:SetHeight(22)
     startOver:SetPoint("BOTTOM", o, "BOTTOM", 2, 4)
@@ -374,17 +382,24 @@ function ns:BuildOptionsPage(frame)
         armedAt, blockedAt = nil, nil
         startOver:SetText("Start over")
     end
+    local inPlayNote = o:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    inPlayNote:SetPoint("BOTTOM", startOver, "TOP", 0, 4)
+    inPlayNote:SetWidth(330)
+    inPlayNote:SetTextColor(1, 0.6, 0.2)
+    o.inPlayNote = inPlayNote
     startOver:SetScript("OnClick", function()
-        if ns:ChipsInPlay() then
+        local party = false
+        for _, p in ipairs(ns:InPlay()) do if not p.canGiveUp then party = true end end
+        if party then
             armedAt = nil
             blockedAt = GetTime()
-            startOver:SetText("Finish your game first")
+            startOver:SetText("Leave your table first")
             ns:After(3, function() if blockedAt and GetTime() - blockedAt >= 2.9 then Restore() end end)
             return
         end
         if armedAt and GetTime() - armedAt <= 3 then
             Restore()
-            ns:StartOver()
+            ns:StartOver(true)
             return
         end
         armedAt = GetTime()
@@ -395,6 +410,19 @@ function ns:BuildOptionsPage(frame)
     o.startOver = startOver
 
     function o:Refresh()
+        local names = {}
+        local party = false
+        for _, p in ipairs(ns:InPlay()) do
+            table.insert(names, p.name)
+            if not p.canGiveUp then party = true end
+        end
+        if ns.getn(names) == 0 then
+            inPlayNote:SetText("")
+        elseif party then
+            inPlayNote:SetText("Chips in play at a party table (" .. table.concat(names, ", ") .. "): leave it to start over.")
+        else
+            inPlayNote:SetText("Chips still in play in " .. table.concat(names, ", ") .. ". Starting over gives them up.")
+        end
         local pack = ns:GetCardArt()
         artName:SetText(pack and pack.name or "?")
         artBy:SetText(pack and pack.author and ("by " .. pack.author) or "")
@@ -641,10 +669,13 @@ function ns:BuildRebuyPage(frame)
 end
 
 -- Start over from the Options: give up your chips and pick a fresh stack,
--- exactly as if you'd run out (stats start over too). Refused while chips
--- are still in play anywhere.
-function ns:StartOver()
-    if self:ChipsInPlay() then return false end
+-- exactly as if you'd run out (stats start over too). With chips still in
+-- play it's refused, unless giveUp: then those games are given up first
+-- (party tables can't be, so it's still refused while you sit at one).
+function ns:StartOver(giveUp)
+    if self:ChipsInPlay() then
+        if not giveUp or not self:GiveUpAll() then return false end
+    end
     self.db.chips = 0
     self:UpdateChipsDisplay()
     if self.optionsPage then self.optionsPage:Hide() end
@@ -664,8 +695,15 @@ end
 function ns:UpdateChipsDisplay()
     if not self.frame then return end
     local text = "Chips: |cffffffff" .. self:FormatChips(self.db.chips) .. "|r"
-    self.frame.menu.chips:SetText(text)
     self.frame.gamePage.chips:SetText(text)
+    -- on the menu, mark games still holding chips, and say so if you're out
+    local held = {}
+    for _, p in ipairs(self:InPlay()) do if p.menuId then held[p.menuId] = true end end
+    for id, row in pairs(self.menuRows or {}) do ns.SetShown(row.inPlay, held[id] == true) end
+    if self.db.chips < 1 and next(held) then
+        text = text .. "  |cffff9933(more in play: see In progress)|r"
+    end
+    self.frame.menu.chips:SetText(text)
 end
 
 ---------------------------------------------------------------------------

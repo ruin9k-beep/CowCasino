@@ -17,8 +17,9 @@ One addon folder runs on two clients:
 - **Slots**: 3x3, 5x4 and 5x5 machines with wild multipliers, scatters, free spins
   with a rising multiplier, big win banners and auto spin
 - **Mines**
-- **Plinko**: 8, 12 or 16 rows, three risk levels, up to 10 balls a drop
+- **Plinko**: 8, 12 or 16 rows, three risk levels, up to 100 balls a drop
 - **Crash**, with auto cash-out
+- **Hi-Lo**: higher or lower, with the multiplier growing each right guess
 
 Also: swappable card art (Plain, Tauren, Orc & Troll, Human) and slot themes, 3D player
 portraits and table chat at party tables, a minimap button and per-game sounds.

@@ -65,14 +65,24 @@ local function Expect(fromIndex)
   end
 end
 Check("one ball per drop to start", pdb.count == 1 and Find("Drop 50") ~= nil)
-for _ = 1, 12 do env.Fire(P.ui.countNext, "OnClick", "LeftButton") end
-Check("up to 10 balls per drop", pdb.count == 10 and not P.ui.countNext.enabled and Find("Drop 10 x 50") ~= nil, pdb.count)
+local function Count(step, right) env.Fire(P.ui.countButtons[step], "OnClick", right and "RightButton" or "LeftButton") end
+Count(50); Count(50); Count(50)
+Check("+50 three times: 100 balls per drop, the most", pdb.count == 100 and Find("Drop 100 x 50") ~= nil, pdb.count)
+Count(50, true); Count(10, true); Count(10, true); Count(10, true); Count(10, true)
+Check("right-click takes away: -50, then -10 four times = 10", pdb.count == 10, pdb.count)
+Count(5); Count(1, true); Count(5, true); Count(1)
+Check("+5, -1, -5, +1: still 10", pdb.count == 10 and Find("Drop 10 x 50") ~= nil, pdb.count)
+Count(50, true)
+Check("never below 1", pdb.count == 1)
+Count(5); Count(5); Count(1, true)     -- 1 + 5 + 5 - 1 = 10
 Press("Drop", true)
 Check("one press sends 10 balls and takes 10 bets", table.getn(P.balls) == 10 and ns.db.chips == start - 500, table.getn(P.balls))
 Expect(1)
+Count(50); Count(50)
 Press("Drop", true)
 Expect(11)
-Check("20 balls in the air at most", table.getn(P.balls) == 20 and not Find("Drop", true).enabled)
+Check("a 100-ball drop on top: 110 in the air", table.getn(P.balls) == 110 and ns.db.chips == start - 5500)
+Check("...and no more than 200 in the air at once", not Find("Drop", true).enabled)
 Tick(0.1)
 local hidden = 0
 for k = 2, 10 do if not P.balls[k].tex.shown then hidden = hidden + 1 end end
@@ -86,10 +96,10 @@ Check("Options has risk, rows and ball speed", o:IsShown() and o.risk.value.text
   and o.speed.value.text == "Normal")
 Check("...risk and rows are off while balls fall", not o.rows.prev.enabled and not o.risk.next.enabled and o.speed.next.enabled)
 Check("chips in play while balls fall", ns:ChipsInPlay())
-Tick(4)
+Tick(8)
 Check("every ball lands and pays its slot", table.getn(P.balls) == 0 and ns.db.chips == expect, ns.db.chips .. " vs " .. expect)
-Check("one line for the whole drop", string.find(P.ui.status.text or "", "10 balls:", 1, true) ~= nil, P.ui.status.text)
-Check("stats: balls and net", pdb.stats.balls == 20 and pdb.stats.net == ns.db.chips - start, pdb.stats.net)
+Check("one line for the whole drop", string.find(P.ui.status.text or "", "100 balls:", 1, true) ~= nil, P.ui.status.text)
+Check("stats: balls and net", pdb.stats.balls == 110 and pdb.stats.net == ns.db.chips - start, pdb.stats.net)
 Check("no chips in play once they land", not ns:ChipsInPlay())
 Check("...and risk and rows can change again", o.rows.prev.enabled and o.risk.next.enabled)
 
@@ -102,7 +112,7 @@ local shownSlots, edge = 0, nil
 for i, s in ipairs(P.ui.slots) do if s.shown then shownSlots = shownSlots + 1; if i == 1 then edge = s.text.text end end end
 Check("the board shows 9 slots with 29x at the edge", shownSlots == 9 and edge == "29", tostring(shownSlots) .. " " .. tostring(edge))
 Check("the table shows the setup", P.ui.setup.text == "8 rows, High risk", P.ui.setup.text)
-for _ = 1, 9 do env.Fire(P.ui.countPrev, "OnClick", "LeftButton") end
+Count(50, true); Count(50, true)
 local before = ns.db.chips
 Press("Drop", true)
 local b = P.balls[1]
@@ -112,12 +122,12 @@ Check("one 8-row ball pays from the 8-row table", ns.db.chips == before - 50 + P
 -- not enough chips for every ball of a drop
 local keep = ns.db.chips
 ns.db.chips = 120
-for _ = 1, 2 do env.Fire(P.ui.countNext, "OnClick", "LeftButton") end
+Count(1); Count(1)
 Check("3 balls of 50 need 150 chips: Drop waits", pdb.count == 3 and not Find("Drop", true).enabled)
-env.Fire(P.ui.countPrev, "OnClick", "LeftButton")
+Count(1, true)
 Check("2 balls of 50 fit", Find("Drop 2 x 50") ~= nil and Find("Drop", true).enabled)
 ns.db.chips = keep
-env.Fire(P.ui.countPrev, "OnClick", "LeftButton")
+Count(1, true)
 
 -- a ball in the air at a reload is refunded
 before = ns.db.chips

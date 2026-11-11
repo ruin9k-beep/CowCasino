@@ -148,15 +148,19 @@ do
     if row.h ~= 56 or row.desc.h ~= 24 then descOk = false end
   end
   Check("menu rows are full height with two lines for the description", descOk)
-  Check("four games a page, with page buttons", shown == 4 and menu.pager:IsShown() and menu.pageText.text == "Page 1 of 2", menu.pageText.text)
+  local pages = math.ceil(table.getn(ns.gameOrder) / 4)
+  Check("four games a page, with page buttons", shown == 4 and menu.pager:IsShown() and menu.pageText.text == "Page 1 of " .. pages, menu.pageText.text)
   Check("...Prev is off on page 1", not menu.prevPage.enabled and menu.nextPage.enabled)
-  env.Fire(menu.nextPage, "OnClick", "LeftButton")
-  shown = 0
-  local showsCrash = false
-  for id, row in pairs(ns.menuRows) do if row:IsShown() then shown = shown + 1; if id == "crash" then showsCrash = true end end end
-  Check("Next shows the rest of the games", menu.page == 2 and shown == 4 and showsCrash and not menu.nextPage.enabled)
+  local seen = {}
+  for p = 1, pages do
+    for id, row in pairs(ns.menuRows) do if row:IsShown() then seen[id] = true end end
+    if p < pages then env.Fire(menu.nextPage, "OnClick", "LeftButton") end
+  end
+  local all = true
+  for _, id in ipairs(ns.gameOrder) do if not seen[id] then all = false end end
+  Check("Next pages through every game", menu.page == pages and all and not menu.nextPage.enabled, menu.page)
   env.Fire(menu.list, "OnMouseWheel", 1)
-  Check("the mouse wheel turns back a page", menu.page == 1)
+  Check("the mouse wheel turns back a page", menu.page == pages - 1)
   local lowest = 0
   for _, row in pairs(ns.menuRows) do
     if row:IsShown() then local bottom = -row.anchor[5] + 56; if bottom > lowest then lowest = bottom end end
@@ -179,6 +183,20 @@ do
     seen[icon] = id
   end
   Check("every game has its own painted icon (64x64, 32-bit TGA)", table.getn(bad) == 0, table.concat(bad, "; "))
+end
+-- party games say so on the menu, on a line of their own
+do
+  local mp, bad = {}, {}
+  for _, id in ipairs(ns.gameOrder) do
+    local d = ns.games[id].description or ""
+    local s, e = string.find(d, "\n|cff66ccffSupports Multiplayer|r", 1, true)
+    if s then mp[id] = true; if string.len(string.sub(d, 1, s - 1)) > 50 then table.insert(bad, id .. " first line too long") end end
+  end
+  Check("Blackjack, Hold'em and Craps say Supports Multiplayer on line two", mp.blackjack and mp.holdem and mp.craps
+    and not mp.slots and not mp.hilo and table.getn(bad) == 0, table.concat(bad, "; "))
+  local shownOnMenu = false
+  for _, f in ipairs(env.all) do if f.kind == "FontString" and f.text and string.find(f.text, "Supports Multiplayer", 1, true) then shownOnMenu = true end end
+  Check("...and the menu rows show it", shownOnMenu)
 end
 io.write(ok and "OPTIONS PASS\n" or "OPTIONS FAIL\n")
 os.exit(ok and 0 or 1)

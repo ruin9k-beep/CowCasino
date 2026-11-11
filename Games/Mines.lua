@@ -568,6 +568,14 @@ function Mines:ChipsInPlay()
     return d ~= nil and d.active ~= nil
 end
 
+-- Start over (Options) gives up a board in progress.
+function Mines:Abandon()
+    local d = ns.db.mines
+    if d then d.active = nil end
+    last = nil
+    if ui.status then Refresh() end
+end
+
 -- A fresh stack after running out (Core.lua): stats start over.
 function Mines:ResetStats()
     local d = ns.db.mines

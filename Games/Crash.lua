@@ -451,6 +451,13 @@ function Crash:ChipsInPlay()
     return run ~= nil and not run.over and not run.cashed
 end
 
+-- Start over (Options) gives up a run in progress.
+function Crash:Abandon()
+    if run then run.over = true end
+    if ns.db.crash then ns.db.crash.live = nil end
+    if ui.graph then Refresh() end
+end
+
 function Crash:ResetStats()
     local d = ns.db.crash
     if not d then return end

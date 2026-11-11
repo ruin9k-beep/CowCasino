@@ -40,7 +40,7 @@ ns:OpenGame("blackjack")
 local bdb = ns.db.blackjack
 local bjPortrait = ns.games.blackjack and nil
 for _, o in ipairs(env.all) do if o.kind == "PlayerModel" and Visible(o) then bjPortrait = o end end
-Check("blackjack: your 3D portrait shows", bjPortrait ~= nil and bjPortrait.unit == "player" and bjPortrait.camera == 0)
+Check("blackjack: your 3D portrait shows", bjPortrait ~= nil and bjPortrait.unit == "player" and (bjPortrait.camera == 0 or bjPortrait.zoom == 1))
 Check("blackjack: default sounds", bdb.sounds.win == "coins" and bdb.sounds.lose == "questDrop" and bdb.sounds.newHand == "pageTurn")
 math.randomseed(5)
 local rounds, okRounds = 0, 0

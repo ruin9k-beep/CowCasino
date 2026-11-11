@@ -1617,5 +1617,6 @@ function Game:ResetStats()
     for k, v in pairs(DEFAULT_STATS) do d.stats[k] = v end
 end
 
+Game.parent = "blackjack"   -- shown inside Blackjack
 ns.PartyBlackjack = Game
 table.insert(ns.partyGames, Game)

@@ -28,3 +28,6 @@ function ns.SendAddonMessage(prefix, text, channel)
 end
 
 ns.QUESTION_MARK_MODEL = "Interface\\Buttons\\talktomequestionmark.mdx"
+
+-- A portrait's close-up on the face: the model's face camera.
+function ns.FaceCamera(model) model:SetCamera(0) end

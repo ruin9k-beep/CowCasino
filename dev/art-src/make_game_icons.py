@@ -230,7 +230,29 @@ def crash():
     return frame(img)
 
 
-ICONS = [("BlackjackIcon", blackjack), ("HoldemIcon", holdem), ("RouletteIcon", roulette), ("SlotsIcon", slots),
+# --- Hi-Lo: a card between an up arrow and a down arrow -------------------------
+def hilo():
+    img = backdrop((30, 110, 130, 255), (8, 30, 40, 255))
+    rotated_card(img, 256, 256, 190, 270, 0, "7", "\u2663", INK)
+
+    def arrow(cx, cy, up, col):
+        w, h, stem = 120, 170, 52
+        sgn = -1 if up else 1
+        tip, base = cy + sgn * h / 2, cy - sgn * h / 2
+        mid = cy + sgn * h * 0.02
+        poly = [(cx, tip), (cx + w / 2, mid), (cx + stem / 2, mid), (cx + stem / 2, base),
+                (cx - stem / 2, base), (cx - stem / 2, mid), (cx - w / 2, mid)]
+        sh = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        ImageDraw.Draw(sh).polygon([(x + 8, y + 12) for x, y in poly], fill=(0, 0, 0, 150))
+        img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(8)))
+        ImageDraw.Draw(img).polygon(poly, fill=col, outline=(20, 20, 20, 255), width=6)
+
+    arrow(96, 190, True, (70, 220, 90, 255))
+    arrow(416, 322, False, (235, 70, 60, 255))
+    return frame(img)
+
+
+ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("RouletteIcon", roulette), ("SlotsIcon", slots),
          ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash)]
 
 if __name__ == "__main__":
@@ -240,7 +262,7 @@ if __name__ == "__main__":
         img.resize((64, 64), Image.LANCZOS).save(os.path.join(OUT, name + ".tga"))
         big.append(img)
     craps = os.path.join(OUT, "CrapsIcon.tga")
-    sheet = Image.new("RGBA", (8 * 150 + 10, 210), (30, 30, 30, 255))
+    sheet = Image.new("RGBA", (9 * 150 + 10, 210), (30, 30, 30, 255))
     for i, img in enumerate(big + ([Image.open(craps).convert("RGBA").resize((512, 512), Image.NEAREST)] if os.path.exists(craps) else [])):
         sheet.paste(img.resize((140, 140), Image.LANCZOS), (10 + i * 150, 10))
         small = img.resize((64, 64), Image.LANCZOS).resize((40, 40), Image.LANCZOS)

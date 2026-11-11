@@ -216,6 +216,18 @@ end
 ---------------------------------------------------------------------------
 ns.QUESTION_MARK_MODEL = "Interface\\Buttons\\talktomequestionmark.m2"
 
+-- A portrait's close-up on the face. The modern client's camera 0 only
+-- frames some models (the rest stay full body); portrait zoom frames every
+-- player's head and shoulders, the way the game's own unit portraits do.
+function ns.FaceCamera(model)
+    if model.SetPortraitZoom then
+        model:SetPortraitZoom(1)
+        if model.SetCamDistanceScale then model:SetCamDistanceScale(1) end
+    else
+        model:SetCamera(0)
+    end
+end
+
 function CowCasino_OnAddonCompartmentClick()
     if ns.Toggle then ns:Toggle() end
 end

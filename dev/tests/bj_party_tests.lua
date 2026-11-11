@@ -257,7 +257,7 @@ end
 local hb = SeatFor(host, "Bob")
 local cy = SeatFor(cid, "You")
 local ch = SeatFor(cid, "Host")
-Check("portraits: host sees Bob", hb and hb.portrait:IsShown() and hb.portrait.unit == host.ns.Net:UnitFor("Bob") and hb.portrait.camera == 0,
+Check("portraits: host sees Bob", hb and hb.portrait:IsShown() and hb.portrait.unit == host.ns.Net:UnitFor("Bob") and (hb.portrait.camera == 0 or hb.portrait.zoom == 1),
   hb and tostring(hb.portrait.unit))
 Check("portraits: your own seat shows you", cy and cy.portrait.unit == "player")
 Check("portraits: Cid sees the host", ch and ch.portrait.unit == cid.ns.Net:UnitFor("Host"))

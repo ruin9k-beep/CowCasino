@@ -35,7 +35,7 @@ local wantHands = saved.CowCasinoDB.holdem and saved.CowCasinoDB.holdem.stats an
 saved.CowCasinoDB.point = {}
 local env, okLoad, err = Start(saved.CowCasinoDB)
 Check("startup with your saved data: no error", okLoad, err and tostring(err))
-Check("menu has every game", okLoad and Rows(env) == table.getn(env.CowCasino.ns.gameOrder) and Rows(env) == 8, okLoad and (Rows(env) .. " rows") or "")
+Check("menu has every game", okLoad and Rows(env) == table.getn(env.CowCasino.ns.gameOrder) and Rows(env) >= 9, okLoad and (Rows(env) .. " rows") or "")
 Check("minimap button exists", okLoad and env.CowCasinoMinimapButton ~= nil)
 Check("empty saved position reset to the center", okLoad and env.CowCasinoDB.point[1] == "CENTER")
 Check("chips (plus cashed-in pachinko balls) and stats kept", okLoad and env.CowCasinoDB.chips == wantChips and env.CowCasinoDB.holdem.stats.hands == wantHands)
@@ -49,7 +49,7 @@ Check("drag saves a real position", p[1] == "TOPLEFT" and p[2] == "BOTTOMLEFT" a
 local env2, ok2, err2 = Start(env.CowCasinoDB)
 local a = ok2 and env2.CowCasinoFrame.anchor
 Check("restart after a drag: window where you left it", ok2 and a and a[1] == "TOPLEFT" and a[4] == 412.5 and a[5] == 655, err2 and tostring(err2))
-Check("restart after a drag: menu and minimap intact", ok2 and Rows(env2) == 8 and env2.CowCasinoMinimapButton ~= nil)
+Check("restart after a drag: menu and minimap intact", ok2 and Rows(env2) == table.getn(env2.CowCasino.ns.gameOrder) and env2.CowCasinoMinimapButton ~= nil)
 
 -- 3) /casino reset still works.
 env2.SlashCmdList.COWCASINO("reset")

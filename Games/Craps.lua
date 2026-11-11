@@ -301,7 +301,7 @@ Rules.SPOTS[6].help = "One roll. A 2, 3 or 12 pays 7:1."
 local Craps = {
     id = "craps",
     name = "Craps",
-    description = "Roll the dice: Pass Line, odds, Field and more. Party play too.",
+    description = "Roll the dice: Pass Line, odds, Field and more.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\CrapsIcon",   -- painted dice (1.12 has no dice icon)
 }
 
@@ -713,6 +713,14 @@ end
 function Craps:ChipsInPlay()
     local d = ns.db.craps
     return S.rolling or (d ~= nil and d.bets ~= nil and Rules.Total(d.bets) > 0)
+end
+
+-- Start over (Options) gives up the bets on the table.
+function Craps:Abandon()
+    local d = ns.db.craps
+    if d then d.bets, d.point = {}, nil end
+    S.results = {}
+    if ui.spots then Refresh() end
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.

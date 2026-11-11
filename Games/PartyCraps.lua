@@ -1111,5 +1111,6 @@ end
 -- Exposed for tests.
 Game.T, Game.ui = T, ui
 
+Game.parent = "craps"       -- shown inside Craps
 ns.PartyCraps = Game
 table.insert(ns.partyGames, Game)

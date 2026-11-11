@@ -29,7 +29,7 @@ local DEFAULT_STATS    = { rounds = 0, wins = 0, losses = 0, pushes = 0, blackja
 local Blackjack = {
     id = "blackjack",
     name = "Blackjack",
-    description = "Beat the dealer to 21. Double, split, insurance - all of it.",
+    description = "Beat the dealer to 21. Double, split, insurance.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
@@ -946,6 +946,14 @@ end
 -- For the out-of-chips check: a round is in progress.
 function Blackjack:ChipsInPlay()
     return S.phase ~= "betting"
+end
+
+-- Start over (Options) gives up a hand in progress.
+function Blackjack:Abandon()
+    S.round = S.round + 1          -- stops the dealer's timers
+    S.phase, S.hands, S.dealer, S.active = "betting", {}, {}, 0
+    S.holeHidden, S.insurance = false, 0
+    if ui.status then Refresh() end
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.

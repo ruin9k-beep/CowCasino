@@ -178,19 +178,40 @@ Check("two clicks: chips gone, Options closed, the rebuy screen up", ns7.db.chip
 Click7(Btn7("50,000 chips"))
 Check("picking a stack: 50,000 and fresh stats, like running out", ns7.db.chips == 50000 and ns7.db.slots.stats.spins == 0
   and ns7.db.bestChips == 50000 and not ns7.rebuyPage:IsShown())
--- not while chips are in play
+-- chips still in play somewhere: the menu says where, Start over can give it up
 ns7:OpenGame("mines")
 Click7(Btn7("Bet 25"))
 local before7 = ns7.db.chips
 ns7:ShowMenu()
+Check("the menu marks Mines In progress", ns7.menuRows.mines.inPlay:IsShown() and not ns7.menuRows.slots.inPlay:IsShown())
+ns7.db.chips = 0                          -- the rest lost somewhere else
+ns7:UpdateChipsDisplay()
+Check("out of chips with a board open: the menu says more is in play", string.find(ns7.frame.menu.chips.text, "In progress", 1, true) ~= nil
+  and not ns7.rebuyPage:IsShown(), ns7.frame.menu.chips.text)
+Check("StartOver on its own still refuses while chips are in play", ns7:StartOver() == false and ns7.db.mines.active ~= nil)
 Click7(Btn7("Options"))
+Check("Options names the game holding chips", string.find(ns7.optionsPage.inPlayNote.text or "", "Mines", 1, true) ~= nil,
+  ns7.optionsPage.inPlayNote.text)
 Click7(so)
-Check("with a Mines board in progress: 'Finish your game first'", so.text == "Finish your game first" and ns7.db.chips == before7)
+Check("one click asks to confirm", so.text == "Click again to confirm" and ns7.db.mines.active ~= nil)
 Click7(so)
-Check("...and clicking again still does nothing", ns7.db.chips == before7 and not ns7.rebuyPage:IsShown())
-Tick7(4)
-Check("...the button comes back afterward", so.text == "Start over")
-Check("StartOver itself refuses while chips are in play", ns7:StartOver() == false and ns7.db.chips == before7)
+Check("two clicks give up the board and bring up a fresh stack", ns7.db.mines.active == nil and ns7.rebuyPage:IsVisible())
+Click7(Btn7("1,000 chips"))
+Check("...1,000 chips, and Mines is no longer In progress", ns7.db.chips == 1000 and not ns7.menuRows.mines.inPlay:IsShown())
+
+-- a seat at Hold'em with an empty stack holds no chips
+ns7:OpenGame("holdem")
+local P7 = ns7.games.holdem
+env7.Fire(P7.ui.buyIns[1], "OnClick", "LeftButton")
+Check("sitting down at Hold'em puts chips in play", P7.T.seats[1] ~= nil and P7:ChipsInPlay())
+-- between hands with nothing left in front of you
+local T7 = P7.T
+local me = T7.seats[T7.mySeat]
+local saveStack, saveStreet = me.stack, T7.street
+me.stack, T7.street = 0, "idle"
+Check("...but an empty stack between hands holds nothing (no lock at 0 chips)", not P7:ChipsInPlay())
+me.stack, T7.street = saveStack, saveStreet
+Check("a computer table can be given up from Start over", P7:CanAbandon())
 
 io.write(ok and "REBUY PASS\n" or "REBUY FAIL\n")
 os.exit(ok and 0 or 1)

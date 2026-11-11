@@ -148,8 +148,8 @@ ns2:OpenGame("slots")
 local d2 = ns2.db.slots
 Check("after a reload the free spins are waiting", d2.free and d2.free.left == 3 and env2.CowCasino.ns.games.slots.ui.status.text
   and string.find(env2.CowCasino.ns.games.slots.ui.status.text, "3 free spins", 1, true) ~= nil)
-for _ = 1, 400 do
-  if not d2.free then break end
+for _ = 1, 4000 do
+  if not d2.free and not ns2.games.slots:ChipsInPlay() then break end
   env2.CLOCK = env2.CLOCK + 0.05
   for _, o in ipairs(env2.all) do if o.scripts.OnUpdate and o.shown then env2.Fire(o, "OnUpdate", 0.05) end end
 end
@@ -168,13 +168,21 @@ Check("free spins from the 3x3 open the 3x3", ns3.games.slots:Machine().id == "3
 Check("Auto plays 25 spins by default", Find("Auto 25") ~= nil)
 local before = d.stats.spins
 Press("Auto 25")
-Tick(6)
-Check("Auto keeps spinning by itself", d.stats.spins >= before + 3 and Find("Stop (", true) ~= nil, d.stats.spins - before)
+-- (big wins and free spins add pauses, so allow time)
+for _ = 1, 60 do if d.stats.spins >= before + 3 then break end Tick(0.5) end
+Check("Auto keeps spinning by itself", d.stats.spins >= before + 3 and G.S.autoLeft > 0, d.stats.spins - before)
 Check("...with the bet locked", not G.ui.raise.enabled)
-Press("Stop (", true)
-local stoppedAt = d.stats.spins
+local paidBefore = d.stats.wagered
+G.S.next = G.S.next   -- (no-op: Stop is pressed by the button below)
+local stopButton = Find("Stop (", true) or Find("Stop")
+env.Fire(stopButton, "OnClick", "LeftButton")
+if G.S.spinning then Tick(3) end
+-- free spins already won still play out; then nothing more should start
+for _ = 1, 300 do if not (d.free or G.S.spinning or G.S.waiting) then break end Tick(1) end
+local stoppedAt, paidAt = d.stats.spins, d.stats.wagered
 Tick(6)
-Check("Stop ends Auto", d.stats.spins <= stoppedAt + 1 and Find("Auto 25") ~= nil, d.stats.spins - stoppedAt)
+Check("Stop ends Auto", G.S.autoLeft == 0 and d.stats.spins == stoppedAt and d.stats.wagered == paidAt and Find("Auto 25") ~= nil,
+  d.stats.spins - stoppedAt)
 -- Auto stops when the chips run short
 ns.db.chips = 25
 Press("Auto 25")
@@ -184,7 +192,8 @@ for _ = 1, 300 do if not (d.free or G.S.spinning or G.S.waiting) then break end 
 Check("Auto stops when there aren't chips for the bet", G.S.autoLeft == 0 and ns.db.chips < 10 + 1000 and not G.S.spinning)
 ns.db.chips = 5000
 Press("Options")
-Check("Options: Auto spins 10 to 100", Shown("Auto spins") ~= nil and Shown("25 spins") ~= nil)
+Check("Options: Auto spins 10 to 100", Shown("Auto spins") ~= nil and Shown("25 spins") ~= nil,
+  tostring(Shown("Auto spins") ~= nil) .. " " .. tostring(d.autoCount) .. " " .. tostring(G.ui.options and G.ui.options.shown))
 Press(">")  -- reel size
 Press("Done")
 

@@ -177,6 +177,33 @@ function ns:ChipsInPlay()
     return false
 end
 
+-- Games holding chips right now, in menu order: { game, name, menuId, canGiveUp }.
+-- Party tables can't be given up from Options; you leave them in the game.
+function ns:InPlay()
+    local out = {}
+    for _, id in ipairs(self.gameOrder) do
+        local game = self.games[id]
+        if game.ChipsInPlay and game:ChipsInPlay() then
+            local can = game.Abandon ~= nil and (game.CanAbandon == nil or game:CanAbandon())
+            table.insert(out, { game = game, name = game.name or id, menuId = id, canGiveUp = can })
+        end
+    end
+    for _, party in ipairs(self.partyGames) do
+        if party.ChipsInPlay and party:ChipsInPlay() then
+            table.insert(out, { game = party, name = party.name, menuId = party.parent, canGiveUp = false })
+        end
+    end
+    return out
+end
+
+-- Give up everything that can be (for Start over). True if nothing is left in play.
+function ns:GiveUpAll()
+    for _, p in ipairs(self:InPlay()) do
+        if p.canGiveUp then p.game:Abandon() end
+    end
+    return not self:ChipsInPlay()
+end
+
 function ns:IsBroke()
     return self.db.chips < 1 and not self:ChipsInPlay()
 end

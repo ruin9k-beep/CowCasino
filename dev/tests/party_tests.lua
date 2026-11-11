@@ -214,7 +214,7 @@ Run(1)
 local function UnitOf(c, who) return c.ns.Net:UnitFor(who) end
 local hb = SeatUI(host, "Bob")
 Check("portrait: host sees Bob's 3D portrait", hb and hb.portrait:IsShown() and hb.portrait.unit == UnitOf(host, "Bob")
-  and hb.portrait.camera == 0, hb and tostring(hb.portrait.unit))
+  and (hb.portrait.camera == 0 or hb.portrait.zoom == 1), hb and tostring(hb.portrait.unit))
 local mine = SeatUI(cid, "You")
 Check("portrait: your own seat shows you", mine and mine.portrait:IsShown() and mine.portrait.unit == "player")
 local botSeat
@@ -230,7 +230,7 @@ Check("portrait: out of range shows the question mark", hb.portrait:IsShown() an
   and hb.portrait.model == host.env.QUESTION_MODEL, tostring(hb.portrait.model))
 host.env.UNIT_VISIBLE[bobUnit] = nil
 Run(3)
-Check("portrait: back in range shows Bob again", hb.portrait.unit == bobUnit and hb.portrait.camera == 0)
+Check("portrait: back in range shows Bob again", hb.portrait.unit == bobUnit and (hb.portrait.camera == 0 or hb.portrait.zoom == 1))
 local hm = SeatUI(host, "You")
 hm.portrait:Hide(); hm.portrait.unit = nil
 hm.portrait:Show()

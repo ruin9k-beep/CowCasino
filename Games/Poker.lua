@@ -38,7 +38,7 @@ local DEFAULT_STATS = { hands = 0, won = 0, biggestPot = 0, buyIns = 0 }
 local Poker = {
     id = "holdem",
     name = "Texas Hold'em",
-    description = "No-limit poker against three computer players.",
+    description = "No-limit poker against three computer players.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\HoldemIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
@@ -2240,9 +2240,23 @@ function Poker:ChatTable()
 end
 
 -- For the out-of-chips check: seated at a table, or a seat saved from a reload.
+-- Start over (Options) can give up a seat at a computer table; a party
+-- table has to be left the usual way.
+function Poker:CanAbandon()
+    local d = ns.db.holdem
+    return T.mode == "solo" and not (d and (d.party or d.partyHost))
+end
+function Poker:Abandon()
+    if not self:CanAbandon() then return end
+    if ns.db.holdem then ns.db.holdem.seat = nil end
+    ResetToLobby()
+    Refresh()
+end
+
 function Poker:ChipsInPlay()
     local d = ns.db.holdem
-    if T.seats[1] then return true end
+    -- seated: chips in play unless your stack is empty between hands
+    if T.seats[1] then return (Me() and (Me().stack or 0) > 0) or T.street ~= "idle" end
     return d ~= nil and (d.seat ~= nil or d.party ~= nil or d.partyHost ~= nil)
 end
 

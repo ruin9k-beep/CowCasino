@@ -148,5 +148,11 @@ function SoundName(id) return SOUND_NAMES[id] or id end
 ''')
 # the modern client reads the Mainline .toc
 s = s.replace('io.lines(ADDON .. "/CowCasino.toc")', 'io.lines(ADDON .. "/CowCasino_Mainline.toc")')
+rep('''  PlayerModel = set(FRAME .. " SetUnit SetCamera SetModel SetModelScale SetPosition ClearModel SetFacing"),''',
+    '''  PlayerModel = set(FRAME .. " SetUnit SetCamera SetModel SetModelScale SetPosition ClearModel SetFacing SetPortraitZoom SetCamDistanceScale"),''')
+rep('''function methods:SetCamera(c) assert(type(c) == "number"); self.camera = c end''',
+    '''function methods:SetCamera(c) assert(type(c) == "number"); self.camera = c end
+function methods:SetPortraitZoom(z) assert(type(z) == "number"); self.zoom = z end
+function methods:SetCamDistanceScale(d) assert(type(d) == "number"); self.camScale = d end''')
 open('mockretail.lua','w').write(s)
 print("ok")

@@ -6,16 +6,17 @@
 -- offline) gets a floating question mark until they're close enough. Every
 -- portrait rechecks that every two seconds.
 --
--- The close-up on the face is the model's face camera (camera 0). The game
--- loads a player's model a moment after it's asked for, and a camera set
--- before then is lost (leaving the full body), so the face camera is set
--- again every frame for a moment after the model is chosen, and again at
--- every two-second recheck.
+-- The close-up on the face comes from ns.FaceCamera (Compat112.lua: the
+-- model's face camera, camera 0; CompatModern.lua: the modern client's
+-- portrait zoom, since its face camera only frames some models). The game
+-- loads a player's model a moment after it's asked for, and framing set
+-- before then is lost (leaving the full body), so it's set again every
+-- frame for a moment after the model is chosen, and again at every
+-- two-second recheck.
 
 local ns = CowCasino.ns
 
 local QUESTION_MARK = ns.QUESTION_MARK_MODEL
-local FACE_CAMERA = 0
 local SETTLE = 1.5      -- seconds to keep setting the face camera after choosing a model
 local portraits = {}
 
@@ -24,7 +25,7 @@ local function Apply(m)
         m:SetModelScale(1)
         m:SetPosition(0, 0, 0)
         m:SetUnit(m.unitId)
-        m:SetCamera(FACE_CAMERA)
+        ns.FaceCamera(m)
         m.settle = SETTLE
     else
         m.settle = nil
@@ -58,7 +59,7 @@ function ns:CreatePortrait(parent, width, height)
     m:SetScript("OnUpdate", function()
         if not this.settle then return end
         this.settle = this.settle - (arg1 or 0)
-        if this.inRange then this:SetCamera(FACE_CAMERA) end
+        if this.inRange then ns.FaceCamera(this) end
         if this.settle <= 0 then this.settle = nil end
     end)
     m:Hide()
@@ -77,7 +78,7 @@ ticker:SetScript("OnUpdate", function()
     for _, m in ipairs(portraits) do
         if m.unitId and m:IsVisible() then
             ShowUnit(m, m.unitId)
-            if m.inRange then m:SetCamera(FACE_CAMERA) end   -- in case the game reset it
+            if m.inRange then ns.FaceCamera(m) end   -- in case the game reset it
         end
     end
 end)
