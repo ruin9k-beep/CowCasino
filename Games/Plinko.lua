@@ -527,19 +527,27 @@ function Plinko:Build(panel)
     end
     ui.clear = MakeButton(row1, "Clear", 46, function() db.bet = 0; Refresh() end)
     ui.clear:SetPoint("LEFT", row1, "LEFT", x, 0)
-    -- Row 2: drop, and how many balls it sends: +1 +5 +10 +50 (right-click takes away)
+    -- Row 2: drop, and how many balls it sends: +1 +5 +10 +50, or -1 -5 -10
+    -- -50 after pressing +/- (right-click also takes away)
     ui.drop = MakeButton(panel, "Drop", 128, Drop, 26)
     ui.drop:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, 22)
+    -- (the Drop button says how many balls; this label stays hidden to leave
+    -- room for the +/- switch)
     ui.count = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     ui.count:SetPoint("LEFT", ui.drop, "RIGHT", 4, 0)
-    ui.count:SetWidth(62)
+    ui.count:Hide()
     ui.countButtons = {}
+    ui.minus = false        -- the step buttons take balls away
+    local function Label()
+        for s, b in pairs(ui.countButtons) do b:SetText((ui.minus and "-" or "+") .. s) end
+    end
     local cx = 0
     for i = ns.getn(COUNT_STEPS), 1, -1 do
         local step = COUNT_STEPS[i]
         local w = (step >= 10) and 36 or 30
         local b = MakeButton(panel, "+" .. step, w, function(_, button)
-            local dir = (button == "RightButton") and -1 or 1
+            local dir = ui.minus and -1 or 1
+            if button == "RightButton" then dir = -dir end
             db.count = math.max(1, math.min(MAX_PER_DROP, db.count + dir * step))
             ns:Sound("IG_MAINMENU_OPTION")
             Refresh()
@@ -548,15 +556,30 @@ function Plinko:Build(panel)
         b:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4 - cx, 24)
         b:SetScript("OnEnter", function()
             GameTooltip:SetOwner(this, "ANCHOR_TOP")
-            GameTooltip:SetText("Balls per drop: " .. step)
-            GameTooltip:AddLine("Left-click to add " .. step .. ", right-click to take " .. step .. " away (1 to "
-                .. MAX_PER_DROP .. "). Every ball is a bet.", 1, 1, 1, true)
+            GameTooltip:SetText("Balls per drop: " .. (ui.minus and "take away " or "add ") .. step)
+            GameTooltip:AddLine("Press +/- to switch between adding and taking away (right-click does the other one). 1 to "
+                .. MAX_PER_DROP .. " balls; every ball is a bet.", 1, 1, 1, true)
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
         ui.countButtons[step] = b
         cx = cx + w + 2
     end
+    -- +/-: switch the buttons between adding balls and taking them away
+    ui.sign = MakeButton(panel, "+/-", 34, function()
+        ui.minus = not ui.minus
+        Label()
+        ns:Sound("IG_MAINMENU_OPTION")
+    end)
+    ui.sign:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4 - cx, 24)
+    ui.sign:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+        GameTooltip:SetText("Add or take away")
+        GameTooltip:AddLine("Switches the buttons beside it between adding balls (+1 +5 +10 +50) and taking them away (-1 -5 -10 -50).",
+            1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    ui.sign:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 6)

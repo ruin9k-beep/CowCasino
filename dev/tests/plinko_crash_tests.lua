@@ -72,6 +72,19 @@ Count(50, true); Count(10, true); Count(10, true); Count(10, true); Count(10, tr
 Check("right-click takes away: -50, then -10 four times = 10", pdb.count == 10, pdb.count)
 Count(5); Count(1, true); Count(5, true); Count(1)
 Check("+5, -1, -5, +1: still 10", pdb.count == 10 and Find("Drop 10 x 50") ~= nil, pdb.count)
+-- the +/- switch: the same buttons take balls away with a left-click
+Count(50); Count(10)                      -- 10 + 60 = 70
+env.Fire(P.ui.sign, "OnClick", "LeftButton")
+Check("+/- switches the buttons to take away", P.ui.countButtons[50]:GetText() == "-50" and P.ui.countButtons[1]:GetText() == "-1",
+  P.ui.countButtons[50]:GetText())
+Count(50); Count(5)
+Check("...and a left-click lowers the count: 70 - 50 - 5 = 15", pdb.count == 15 and Find("Drop 15 x 50") ~= nil, pdb.count)
+Count(1, true)
+Check("...right-click does the opposite (adds)", pdb.count == 16, pdb.count)
+env.Fire(P.ui.sign, "OnClick", "LeftButton")
+Check("+/- again switches back to adding", P.ui.countButtons[50]:GetText() == "+50")
+Count(5, true); Count(1, true)             -- 16 - 5 - 1 = 10
+Check("(back to 10)", pdb.count == 10, pdb.count)
 Count(50, true)
 Check("never below 1", pdb.count == 1)
 Count(5); Count(5); Count(1, true)     -- 1 + 5 + 5 - 1 = 10
