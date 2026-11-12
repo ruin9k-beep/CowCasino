@@ -7,7 +7,7 @@ on the game list) under **Dealer**; the choice is saved and used by every game.
 
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
-- **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em and Craps.
+- **Goblin** (the default): Fizzlecog, a grinning goblin croupier in a tuxedo and red bow tie (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em and Craps.
 - **Human**: Harold, a human croupier (`Art\DealerHuman`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,

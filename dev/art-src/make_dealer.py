@@ -1,6 +1,7 @@
 # Dealer pictures (Dealer.lua), framed like the game icons. 128x128, 32-bit TGA.
-#   DealerGoblin  a goblin croupier: green, long ears, big nose, gold tooth,
-#                 green visor and red bow tie (the default dealer)
+#   DealerGoblin  Fizzlecog, the default dealer: from fizzlecog.png (the
+#                 picture ruin9k supplied), cropped square; the painted goblin
+#                 below is only used if that file is missing
 #   DealerHuman   a human croupier with a green visor and bow tie
 #   python3 make_dealer.py <Art folder> <preview.png>
 from PIL import Image, ImageDraw, ImageFilter
@@ -79,7 +80,16 @@ def human():
 
 if __name__ == "__main__":
     out, preview = sys.argv[1], sys.argv[2]
-    imgs = [("DealerGoblin", goblin()), ("DealerHuman", human())]
+    here = os.path.dirname(os.path.abspath(__file__))
+    src = os.path.join(here, "fizzlecog.png")
+    if os.path.exists(src):
+        pic = Image.open(src).convert("RGBA")
+        side = min(pic.size)
+        left, top = (pic.size[0] - side) // 2, (pic.size[1] - side) // 2
+        fizz = pic.crop((left, top, left + side, top + side)).resize((S, S), Image.LANCZOS)
+    else:
+        fizz = goblin()
+    imgs = [("DealerGoblin", fizz), ("DealerHuman", human())]
     sheet = Image.new("RGBA", (580, 170), (30, 30, 30, 255))
     for i, (name, img) in enumerate(imgs):
         img.resize((128, 128), Image.LANCZOS).save(os.path.join(out, name + ".tga"))
