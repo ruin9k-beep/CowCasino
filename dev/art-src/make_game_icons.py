@@ -105,6 +105,16 @@ def holdem():
     return frame(img)
 
 
+# --- Five-Card Draw: a full house fanned out, five cards ----------------------
+def draw():
+    img = backdrop((120, 50, 120, 255), (40, 12, 45, 255))
+    fan = [("K", "♠", INK), ("K", "♥", RED), ("K", "♣", INK), ("7", "♦", RED), ("7", "♠", INK)]
+    for i, (rank, suit, color) in enumerate(fan):
+        k = i - 2
+        rotated_card(img, 256 + k * 62, 270 + abs(k) * 14, 150, 212, -k * 13, rank, suit, color)
+    return frame(img)
+
+
 # --- Roulette: the wheel from above, with the ball -----------------------------
 def roulette():
     img = backdrop((95, 60, 30, 255), (35, 18, 8, 255))
@@ -252,7 +262,7 @@ def hilo():
     return frame(img)
 
 
-ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("RouletteIcon", roulette), ("SlotsIcon", slots),
+ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
          ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash)]
 
 if __name__ == "__main__":
@@ -262,7 +272,7 @@ if __name__ == "__main__":
         img.resize((64, 64), Image.LANCZOS).save(os.path.join(OUT, name + ".tga"))
         big.append(img)
     craps = os.path.join(OUT, "CrapsIcon.tga")
-    sheet = Image.new("RGBA", (9 * 150 + 10, 210), (30, 30, 30, 255))
+    sheet = Image.new("RGBA", ((len(big) + 1) * 150 + 10, 210), (30, 30, 30, 255))
     for i, img in enumerate(big + ([Image.open(craps).convert("RGBA").resize((512, 512), Image.NEAREST)] if os.path.exists(craps) else [])):
         sheet.paste(img.resize((140, 140), Image.LANCZOS), (10 + i * 150, 10))
         small = img.resize((64, 64), Image.LANCZOS).resize((40, 40), Image.LANCZOS)

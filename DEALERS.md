@@ -1,13 +1,13 @@
 # CowCasino dealers
 
-Games with a dealer (Blackjack, Texas Hold'em and Craps so far) show a strip on top of the window with the
+Games with a dealer (Blackjack, Texas Hold'em, Five-Card Draw and Craps so far) show a strip on top of the window with the
 dealer's picture, name and what they're saying. The picture and name come from the
 selected **dealer**. Players pick one in the **CowCasino Options** (the Options button
 on the game list) under **Dealer**; the choice is saved and used by every game.
 
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
-- **Goblin** (the default): Fizzlecog, a grinning goblin croupier in a tuxedo and red bow tie (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em and Craps.
+- **Goblin** (the default): Fizzlecog, a grinning goblin croupier in a tuxedo and red bow tie (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em, Five-Card Draw and Craps.
 - **Human**: Harold, a human croupier (`Art\DealerHuman`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,
@@ -84,6 +84,20 @@ Texas Hold'em (solo and party tables; every player hears their own chosen dealer
 | `holdemSplit` | the pot is split | `{name}` (one of them), `{pot}`, `{hand}` |
 | `holdemKnockout` | another player runs out of chips | `{name}` |
 | `holdemYouBust` | you run out of chips | |
+
+Five-Card Draw (solo and party tables):
+
+| Moment | When | Fills in |
+|---|---|---|
+| `drawDeal` | a hand is dealt | `{button}`, `{sb}`, `{bb}` |
+| `drawDraw` / `drawSecond` | the draw starts / the second betting round starts (skipped if busy) | |
+| `drawStandPat` / `drawYouStandPat` | someone else / you take no new cards (skipped if busy) | `{name}` |
+| `drawBigDraw` | someone else swaps three or four cards (skipped if busy) | `{name}`, `{count}` |
+| `drawAllIn` / `drawYouAllIn` | another player / you go all-in | `{name}`, `{amount}` |
+| `drawWin` / `drawYouWin` | the hand is won at the showdown | `{name}`, `{pot}`, `{hand}` |
+| `drawFoldWin` / `drawYouFoldWin` | ...won when everyone else folded | `{name}`, `{pot}` |
+| `drawSplit` | the pot is split | `{name}`, `{pot}`, `{hand}` |
+| `drawKnockout` / `drawYouBust` | another player / you run out of chips | `{name}` |
 
 Craps (solo and party tables; everyone at a party table hears the call):
 

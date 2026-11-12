@@ -12,6 +12,8 @@ One addon folder runs on two clients:
 
 - **Blackjack**, solo or at a party table (up to four players, one hosting)
 - **Texas Hold'em** with your party, plus computer players
+- **Five-Card Draw**: you and four computer players, or up to five from your party (the host sets
+  the blinds and buy-in, and whether computer players fill empty seats)
 - **Craps**, solo or at a party table: Pass Line, odds, Field and more
 - **Roulette**
 - **Slots**: 3x3, 5x4 and 5x5 machines with wild multipliers, scatters, free spins
@@ -21,7 +23,7 @@ One addon folder runs on two clients:
 - **Crash**, with auto cash-out
 - **Hi-Lo**: higher or lower, with the multiplier growing each right guess
 
-A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em and Craps so far).
+A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw and Craps so far).
 Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
 explains how a game drives it, including showing a party member's 3D portrait.
 

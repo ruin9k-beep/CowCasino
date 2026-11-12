@@ -486,6 +486,68 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
             "Cleaned out! The dice always come home to papa. Grab more chips from the menu, friend.",
         },
 
+        -- Five-Card Draw (solo and party tables)
+        drawDeal = {
+            "Five cards each, no peekin' at your neighbor's. That's MY job. {button} has the button.",
+            "Dealin' draw! Blinds are {sb} and {bb}. Tips are... encouraged.",
+            "Five for you, five for you... and none for me. Story of my life.",
+            "Fresh hand! I can smell a full house. Or that's my lunch.",
+        },
+        drawDraw = {
+            "Time to draw! Toss your junk, I'll find it a good home.",
+            "Draw time! Up to three cards, four if you're holdin' an Ace. No funny business.",
+            "The draw! Old cards to me, new cards to you. Fair trade. Mostly.",
+        },
+        drawSecond = {
+            "Second round of bettin'! Now we find out who's bluffin'.",
+            "New cards, new bets. My nose is twitchin'!",
+        },
+        drawStandPat = {
+            "{name} stands pat! Either a monster or a liar. I respect both.",
+            "No cards for {name}? Ooh, somebody's confident.",
+            "{name} stands pat. My nose smells... somethin'.",
+        },
+        drawYouStandPat = {
+            "Standin' pat? Bold! Or you're bluffin'. Your secret's safe with me. For a fee.",
+        },
+        drawBigDraw = {
+            "{name} takes {count}! Fishin' in the deep end, eh?",
+            "{count} new cards for {name}. Hope springs eternal!",
+        },
+        drawAllIn = {
+            "{name} shoves {amount}! Now we're cookin'!",
+            "All-in from {name}! {amount} on the line. Somebody hold my nose!",
+        },
+        drawYouAllIn = {
+            "All-in for {amount}?! Fizzlecog approves of this level of risk.",
+        },
+        drawWin = {
+            "{name} takes {pot} with {hand}! Don't forget your favorite dealer.",
+            "{hand} wins it for {name}! {pot}. I'll just... count that for ya.",
+        },
+        drawYouWin = {
+            "You win {pot} with {hand}! Finder's fee? No? Rude.",
+            "{hand}! {pot} for you. My nose is weepin' again.",
+        },
+        drawFoldWin = {
+            "Everybody folds to {name}! {pot}, no questions asked.",
+            "{name} scoops {pot} uncontested. That's my kinda business model.",
+        },
+        drawYouFoldWin = {
+            "They all folded! {pot} for you. Were you bluffin'? Don't tell me, I'll sell it.",
+        },
+        drawSplit = {
+            "A split pot! Sharin' gold. Ugh, my least favorite.",
+            "Chop it! {pot} between the winners. So wholesome I could gag.",
+        },
+        drawKnockout = {
+            "{name} is busted! Fizzlecog Financial is open, friend. Fifty percent, compounded hourly!",
+            "{name}'s outta chips! The gold always comes home... to me.",
+        },
+        drawYouBust = {
+            "Cleaned out, friend! Leave the table to buy back in. I'll keep your seat warm. And your chips.",
+        },
+
         -- Texas Hold'em (solo and party tables)
         holdemDeal = {
             "Cards in the air! {button} has the button. Blinds are {sb} and {bb}... plus a small dealer's fee. Kiddin'! Mostly.",
