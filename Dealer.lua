@@ -3,8 +3,8 @@
 -- dealer can talk to you. It shows:
 --   * a picture: an image (an icon or any texture) or a player's 3D portrait
 --     (a party member dealing, say, or the player with the big blind)
---   * a name line and a message, which can fall back to an idle line after
---     a few seconds
+--   * a name line and a message (the last one stays up until the next; a
+--     game's idle line shows when it opens)
 -- and it can play sounds. It's hidden on the menu and for games without one.
 --
 -- The picture is the dealer you picked in CowCasino Options (a goblin unless
@@ -18,7 +18,7 @@
 --   dealer = { name = "Croupier", image = "Interface\\Icons\\...", idle = "..." }
 -- (image may also be { path, left, right, top, bottom } to crop it).
 -- Then, while that game is on screen, it drives the dealer through ns.Dealer:
---   ns.Dealer:Say(game, "Dealer busts!", 4)          -- 4 seconds, then the idle line
+--   ns.Dealer:Say(game, "Dealer busts!")             -- stays up until the next message
 --   ns.Dealer:Say(game, "Blackjack!", 4, "UI_EPICLOOT_TOAST")   -- with a sound
 --   ns.Dealer:Sound(game, "win", db)                 -- a game sound event (its Sounds menu)
 --   ns.Dealer:Sound(game, "RAID_WARNING")            -- or any sound by name
@@ -33,7 +33,8 @@
 -- game controls the dealer. Opening a game resets the dealer to its table.
 --
 -- Messages queue up: each one stays up for at least 3 seconds before the
--- next, and the text fades out and back in whenever it changes.
+-- next, and the text fades out and back in whenever it changes. The last
+-- message stays up; the idle line shows when a game opens or calls Idle.
 
 local ns = CowCasino.ns
 
@@ -174,12 +175,9 @@ function Dealer:Update()
         end
         return
     end
+    -- (the last message stays up until there's another; Idle() clears it)
     if current then
-        if queue[1] then
-            if now >= current.shownAt + MIN_SHOW then ChangeTo(table.remove(queue, 1)) end
-        elseif current.seconds and now >= current.shownAt + math.max(current.seconds, MIN_SHOW) then
-            ChangeTo(nil)
-        end
+        if queue[1] and now >= current.shownAt + MIN_SHOW then ChangeTo(table.remove(queue, 1)) end
     elseif queue[1] then
         ChangeTo(table.remove(queue, 1))
     end
@@ -242,9 +240,10 @@ end
 
 function Dealer:IsShown() return ui ~= nil and ui:IsShown() end
 
--- A message, after any already waiting; seconds (optional) brings back the
--- idle line that long after it shows (3 at least); sound (optional) plays
--- when it shows.
+-- A message, after any already waiting. It stays up until the next one
+-- (3 seconds at least), so the last thing said stays on screen. sound
+-- (optional) plays when it shows. (seconds is accepted for older callers
+-- and ignored.)
 function Dealer:Say(game, text, seconds, sound)
     if not Owns(game) then return end
     if ns.getn(queue) >= MAX_QUEUE then table.remove(queue, 1) end

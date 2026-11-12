@@ -56,8 +56,9 @@ for _ = 1, 20 do
   if called then break end
 end
 Check("the dealer calls the result of the round", called ~= nil, called)
+local lastCall = ui.text.text
 Tick(12)
-Check("...then goes back to the idle line", ui.text.text == "Place your bet and I'll deal.", ui.text.text)
+Check("...and the call stays up (no going back to the opening line)", ui.text.text == lastCall, ui.text.text)
 
 -- Fizzlecog has his own lines for Blackjack
 ns:SetDealer("goblin")
@@ -118,7 +119,9 @@ Check("Fizzlecog talks when he deals", dealt ~= nil, dealt)
 Check("...and calls results in his own words", settled ~= nil and not string.find(settled, "{", 1, true), settled)
 
 -- the API, from the game on screen
-Check("(quiet before the API checks)", ui.text.text == "Place your bet and I'll deal." and D.Pending() == 0, ui.text.text)
+D:Idle(BJ)
+Tick(1)
+Check("Idle brings back the opening line", ui.text.text == "Place your bet and I'll deal." and D.Pending() == 0, ui.text.text)
 D:Say(BJ, "Hello there.")
 Tick(0.1)
 Check("changing the text fades it out first", ui.text.text == "Place your bet and I'll deal." and ui.text.alpha and ui.text.alpha < 1,
@@ -135,8 +138,8 @@ D:Say(BJ, "Two.", 4)
 Check("messages wait their turn", D.Pending() == 2 and ui.text.text == "Hello there.")
 local shown = {}
 Watch(12, function(t) if shown[table.getn(shown)] ~= t then table.insert(shown, t) end end)
-Check("...and show one at a time, in order", shown[1] == "Hello there." and shown[2] == "One." and shown[3] == "Two."
-  and shown[4] == "Place your bet and I'll deal.", table.concat(shown, " | "))
+Check("...and show one at a time, in order; the last one stays up", shown[1] == "Hello there." and shown[2] == "One."
+  and shown[3] == "Two." and shown[4] == nil and ui.text.text == "Two.", table.concat(shown, " | "))
 D:Say(BJ, "First.", 1)
 D:Say(BJ, "Second.", 1)
 local firstAt, secondAt
@@ -145,8 +148,8 @@ Watch(6, function(t)
   if t == "Second." and not secondAt then secondAt = env.CLOCK end
 end)
 Check("each stays up at least 3 seconds", firstAt and secondAt and secondAt - firstAt >= 3, firstAt and secondAt and (secondAt - firstAt))
-Tick(4)
-Check("a timed message goes back to the idle line (after 3 seconds at least)", ui.text.text == "Place your bet and I'll deal.", ui.text.text)
+Tick(20)
+Check("the last message stays up, even one given a time", ui.text.text == "Second.", ui.text.text)
 for i = 1, 8 do D:Say(BJ, "Spam " .. i) end
 Check("the queue keeps only the latest few", D.Pending() <= 4, D.Pending())
 D:Idle(BJ)
@@ -188,6 +191,7 @@ Check("Hold'em has the dealer too", D:IsShown() and ui.name.text == "Fizzlecog" 
 local HEV = { "holdemDeal", "holdemFlop", "holdemTurn", "holdemRiver", "holdemAllIn", "holdemYouAllIn", "holdemWin", "holdemYouWin",
               "holdemFoldWin", "holdemYouFoldWin", "holdemSplit", "holdemKnockout", "holdemYouBust" }
 for _, e in ipairs(HEV) do Check("Fizzlecog has Hold'em lines for " .. e, type(G[e]) == "table" and G[e][1] ~= nil) end
+math.randomseed(7)   -- the same hands every run
 local buy
 for _, o in ipairs(env.all) do if o.kind == "Button" and Visible(o) and o.text == "1,000" then buy = o end end
 env.Fire(buy, "OnClick", "LeftButton")
