@@ -14,8 +14,8 @@ local BLIND_LEVELS  = { { 1, 2 }, { 5, 10 }, { 10, 20 }, { 25, 50 }, { 50, 100 }
 local DEFAULT_BLINDS = 2         -- 5/10
 local BUY_IN_BB     = { 20, 50, 100 }   -- buy-ins, in big blinds
 local SB, BB        = 5, 10      -- the blinds at your table (set when you sit down)
-local BOT_STACK_MIN = 600        -- computer players' stacks at 5/10; scaled to the blinds
-local BOT_STACK_MAX = 1400
+local BOT_STACK_MIN = 600        -- computer players' stacks at 5/10 when there's no buy-in to
+local BOT_STACK_MAX = 1400       -- match (normally they start with what you bought in for)
 local NUM_SEATS     = 4          -- seat 1 is you, 2-4 go clockwise
 local ACT_DELAY     = 0.8        -- seconds before a computer player acts
 local STREET_DELAY  = 1.0        -- seconds before the next cards are dealt
@@ -420,8 +420,13 @@ local function NewBot()
     for _, name in ipairs(BOT_NAMES) do
         if not taken[name] then table.insert(free, name) end
     end
-    local steps = (BOT_STACK_MAX - BOT_STACK_MIN) / 50
-    local bot = NewSeat("bot", free[math.random(ns.getn(free))], (BOT_STACK_MIN + 50 * math.random(0, steps)) * BB / 10)
+    -- the same stack you bought in with (a random one only if that's unknown)
+    local stack = T.botStack
+    if not stack or stack <= 0 then
+        local steps = (BOT_STACK_MAX - BOT_STACK_MIN) / 50
+        stack = (BOT_STACK_MIN + 50 * math.random(0, steps)) * BB / 10
+    end
+    local bot = NewSeat("bot", free[math.random(ns.getn(free))], stack)
     bot.style = {
         loose = 0.85 + math.random() * 0.4,    -- how wide they play
         aggro = 0.15 + math.random() * 0.3,    -- how often strength turns into a raise
@@ -438,7 +443,7 @@ local function SaveSeat(inHand)
         return
     end
     if T.mode ~= "solo" then return end
-    local seat = { stacks = {}, bots = {}, button = T.button, inHand = inHand, sb = SB, bb = BB }
+    local seat = { stacks = {}, bots = {}, button = T.button, inHand = inHand, sb = SB, bb = BB, buyin = T.botStack }
     for i, p in ipairs(T.seats) do
         seat.stacks[i] = p.stack
         if p.kind == "bot" then seat.bots[i] = { name = p.name, style = p.style } end
@@ -1282,12 +1287,14 @@ local function ResetToLobby()
     T.mode, T.mySeat = "solo", 1
     T.hand = T.hand + 1          -- stops any timers from the old table
     T.street, T.actor, T.deadline, T.sent = "idle", 0, nil, nil
+    T.botStack = nil
     T.board, T.pot, T.reveal = {}, 0, false
     T.tid, T.host, T.dirty = nil, nil, false
     T.pending = {}
 end
 
-local function SitDown(stacks, bots, button)
+local function SitDown(stacks, bots, button, buyin)
+    T.botStack = buyin or stacks[1]      -- new bots start with what you bought in for
     T.seats = { NewSeat("you", "You", stacks[1]) }
     T.seats[1].seat = 1
     for i = 2, NUM_SEATS do
@@ -1350,6 +1357,7 @@ local function HostTable(i)
     T.tid = tostring(math.random(1, 99999))
     T.version, T.pending = 0, {}
     T.seats = { NewSeat("you", Net:Me(), buyin) }
+    T.botStack = buyin                   -- bots start with the host's buy-in
     for i = 2, NUM_SEATS do
         T.seats[i] = T.fillBots and NewBot() or NewSeat("empty")
     end
@@ -2261,7 +2269,7 @@ function Poker:Build(panel)
     if db.seat then
         local interrupted = db.seat.inHand
         SB, BB = db.seat.sb or 5, db.seat.bb or 10   -- the table's own blinds (older saves: 5/10)
-        SitDown(db.seat.stacks, db.seat.bots, db.seat.button)
+        SitDown(db.seat.stacks, db.seat.bots, db.seat.button, db.seat.buyin)
         SaveSeat(false)
         if interrupted then
             SetStatus("Your last hand was interrupted, so it was canceled and everyone has their chips back.")

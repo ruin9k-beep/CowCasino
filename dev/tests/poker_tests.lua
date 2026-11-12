@@ -277,6 +277,17 @@ return function(env)
   -- 7) A reload in the middle of a hand cancels it and restores the stacks.
   ns.db.chips = 1000
   Press(Find("1,000") or Find("1000"))
+  local starts = {}
+  for i = 2, 4 do table.insert(starts, T.seats[i].stack + T.seats[i].total) end
+  Check("holdem: computer players start with your buy-in", starts[1] == 1000 and starts[2] == 1000 and starts[3] == 1000,
+    table.concat(starts, ","))
+  while T.street ~= "idle" do if MyTurn() then Human("fold") else Flush() end end
+  local gone = T.seats[3].name
+  T.seats[3].stack = 0
+  local deal = Find("Deal")
+  if env.FireOnly then env.FireOnly(deal) else deal.scripts.OnClick(deal, "LeftButton") end
+  Check("holdem: a bot that runs out is replaced, with your buy-in", T.seats[3].name ~= gone
+    and T.seats[3].stack + T.seats[3].total == 1000, T.seats[3].stack + T.seats[3].total)
   while T.street ~= "idle" do if MyTurn() then Human("fold") else Flush() end end
   local saved = Stacks()
   local dealBtn = Find("Deal")

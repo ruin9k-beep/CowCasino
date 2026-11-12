@@ -205,9 +205,10 @@ local posted = {}
 for i = 1, 4 do if T.seats[i].bet > 0 then table.insert(posted, T.seats[i].bet) end end
 table.sort(posted)
 Check("the hand posts 10 and 20", table.concat(posted, ",") == "10,20", table.concat(posted, ","))
-local botOk = true
-for i = 2, 4 do local s = T.seats[i].stack + T.seats[i].bet; if s < 1200 - 20 or s > 2800 then botOk = false end end
-Check("computer players' stacks scale with the blinds (1,200-2,800)", botOk)
+local botStacks = {}
+for i = 2, 4 do table.insert(botStacks, T.seats[i].stack + T.seats[i].bet) end
+Check("computer players start with your buy-in (400 each)", botStacks[1] == 400 and botStacks[2] == 400 and botStacks[3] == 400,
+  table.concat(botStacks, ","))
 Press(host, "Options")
 host.env.Fire(BlindsButton(host, ">"), "OnClick", "LeftButton")
 Check("changing them while seated: this table stays, with a note", Shown(host, "This table stays at 10/20") ~= nil

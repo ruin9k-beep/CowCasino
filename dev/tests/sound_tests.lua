@@ -148,8 +148,11 @@ for _ = 1, 3000 do
     if right then handsOk = handsOk + 1 elseif not bad then bad = "hand " .. T.hand .. " want " .. want .. " got " .. table.concat(played, ",", curFrom + 1) end
     cur = nil
     curFrom = table.getn(played)
-    if me.stack <= 0 then break end
-    if Enabled("Deal") then Press("Deal") end
+    if me.stack <= 0 then      -- busted: buy in again and keep going
+      ns.db.chips = math.max(ns.db.chips, 1000)
+      Press("Leave table"); Press("1,000")
+      curFrom = table.getn(played)
+    elseif Enabled("Deal") then Press("Deal") end
   elseif T.street == "idle" and Enabled("Deal") then
     Press("Deal")
   end
