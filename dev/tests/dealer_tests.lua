@@ -220,6 +220,50 @@ Check("...and who's knocked out", said.holdemKnockout or said.holdemYouBust)
 Check("...with every {name} filled in", filled)
 ns:OpenGame("blackjack")
 
+-- Craps: Fizzlecog calls the rolls (rigged dice)
+local Rules = ns.CrapsRules
+local realRoll = Rules.Roll
+local RIG = {}
+Rules.Roll = function() local r = table.remove(RIG, 1); return r[1], r[2] end
+ns.db.chips = 1000
+ns:OpenGame("craps")
+local CR = ns.games.craps
+Check("Craps has the dealer", D:IsShown() and ui.name.text == "Fizzlecog" and ui.text.text == "Place your bets and roll.")
+local CEV = { "crapsNatural", "crapsCraps", "crapsPoint", "crapsMade", "crapsSevenOut", "crapsRoll", "crapsRollWin",
+              "crapsNewShooter", "crapsYourDice", "crapsBroke" }
+for _, e in ipairs(CEV) do Check("Fizzlecog has Craps lines for " .. e, type(G[e]) == "table" and G[e][1] ~= nil) end
+local function Spot(key) for _, b in ipairs(CR.ui.spots) do if b.spot.key == key then return b end end end
+local function CrapsRoll(d1, d2, expect)
+  if not (ns.db.craps.bets.pass or 0 > 0) and Rules.CanAdd("pass", ns.db.craps.point, ns.db.craps.bets) then
+    Press("25"); env.Fire(Spot("pass"), "OnClick", "LeftButton")
+  end
+  Press("5"); env.Fire(Spot("field"), "OnClick", "LeftButton")
+  table.insert(RIG, { d1, d2 })
+  Press("Roll")
+  local got
+  Watch(9, function(t) if FromEvents(t, { expect }) then got = t end end)
+  Check("Fizzlecog calls " .. expect .. " (" .. d1 .. "+" .. d2 .. ")", got ~= nil and not string.find(got, "{", 1, true), got or ui.text.text)
+end
+CrapsRoll(6, 5, "crapsNatural")
+CrapsRoll(1, 1, "crapsCraps")
+CrapsRoll(3, 3, "crapsPoint")
+CrapsRoll(2, 3, "crapsRoll")
+CrapsRoll(2, 2, "crapsRollWin")
+CrapsRoll(4, 2, "crapsMade")
+CrapsRoll(4, 4, "crapsPoint")
+CrapsRoll(5, 2, "crapsSevenOut")
+ns:SetDealer("human")
+Press("25"); env.Fire(Spot("pass"), "OnClick", "LeftButton")
+table.insert(RIG, { 5, 6 })
+Press("Roll")
+local plain
+Watch(9, function(t) if string.find(t, "Natural", 1, true) then plain = t end end)
+Check("...and the human dealer makes the plain call", plain ~= nil, plain or ui.text.text)
+ns:SetDealer("goblin")
+Rules.Roll = realRoll
+Tick(8)
+ns:OpenGame("blackjack")
+
 -- other games: no dealer; coming back resets it
 ns:OpenGame("mines")
 Check("Mines has no dealer: the strip hides", not D:IsShown())

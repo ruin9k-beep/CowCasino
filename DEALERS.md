@@ -1,13 +1,13 @@
 # CowCasino dealers
 
-Games with a dealer (Blackjack and Texas Hold'em so far) show a strip on top of the window with the
+Games with a dealer (Blackjack, Texas Hold'em and Craps so far) show a strip on top of the window with the
 dealer's picture, name and what they're saying. The picture and name come from the
 selected **dealer**. Players pick one in the **CowCasino Options** (the Options button
 on the game list) under **Dealer**; the choice is saved and used by every game.
 
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
-- **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`). He has his own lines for Blackjack and Hold'em.
+- **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em and Craps.
 - **Human**: Harold, a human croupier (`Art\DealerHuman`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,
@@ -84,6 +84,22 @@ Texas Hold'em (solo and party tables; every player hears their own chosen dealer
 | `holdemSplit` | the pot is split | `{name}` (one of them), `{pot}`, `{hand}` |
 | `holdemKnockout` | another player runs out of chips | `{name}` |
 | `holdemYouBust` | you run out of chips | |
+
+Craps (solo and party tables; everyone at a party table hears the call):
+
+| Moment | When | Fills in |
+|---|---|---|
+| `crapsNatural` | 7 or 11 on the come-out | `{total}`, `{name}` ("Yo-leven", or the number) |
+| `crapsCraps` | 2, 3 or 12 on the come-out | `{total}`, `{name}` ("Snake eyes", "Ace-deuce", "Boxcars") |
+| `crapsPoint` | a point is set | `{total}` |
+| `crapsMade` | the point is made | `{total}` |
+| `crapsSevenOut` | seven out | `{total}` |
+| `crapsRollWin` | any other roll that paid you (Field, props) | `{total}`, `{point}`, `{win}` |
+| `crapsRoll` | any other roll (skipped if the dealer is busy talking) | `{total}`, `{point}` |
+| `crapsNewShooter` / `crapsYourDice` | party play: the dice move on after a seven out | `{name}` |
+| `crapsBroke` | you're out of chips with nothing on the table | |
+
+Every roll also fills in `{win}` and `{loss}` (what it won or lost you) and `{name}`.
 
 `Dealer.lua` has Fizzlecog's lines as an example.
 

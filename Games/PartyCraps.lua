@@ -523,6 +523,16 @@ local function CountRoll()
     if T.seenRoll == T.rollNo or T.rollNo == 0 then return end
     T.seenRoll = T.rollNo
     local me = Me()
+    -- the dealer calls it for everyone at the table, then says who has the dice
+    if ns.CrapsDealerCall then
+        local net = (me and me.active) and (me.last or 0) or 0
+        ns:CrapsDealerCall(T.d1, T.d2, T.event, T.point, T.point, net)
+        if T.event == "sevenOut" then
+            local p = T.seats[T.shooter]
+            if IsMine(T.shooter) then ns:CrapsDealerSay("crapsYourDice")
+            elseif p and p.kind ~= "empty" and p.name then ns:CrapsDealerSay("crapsNewShooter", { name = p.name }) end
+        end
+    end
     if not me or not me.active then return end   -- no bets on this roll
     local s = db.stats
     s.rolls = s.rolls + 1

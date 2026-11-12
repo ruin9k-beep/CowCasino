@@ -303,7 +303,31 @@ local Craps = {
     name = "Craps",
     description = "Roll the dice: Pass Line, odds, Field and more.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\CrapsIcon",   -- painted dice (1.12 has no dice icon)
+    -- the dealer on top of the window (Dealer.lua), solo and at party tables
+    dealer = { idle = "Place your bets and roll." },
 }
+
+-- The dealer calls a roll (solo and party play): the chosen dealer's line
+-- for it, or the plain call. net is what the roll won or lost you.
+local DICE_NAMES = { [2] = "Snake eyes", [3] = "Ace-deuce", [11] = "Yo-leven", [12] = "Boxcars" }
+local DEALER_EVENTS = { natural = "crapsNatural", craps = "crapsCraps", point = "crapsPoint", made = "crapsMade",
+                        sevenOut = "crapsSevenOut" }
+function ns:CrapsDealerCall(d1, d2, event, point, oldPoint, net)
+    local total = d1 + d2
+    net = net or 0
+    local vars = { total = total, name = DICE_NAMES[total] or tostring(total), point = point or oldPoint or total,
+                   win = ns:FormatChips(math.max(net, 0)), loss = ns:FormatChips(math.max(-net, 0)) }
+    local e, quiet = DEALER_EVENTS[event], false
+    if not e then
+        if net > 0 then e = "crapsRollWin" else e, quiet = "crapsRoll", true end
+    end
+    ns.Dealer:React(Craps, e, vars, 6, Rules.Describe(d1, d2, event, point, oldPoint or point), quiet)
+end
+
+-- Something said between rolls (party play: who has the dice now).
+function ns:CrapsDealerSay(event, vars, seconds)
+    ns.Dealer:React(Craps, event, vars, seconds or 6)
+end
 
 local db
 local ui = {}
@@ -462,6 +486,7 @@ local function Finish(d1, d2)
     S.rolling = false
 
     local line = Rules.Describe(d1, d2, event, point, oldPoint)
+    ns:CrapsDealerCall(d1, d2, event, point, oldPoint, net)
     if net > 0 then
         SetStatus(line .. " You win " .. Fmt(net) .. ".", 0.25, 1, 0.25)
         ns:PlayGameSound(db, "win")
@@ -471,7 +496,10 @@ local function Finish(d1, d2)
     else
         SetStatus(line, 0.9, 0.9, 0.9)
     end
-    if ns.db.chips < 1 and Rules.Total(bets) == 0 then SetStatus(ns:LowChipsText(MIN_BET), 1, 0.35, 0.35) end
+    if ns.db.chips < 1 and Rules.Total(bets) == 0 then
+        SetStatus(ns:LowChipsText(MIN_BET), 1, 0.35, 0.35)
+        ns:CrapsDealerSay("crapsBroke", nil, 10)
+    end
     Refresh()
 end
 

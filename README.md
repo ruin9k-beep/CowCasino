@@ -21,7 +21,7 @@ One addon folder runs on two clients:
 - **Crash**, with auto cash-out
 - **Hi-Lo**: higher or lower, with the multiplier growing each right guess
 
-A goblin dealer sits on top of the window and talks you through the game (Blackjack and Texas Hold'em so far).
+A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em and Craps so far).
 Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
 explains how a game drives it, including showing a party member's 3D portrait.
 

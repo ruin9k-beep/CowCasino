@@ -439,6 +439,54 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
             "Cleaned out! Grab more chips from the menu, friend. The goblin's always open.",
         },
 
+        -- Craps (solo and party tables)
+        crapsNatural = {
+            "{name}! A natural! Pass line pays... reluctantly.",
+            "{total}, front line winner! Ugh, I hate payin' out.",
+            "Natural {total}! Somebody check those dice... for my fingerprints. Kiddin'!",
+        },
+        crapsCraps = {
+            "Craps! {name}! Pass line loses. I love that sound.",
+            "{name}! Line away! Your gold's comin' home to papa.",
+            "Craps, {total}! The dice giveth... mostly to me.",
+        },
+        crapsPoint = {
+            "The point is {total}! Odds are open, and so is my wallet.",
+            "{total} is the point. Roll it again before a seven and I'll pretend to be happy for ya.",
+            "Point's {total}! Back it up with odds. I get a cut. Not really. Maybe.",
+        },
+        crapsMade = {
+            "Winner! {total}! Point made, Pass line pays!",
+            "Point made! {total}! There goes my retirement fund.",
+            "{total}! The shooter hits it! ...I'm gonna go cry into my gold.",
+        },
+        crapsSevenOut = {
+            "Seven out! Line away! Come to Fizzlecog, little coins.",
+            "Seven! Pass loses, Don't Pass wins. The nose knew.",
+            "Seven out! Pay the Don'ts, take the rest. Mostly the rest.",
+        },
+        crapsRoll = {
+            "{total}. Keep 'em rollin'! Point is {point}.",
+            "{total}! No decision on the line. Shooter, roll!",
+            "Rolled {total}. Come on, seven! I mean... come on, {point}!",
+        },
+        crapsRollWin = {
+            "{total}! That pays you {win}. Don't spend it all at once... spend it here.",
+            "Ka-ching! {win} for you on {total}. My nose is weepin'.",
+        },
+        crapsNewShooter = {
+            "New shooter! {name}, the dice are yours. Blow on 'em for luck... and my profit.",
+            "Dice go to {name}! Let's see whatcha got.",
+        },
+        crapsYourDice = {
+            "The dice are yours, friend! Make 'em dance.",
+            "New shooter: you! Roll big, lose bigger. Kiddin'! Mostly.",
+        },
+        crapsBroke = {
+            "Outta chips? Fizzlecog Financial is always open. Fifty percent interest, compounded hourly!",
+            "Cleaned out! The dice always come home to papa. Grab more chips from the menu, friend.",
+        },
+
         -- Texas Hold'em (solo and party tables)
         holdemDeal = {
             "Cards in the air! {button} has the button. Blinds are {sb} and {bb}... plus a small dealer's fee. Kiddin'! Mostly.",

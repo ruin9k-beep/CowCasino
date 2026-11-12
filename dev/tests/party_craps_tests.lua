@@ -82,6 +82,7 @@ local function NewClient(name)
   for _, o in ipairs(env.all) do
     if not o.parent and o.scripts.OnUpdate then table.insert(c.updaters, o) end
   end
+  if ns.Dealer.UI() then table.insert(c.updaters, ns.Dealer.UI()) end   -- the dealer's messages
   table.insert(clients, c)
   byName[name] = c
   return c
@@ -126,6 +127,10 @@ local function Tick(dt)
     end
   end
   Deliver()
+  for _, c in ipairs(clients) do
+    local u = c.ns.Dealer.UI()
+    if u and u.text.text then c.dealerSaid = c.dealerSaid or {}; c.dealerSaid[u.text.text] = true end
+  end
 end
 local function Run(seconds) for _ = 1, math.floor(seconds * 10 + 0.5) do Tick(0.1) end end
 local function RunUntil(cond, limit)
@@ -306,6 +311,26 @@ Check("Cid leaves with his stack and bets", cid.T.mode == "lobby" and cid.ns.db.
 
 -- Bob drops from the group: he gets his chips back, the host frees the seat
 local bobBefore = Wealth(bob)
+do
+  local G = host.ns.dealers.goblin.lines
+  local function Pattern(line)
+    local q = string.gsub(line, "([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    return "^" .. string.gsub(q, "{%w+}", ".-") .. "$"
+  end
+  for _, c in ipairs({ host, bob }) do
+    local kinds, list = {}, {}
+    for text in pairs(c.dealerSaid or {}) do
+      for e, lines in pairs(G) do
+        if string.sub(e, 1, 5) == "craps" then
+          for _, l in ipairs(lines) do if string.find(text, Pattern(l)) then kinds[e] = true end end
+        end
+      end
+    end
+    for e in pairs(kinds) do table.insert(list, e) end
+    table.sort(list)
+    Check("Fizzlecog calls the rolls at " .. c.name .. "'s seat", table.getn(list) >= 2, table.concat(list, ","))
+  end
+end
 table.remove(group, 2)
 GroupChanged()
 Run(1)
