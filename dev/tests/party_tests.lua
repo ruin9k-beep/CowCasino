@@ -183,9 +183,27 @@ group = { "Host", "Bob", "Cid" }
 GroupChanged()
 Run(1)
 
--- Host opens a table (computer players fill the empty seat).
+-- Host types in the blinds and buy-in, and opens a table (computer players
+-- fill the empty seat).
+local function Boxes(c)
+  local t = {}
+  for _, o in ipairs(c.env.all) do if o.kind == "EditBox" and InPoker(c, o) then table.insert(t, o) end end
+  return t[1], t[2], t[3]     -- small blind, big blind, buy-in
+end
 Press(host, "Play with your party")
-Press(host, ">")                     -- buy-in 500 -> 1,000
+local sbBox, bbBox, buyBox = Boxes(host)
+Check("host: blinds and buy-in boxes, filled from last time (5/10, 500)", sbBox and sbBox.text == "5" and bbBox.text == "10"
+  and buyBox.text == "500", sbBox and (sbBox.text .. "/" .. bbBox.text .. " " .. buyBox.text))
+host.env.TypeInto(sbBox, "1x5")
+Check("host: only digits go in", sbBox.text == "15", sbBox.text)
+Check("host: a big blind smaller than the small blind can't host", not Find(host, "Host a table").enabled)
+host.env.TypeInto(bbBox, "30")
+host.env.TypeInto(buyBox, "200")
+Check("host: a buy-in under 10 big blinds can't host", not Find(host, "Host a table").enabled)
+host.env.TypeInto(buyBox, "")
+Check("host: nor an empty one", not Find(host, "Host a table").enabled)
+host.env.TypeInto(sbBox, "5"); host.env.TypeInto(bbBox, "10"); host.env.TypeInto(buyBox, "1000")
+Check("host: 5/10 with a 1,000 buy-in is fine", Find(host, "Host a table").enabled and host.ns.db.holdem.hostSettings.buyin == 1000)
 Press(host, "Host a table")
 Run(1)
 Check("host: table open, wallet paid 1,000", host.T.mode == "host" and host.ns.db.chips == 4000 and host.T.seats[1].stack == 1000)
@@ -194,15 +212,18 @@ Check("host: table open, wallet paid 1,000", host.T.mode == "host" and host.ns.d
 Press(bob, "Play with your party")
 Run(1)
 Check("bob: sees Host's table", Find(bob, "Join") ~= nil and Find(bob, "Join").enabled ~= nil)
+local listed
+for _, o in ipairs(bob.env.all) do if type(o.text) == "string" and string.find(o.text, "Host: blinds 5/10, buy-in 1,000", 1, true) then listed = o.text end end
+Check("bob: the table list shows the host's blinds and buy-in", listed ~= nil)
 Press(bob, "Join")
 Run(2)
-Check("bob: seated, wallet paid 500", bob.T.mode == "client" and bob.ns.db.chips == 4500 and host.T.seats[bob.T.mySeat].name == "Bob")
+Check("bob: seated with the host's buy-in, 1,000", bob.T.mode == "client" and bob.ns.db.chips == 4000
+  and host.T.seats[bob.T.mySeat].name == "Bob" and host.T.seats[bob.T.mySeat].stack == 1000)
 Press(cid, "Play with your party")
 Run(1)
-Press(cid, "<")                      -- buy-in 200
 Press(cid, "Join")
 Run(2)
-Check("cid: seated with 200", cid.T.mode == "client" and cid.ns.db.chips == 4800 and host.T.seats[cid.T.mySeat].stack == 200)
+Check("cid: seated with 1,000 too", cid.T.mode == "client" and cid.ns.db.chips == 4000 and host.T.seats[cid.T.mySeat].stack == 1000)
 
 -- Portraits: people get a 3D portrait, computer players don't.
 local function SeatUI(c, who)

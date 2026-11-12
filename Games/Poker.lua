@@ -74,6 +74,28 @@ local function ChosenBlinds()
     return level[1], level[2]
 end
 
+-- Hosting: the blinds and buy-in the host typed in (saved), with checks.
+local MAX_AMOUNT   = 1000000
+local MIN_BUYIN_BB = 10           -- a buy-in is at least 10 big blinds
+local function HostSettings()
+    local sb, bb = ChosenBlinds()
+    local hs = db and db.hostSettings
+    sb = (hs and hs.sb) or sb
+    bb = (hs and hs.bb) or bb
+    return sb, bb, (hs and hs.buyin) or 50 * bb
+end
+-- nil if they're fine, or what's wrong
+local function HostSettingsProblem(sb, bb, buyin)
+    if not sb or sb < 1 then return "Enter a small blind of at least 1." end
+    if not bb or bb < sb then return "The big blind can't be smaller than the small blind." end
+    if bb > MAX_AMOUNT or sb > MAX_AMOUNT then return "Those blinds are too big." end
+    if not buyin or buyin < MIN_BUYIN_BB * bb then
+        return "The buy-in must be at least " .. MIN_BUYIN_BB .. " big blinds (" .. Fmt(MIN_BUYIN_BB * bb) .. ")."
+    end
+    if buyin > MAX_AMOUNT then return "That buy-in is too big." end
+    return nil
+end
+
 -- Buy-in amounts at a table with this big blind.
 local function BuyIns(bb)
     local t = {}
@@ -496,7 +518,7 @@ end
 local function SendOffer()
     if T.mode ~= "host" then return end
     local players = NUM_SEATS - OpenSeats()
-    Net:Send(Msg({ "O", T.tid, SB, BB, players, OpenSeats() }), "HE-O")
+    Net:Send(Msg({ "O", T.tid, SB, BB, players, OpenSeats(), T.tableBuyIn or 50 * BB }), "HE-O")
 end
 
 local function SendRoster()
@@ -1287,7 +1309,7 @@ local function ResetToLobby()
     T.mode, T.mySeat = "solo", 1
     T.hand = T.hand + 1          -- stops any timers from the old table
     T.street, T.actor, T.deadline, T.sent = "idle", 0, nil, nil
-    T.botStack = nil
+    T.botStack, T.tableBuyIn = nil, nil
     T.board, T.pot, T.reveal = {}, 0, false
     T.tid, T.host, T.dirty = nil, nil, false
     T.pending = {}
@@ -1347,10 +1369,10 @@ function Leave()
     Refresh()
 end
 
-local function HostTable(i)
-    local sb, bb = ChosenBlinds()
-    local buyin = BuyIns(bb)[i]
-    if T.seats[1] or not buyin or not Net:InGroup() or not ns:SpendChips(buyin) then return end
+local function HostTable()
+    local sb, bb, buyin = HostSettings()
+    if HostSettingsProblem(sb, bb, buyin) then return end
+    if T.seats[1] or not Net:InGroup() or not ns:SpendChips(buyin) then return end
     db.stats.buyIns = db.stats.buyIns + 1
     SB, BB = sb, bb
     T.mode, T.mySeat = "host", 1
@@ -1358,6 +1380,7 @@ local function HostTable(i)
     T.version, T.pending = 0, {}
     T.seats = { NewSeat("you", Net:Me(), buyin) }
     T.botStack = buyin                   -- bots start with the host's buy-in
+    T.tableBuyIn = buyin                 -- and so does everyone who joins
     for i = 2, NUM_SEATS do
         T.seats[i] = T.fillBots and NewBot() or NewSeat("empty")
     end
@@ -1571,10 +1594,16 @@ local function ClientState(f)
     Refresh()
 end
 
+-- What it costs to sit at a table: the host's buy-in (an older CowCasino's
+-- offer doesn't say, so 50 big blinds).
+local function OfferBuyIn(offer)
+    return offer.buyin or 50 * offer.bb
+end
+
 local function JoinTable(host, tid)
     local offer = T.offers[host]
     local sb, bb = (offer and offer.sb) or 5, (offer and offer.bb) or 10
-    local buyin = BuyIns(bb)[T.partyBuyIn or 2]
+    local buyin = offer and OfferBuyIn(offer) or 50 * bb
     if T.seats[1] then return end
     if ns.db.chips < buyin then
         ui.partyMsg:SetText("You need " .. Fmt(buyin) .. " chips for that buy-in.")
@@ -1597,7 +1626,7 @@ local function OnMessage(sender, f)
         return
     elseif kind == "O" then
         T.offers[sender] = { tid = tid, sb = tonumber(f[4]) or 5, bb = tonumber(f[5]) or 10,
-            players = tonumber(f[6]) or 0, open = tonumber(f[7]) or 0, heard = GetTime() }
+            players = tonumber(f[6]) or 0, open = tonumber(f[7]) or 0, buyin = tonumber(f[8]), heard = GetTime() }
         if ui.party and ui.party:IsShown() then ui.party:Refresh() end
         return
     end
@@ -1606,8 +1635,8 @@ local function OnMessage(sender, f)
     if T.mode == "host" and tid == T.tid then
         if kind == "J" then
             local buyin = tonumber(f[4]) or 0
-            local valid = false
-            for _, b in ipairs(BuyIns(BB)) do
+            local valid = buyin == T.tableBuyIn
+            for _, b in ipairs(BuyIns(BB)) do       -- (an older CowCasino joining)
                 if b == buyin then valid = true end
             end
             if not valid then return end
@@ -2092,28 +2121,57 @@ end
 
 local function BuildParty(panel)
     local o = Overlay(panel, "Play with your party")
-    T.partyBuyIn = 2      -- which buy-in: 20, 50 or 100 big blinds
 
     local group = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     group:SetPoint("TOP", o, "TOP", 0, -36)
     group:SetWidth(AREA_W - 24)
 
-    -- Buy-in, for hosting or joining.
-    local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -66)
-    label:SetText("Buy-in")
-    local amount = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    local function StepBuyIn(dir)
-        T.partyBuyIn = math.max(1, math.min(ns.getn(BUY_IN_BB), T.partyBuyIn + dir))
-        o:Refresh()
+    -- Hosting: type in the blinds and the buy-in (saved for next time).
+    -- Everyone who joins uses them.
+    local inputs = {}
+    local function Amount(key, labelText, x, width)
+        local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("TOPLEFT", o, "TOPLEFT", x, -62)
+        label:SetText(labelText)
+        local box = ns.CreateFrame("EditBox", nil, o)
+        box:SetWidth(width); box:SetHeight(20)
+        box:SetPoint("LEFT", label, "RIGHT", 4, 0)
+        box:SetFontObject(GameFontHighlightSmall)
+        box:SetTextInsets(5, 5, 0, 0)
+        box:SetAutoFocus(false)
+        box:SetMaxLetters(7)
+        box:SetBackdrop({
+            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 12,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 },
+        })
+        box:SetBackdropColor(0, 0, 0, 0.8)
+        box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
+        box:SetScript("OnTextChanged", function()
+            if o.filling then return end
+            local text = this:GetText() or ""
+            local digits = string.gsub(text, "[^0-9]", "")
+            if digits ~= text then this:SetText(digits) end
+            db.hostSettings = db.hostSettings or {}
+            local sb, bb, buyin = HostSettings()
+            db.hostSettings.sb, db.hostSettings.bb, db.hostSettings.buyin = sb, bb, buyin
+            db.hostSettings[key] = tonumber(digits) or 0      -- (empty: 0, which won't do)
+            o:Refresh()
+        end)
+        box:SetScript("OnEnterPressed", function() this:ClearFocus() end)
+        box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+        box:SetScript("OnTabPressed", function()
+            local order = { "sb", "bb", "buyin" }
+            for n, k in ipairs(order) do
+                if k == key then inputs[order[ns.Mod(n, 3) + 1]]:SetFocus() end
+            end
+        end)
+        inputs[key] = box
     end
-    local nextB = MakeButton(o, ">", 26, function() StepBuyIn(1) end)
-    nextB:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -62)
-    amount:SetPoint("RIGHT", nextB, "LEFT", -6, 0)
-    amount:SetWidth(130)
-    amount:SetJustifyH("CENTER")
-    local prevB = MakeButton(o, "<", 26, function() StepBuyIn(-1) end)
-    prevB:SetPoint("RIGHT", amount, "LEFT", -6, 0)
+    Amount("sb", "Small blind", 16, 54)
+    Amount("bb", "Big blind", 132, 54)
+    Amount("buyin", "Buy-in", 236, 66)
 
     local hostInfo = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     hostInfo:SetPoint("TOP", o, "TOP", 0, -146)
@@ -2127,7 +2185,7 @@ local function BuildParty(panel)
     botsText:SetPoint("LEFT", bots, "RIGHT", 2, 0)
     botsText:SetText("When hosting, computer players fill empty seats")
 
-    local host = MakeButton(o, "Host a table", 140, function() HostTable(T.partyBuyIn) end, 24)
+    local host = MakeButton(o, "Host a table", 140, function() HostTable() end, 24)
     host:SetPoint("TOP", o, "TOP", 0, -118)
     -- If you're sitting at a solo table, this takes its place: party play needs you up from it.
     local leaveSolo = MakeButton(o, "Leave your solo table", 170, function()
@@ -2175,11 +2233,21 @@ local function BuildParty(panel)
         else
             group:SetText("Join a party or raid to play with friends.")
         end
-        local sb, bb = ChosenBlinds()
-        local myBuyIn = BuyIns(bb)[T.partyBuyIn]
-        amount:SetText(BUY_IN_BB[T.partyBuyIn] .. " big blinds")
-        hostInfo:SetText("Your table: blinds " .. Fmt(sb) .. "/" .. Fmt(bb) .. ", buy-in " .. Fmt(myBuyIn)
-            .. ". Joining uses the host's blinds.")
+        local sb, bb, myBuyIn = HostSettings()
+        local problem = HostSettingsProblem(sb, bb, myBuyIn)
+        o.filling = true
+        for key, box in pairs(inputs) do
+            local v = ((key == "sb" and sb) or (key == "bb" and bb) or myBuyIn) or 0
+            -- (leave what's typed alone if it says the same, "" for 0 included)
+            if (tonumber(box:GetText() or "") or 0) ~= v then box:SetText(v > 0 and tostring(v) or "") end
+        end
+        o.filling = nil
+        if problem then
+            hostInfo:SetText("|cffff6060" .. problem .. "|r")
+        else
+            hostInfo:SetText("Your table: blinds " .. Fmt(sb) .. "/" .. Fmt(bb) .. ", buy-in " .. Fmt(myBuyIn)
+                .. " (" .. math.floor(myBuyIn / bb) .. " big blinds). Players who join buy in for the same.")
+        end
         bots:SetChecked(T.fillBots)
         local solo = T.mode == "solo" and T.seats[1] ~= nil
         ns.SetShown(host, not solo)
@@ -2190,13 +2258,13 @@ local function BuildParty(panel)
                 and ("You're at a solo table with " .. Fmt(Me().stack) .. ". Leave it (your stack goes back to your chips) to host or join.")
                 or "You're in the middle of a solo hand. Finish it, then leave the solo table to play with your party.")
         end
-        ns.SetEnabled(host, inGroup and ns.db.chips >= myBuyIn and not T.seats[1])
+        ns.SetEnabled(host, inGroup and not problem and ns.db.chips >= (myBuyIn or 0) and not T.seats[1])
 
         local list = {}
         for name, offer in pairs(T.offers) do
             if GetTime() - offer.heard < OFFER_TIMEOUT and Net:IsMember(name) then
                 table.insert(list, { host = name, tid = offer.tid, players = offer.players, open = offer.open,
-                    sb = offer.sb, bb = offer.bb })
+                    sb = offer.sb, bb = offer.bb, buyin = offer.buyin })
             end
         end
         table.sort(list, function(a, b) return a.host < b.host end)
@@ -2204,9 +2272,9 @@ local function BuildParty(panel)
             local offer = list[r]
             rows[r].offer = offer
             if offer then
-                local need = BuyIns(offer.bb)[T.partyBuyIn]
-                rows[r].text:SetText(string.format("%s: blinds %s/%s, %d seated, %d open",
-                    offer.host, Fmt(offer.sb), Fmt(offer.bb), offer.players, offer.open))
+                local need = OfferBuyIn(offer)
+                rows[r].text:SetText(string.format("%s: blinds %s/%s, buy-in %s\n%d seated, %d open",
+                    offer.host, Fmt(offer.sb), Fmt(offer.bb), Fmt(need), offer.players, offer.open))
                 rows[r].join:Show()
                 ns.SetEnabled(rows[r].join, offer.open > 0 and ns.db.chips >= need and not T.joining and not T.seats[1])
             else

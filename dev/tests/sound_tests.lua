@@ -166,8 +166,9 @@ for _ = 1, 3000 do
     curFrom = table.getn(played)
     if me.stack <= 0 then      -- busted: buy in again and keep going
       ns.db.chips = math.max(ns.db.chips, 1000)
-      Press("Leave table"); Press("1,000")
-      curFrom = table.getn(played)
+      Press("Leave table")
+      curFrom = table.getn(played)       -- (buying in deals the next hand: its new-hand sound counts)
+      Press("1,000")
     elseif Enabled("Deal") then Press("Deal") end
   elseif T.street == "idle" and Enabled("Deal") then
     Press("Deal")
