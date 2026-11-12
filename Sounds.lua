@@ -4,7 +4,9 @@
 -- its Options with ns:CreateSoundOptions.
 --
 -- Every sound below is a name the 1.12 client knows: they're used by the
--- game's own 1.12.1 interface code or by popular 1.12 addons.
+-- game's own 1.12.1 interface code or by popular 1.12 addons. WoW Forever
+-- plays the matching sound kit (CompatModern.lua). The louder, easy-to-tell-
+-- apart ones come first; the quiet book and menu sounds are at the end.
 
 local ns = CowCasino.ns
 
@@ -14,6 +16,19 @@ ns.SOUND_CHOICES = {
     { id = "fanfare",    name = "Level-up fanfare", sound = "LEVELUPSOUND" },
     { id = "questDone",  name = "Quest complete",   sound = "igQuestListComplete" },
     { id = "questDrop",  name = "Quest abandoned",  sound = "igQuestCancel" },
+    { id = "questFail",  name = "Quest failed",     sound = "igQuestFailed" },
+    { id = "mapPing",    name = "Map ping",         sound = "MapPing" },
+    { id = "whisper",    name = "Whisper",          sound = "TellMessage" },
+    { id = "invite",     name = "Party invite",     sound = "igPlayerInvite" },
+    { id = "bgReady",    name = "Battle horn",      sound = "PVPTHROUGHQUEUE" },
+    { id = "bgQueue",    name = "Battleground queue", sound = "PVPENTERQUEUE" },
+    { id = "auctionOpen", name = "Auction bell",    sound = "AuctionWindowOpen" },
+    { id = "auctionClose", name = "Auction close",  sound = "AuctionWindowClose" },
+    { id = "aggro",      name = "Hostile target",   sound = "igCreatureAggroSelect" },
+    { id = "targetLost", name = "Target lost",      sound = "INTERFACESOUND_LOSTTARGETUNIT" },
+    { id = "talents",    name = "Talents open",     sound = "TalentScreenOpen" },
+    { id = "spellbook",  name = "Spellbook open",   sound = "igSpellBookOpen" },
+    { id = "tab",        name = "Tab click",        sound = "igCharacterInfoTab" },
     { id = "pageTurn",   name = "Page turn",        sound = "igQuestListOpen" },
     { id = "bookClose",  name = "Book close",       sound = "igQuestListClose" },
     { id = "select",     name = "Select",           sound = "igQuestListSelect" },
@@ -32,7 +47,7 @@ ns.SOUND_EVENTS = {
     { key = "newHand", label = "A new hand starts" },
 }
 
-local DEFAULTS = { win = "coins", lose = "questDrop", newHand = "pageTurn" }
+local DEFAULTS = { win = "coins", lose = "questDrop", newHand = "mapPing" }
 
 local function Choice(id)
     for i, c in ipairs(ns.SOUND_CHOICES) do

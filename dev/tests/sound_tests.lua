@@ -31,7 +31,7 @@ local function Tick(sec)
   end
 end
 local function Count(name, from) local n = 0; for k = from or 1, table.getn(played) do if played[k] == name then n = n + 1 end end; return n end
-local COINS, DROP, PAGE, FANFARE = "LOOTWINDOWCOINSOUND", "igQuestCancel", "igQuestListOpen", "LEVELUPSOUND"
+local COINS, DROP, PAGE, FANFARE = "LOOTWINDOWCOINSOUND", "igQuestCancel", "MapPing", "LEVELUPSOUND"
 
 ---------------------------------------------------------------------------
 -- Blackjack
@@ -41,7 +41,7 @@ local bdb = ns.db.blackjack
 local bjPortrait = ns.games.blackjack and nil
 for _, o in ipairs(env.all) do if o.kind == "PlayerModel" and Visible(o) then bjPortrait = o end end
 Check("blackjack: your 3D portrait shows", bjPortrait ~= nil and bjPortrait.unit == "player" and (bjPortrait.camera == 0 or bjPortrait.zoom == 1))
-Check("blackjack: default sounds", bdb.sounds.win == "coins" and bdb.sounds.lose == "questDrop" and bdb.sounds.newHand == "pageTurn")
+Check("blackjack: default sounds", bdb.sounds.win == "coins" and bdb.sounds.lose == "questDrop" and bdb.sounds.newHand == "mapPing")
 math.randomseed(5)
 local rounds, okRounds = 0, 0
 local status
@@ -73,12 +73,12 @@ Press("Sounds")
 local function RowValues()
   local vals = {}
   for _, o in ipairs(env.all) do
-    if o.kind == "FontString" and Visible(o) and (o.text == "Coins" or o.text == "Quest abandoned" or o.text == "Page turn"
+    if o.kind == "FontString" and Visible(o) and (o.text == "Coins" or o.text == "Quest abandoned" or o.text == "Map ping"
       or o.text == "Level-up fanfare" or o.text == "None" or o.text == "Quest complete") then table.insert(vals, o.text) end
   end
   return table.concat(vals, ",")
 end
-Check("options: Sounds screen lists the three choices", RowValues() == "Coins,Quest abandoned,Page turn", RowValues())
+Check("options: Sounds screen lists the three choices", RowValues() == "Coins,Quest abandoned,Map ping", RowValues())
 local overlay = Find("Defaults").parent
 local from = table.getn(played) + 1
 local nexts = {}
@@ -95,6 +95,22 @@ for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == "<" and o.par
 -- lose: back to None (Quest abandoned is 5th; None is 1st)
 for _ = 1, 4 do env.Fire(prevs[2], "OnClick", "LeftButton") end
 Check("options: a sound can be turned off", bdb.sounds.lose == "none" and not (plays[2].enabled), bdb.sounds.lose)
+-- every choice plays a sound this client knows (the mock refuses unknown ones), each a different one
+do
+  local heardBy, dupes, n = {}, {}, 0
+  for _ = 1, table.getn(ns.SOUND_CHOICES) do
+    local f = table.getn(played) + 1
+    env.Fire(nexts[3], "OnClick", "LeftButton")
+    local id = bdb.sounds.newHand
+    if id ~= "none" then
+      n = n + 1
+      local got = played[f]
+      if not got then table.insert(dupes, id .. " silent")
+      elseif heardBy[got] then table.insert(dupes, id .. " = " .. heardBy[got]) else heardBy[got] = id end
+    end
+  end
+  Check("options: all " .. n .. " sounds play, and no two are the same", n >= 25 and table.getn(dupes) == 0, table.concat(dupes, "; "))
+end
 Press("Done")
 Press("Done")
 -- a losing round is now silent, and a win plays the fanfare
@@ -124,7 +140,7 @@ ns:ShowMenu()
 ns:OpenGame("holdem")
 local P = ns.games.holdem
 local hdb = ns.db.holdem
-Check("hold'em: default sounds", hdb.sounds.win == "coins" and hdb.sounds.newHand == "pageTurn")
+Check("hold'em: default sounds", hdb.sounds.win == "coins" and hdb.sounds.newHand == "mapPing")
 local curFrom = table.getn(played)
 Press("1,000")
 local hands, handsOk, bad = 0, 0, nil

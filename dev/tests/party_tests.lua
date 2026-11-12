@@ -363,8 +363,8 @@ do
 end
 for _, c in ipairs({ bob, cid }) do
   local st = c.ns.db.holdem.stats
-  Check("sounds: " .. c.name .. " hears one new-hand sound per hand dealt", Heard(c, "igQuestListOpen") == st.hands,
-    Heard(c, "igQuestListOpen") .. " sounds, " .. st.hands .. " hands")
+  Check("sounds: " .. c.name .. " hears one new-hand sound per hand dealt", Heard(c, "MapPing") == st.hands,
+    Heard(c, "MapPing") .. " sounds, " .. st.hands .. " hands")
   Check("sounds: " .. c.name .. " hears one win sound per hand won", Heard(c, "LOOTWINDOWCOINSOUND") == st.won,
     Heard(c, "LOOTWINDOWCOINSOUND") .. " sounds, " .. st.won .. " won")
   Check("sounds: " .. c.name .. " hears lose sounds, never more than hands lost", Heard(c, "igQuestCancel") > 0

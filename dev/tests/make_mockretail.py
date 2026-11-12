@@ -63,7 +63,10 @@ s = s[:i] + '''PlaySound = function(id) assert(type(id) == "number", "modern Pla
 SOUNDKIT = { IG_MAINMENU_OPTION = 852, IG_MAINMENU_OPTION_CHECKBOX_ON = 856, IG_CHARACTER_INFO_OPEN = 839,
   IG_CHARACTER_INFO_CLOSE = 840, IG_MAINMENU_OPEN = 850, IG_MAINMENU_CLOSE = 851, LOOT_WINDOW_COIN_SOUND = 120,
   IG_QUEST_LIST_COMPLETE = 878, IG_QUEST_CANCEL = 879, IG_QUEST_LIST_OPEN = 875, IG_QUEST_LIST_CLOSE = 876,
-  IG_QUEST_LIST_SELECT = 877, WRITE_QUEST = 880, RAID_WARNING = 8959, IG_BACKPACK_OPEN = 862 }
+  IG_QUEST_LIST_SELECT = 877, WRITE_QUEST = 880, RAID_WARNING = 8959, IG_BACKPACK_OPEN = 862,
+  IG_QUEST_FAILED = 847, MAP_PING = 3175, TELL_MESSAGE = 3081, IG_PLAYER_INVITE = 881, PVP_THROUGH_QUEUE = 8459,
+  PVP_ENTER_QUEUE = 8458, AUCTION_WINDOW_OPEN = 5274, AUCTION_WINDOW_CLOSE = 5275, IG_CREATURE_AGGRO_SELECT = 873,
+  INTERFACE_SOUND_LOST_TARGET_UNIT = 684, TALENT_SCREEN_OPEN = 8510, IG_SPELLBOOK_OPEN = 829, IG_CHARACTER_INFO_TAB = 841 }
 ''' + s[j:]
 rep('''GetNumPartyMembers = function() return 0 end
 GetNumRaidMembers = function() return 0 end
@@ -143,7 +146,10 @@ function PrefixHeard(prefix) return C_ChatInfo.IsAddonMessagePrefixRegistered(pr
 local SOUND_NAMES = { [852] = "igMainMenuOption", [856] = "igMainMenuOptionCheckBoxOn", [839] = "igCharacterInfoOpen",
   [840] = "igCharacterInfoClose", [850] = "igMainMenuOpen", [851] = "igMainMenuClose", [120] = "LOOTWINDOWCOINSOUND",
   [888] = "LEVELUPSOUND", [878] = "igQuestListComplete", [879] = "igQuestCancel", [875] = "igQuestListOpen",
-  [876] = "igQuestListClose", [877] = "igQuestListSelect", [880] = "WriteQuest", [8959] = "RaidWarning", [862] = "BAGMENUBUTTONPRESS" }
+  [876] = "igQuestListClose", [877] = "igQuestListSelect", [880] = "WriteQuest", [8959] = "RaidWarning", [862] = "BAGMENUBUTTONPRESS",
+  [847] = "igQuestFailed", [3175] = "MapPing", [3081] = "TellMessage", [881] = "igPlayerInvite", [8459] = "PVPTHROUGHQUEUE",
+  [8458] = "PVPENTERQUEUE", [5274] = "AuctionWindowOpen", [5275] = "AuctionWindowClose", [873] = "igCreatureAggroSelect",
+  [684] = "INTERFACESOUND_LOSTTARGETUNIT", [829] = "igSpellBookOpen", [841] = "igCharacterInfoTab", [8510] = "TalentScreenOpen" }
 function SoundName(id) return SOUND_NAMES[id] or id end
 ''')
 # the modern client reads the Mainline .toc

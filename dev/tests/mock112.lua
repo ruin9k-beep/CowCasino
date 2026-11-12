@@ -32,7 +32,7 @@ local NEEDS_NAME = set("UIPanelButtonTemplate UICheckButtonTemplate OptionsSlide
 local LAYERS = set("BACKGROUND BORDER ARTWORK OVERLAY HIGHLIGHT")
 local CLICKS = set("LeftButtonUp RightButtonUp LeftButtonDown RightButtonDown MiddleButtonUp AnyUp")
 CLICKS.AnyUp = nil
-local SOUNDS = set("igMainMenuOption igMainMenuOptionCheckBoxOn igCharacterInfoOpen igCharacterInfoClose LOOTWINDOWCOINSOUND LEVELUPSOUND RaidWarning igQuestListComplete igQuestCancel igQuestListOpen igQuestListClose igQuestListSelect WriteQuest igMainMenuOpen igMainMenuClose BAGMENUBUTTONPRESS")
+local SOUNDS = set("igMainMenuOption igMainMenuOptionCheckBoxOn igCharacterInfoOpen igCharacterInfoClose LOOTWINDOWCOINSOUND LEVELUPSOUND RaidWarning igQuestListComplete igQuestCancel igQuestListOpen igQuestListClose igQuestListSelect WriteQuest igMainMenuOpen igMainMenuClose BAGMENUBUTTONPRESS igQuestFailed MapPing TellMessage igPlayerInvite PVPTHROUGHQUEUE PVPENTERQUEUE AuctionWindowOpen AuctionWindowClose igCreatureAggroSelect INTERFACESOUND_LOSTTARGETUNIT TalentScreenOpen igSpellBookOpen igCharacterInfoTab")
 
 local methods = {}
 local MT = { __index = function(t, k)

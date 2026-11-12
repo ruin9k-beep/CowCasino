@@ -132,6 +132,19 @@ local SOUND_KITS = {
     WriteQuest                 = { "WRITE_QUEST" },
     RaidWarning                = { "RAID_WARNING" },
     BAGMENUBUTTONPRESS         = { "BAG_MENU_BUTTON_PRESS", "IG_BACKPACK_OPEN" },
+    igQuestFailed              = { "IG_QUEST_FAILED", 847 },
+    MapPing                    = { "MAP_PING", 3175 },
+    TellMessage                = { "TELL_MESSAGE", 3081 },
+    igPlayerInvite             = { "IG_PLAYER_INVITE", 880 },
+    PVPTHROUGHQUEUE            = { "PVP_THROUGH_QUEUE", 8459 },
+    PVPENTERQUEUE              = { "PVP_ENTER_QUEUE", 8458 },
+    AuctionWindowOpen          = { "AUCTION_WINDOW_OPEN", 5274 },
+    AuctionWindowClose         = { "AUCTION_WINDOW_CLOSE", 5275 },
+    igCreatureAggroSelect      = { "IG_CREATURE_AGGRO_SELECT" },
+    INTERFACESOUND_LOSTTARGETUNIT = { "INTERFACE_SOUND_LOST_TARGET_UNIT" },
+    TalentScreenOpen           = { "TALENT_SCREEN_OPEN" },
+    igSpellBookOpen            = { "IG_SPELLBOOK_OPEN" },
+    igCharacterInfoTab         = { "IG_CHARACTER_INFO_TAB" },
 }
 
 function ns.PlaySound(name)

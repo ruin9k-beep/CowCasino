@@ -314,8 +314,8 @@ Check("A: bob lose + insurance (13, pays 26) = +1", b1 - b0 == 1, tostring(b1 - 
 Check("A: cid loses 25", c1 - c0 == -25, tostring(c1 - c0))
 Run(1)
 Check("A: clients see the dealer blackjack", Codes(bob.T.dealer) == "1/2 13/2" and Codes(cid.T.dealer) == "1/2 13/2")
-Check("sounds: everyone hears the new hand", Heard(host, "igQuestListOpen", markH) == 1 and Heard(bob, "igQuestListOpen", markB) == 1
-  and Heard(cid, "igQuestListOpen", markC) == 1)
+Check("sounds: everyone hears the new hand", Heard(host, "MapPing", markH) == 1 and Heard(bob, "MapPing", markB) == 1
+  and Heard(cid, "MapPing", markC) == 1)
 Check("sounds: host wins (+25) -> coins", Heard(host, "LOOTWINDOWCOINSOUND", markH) == 1 and Heard(host, "igQuestCancel", markH) == 0)
 Check("sounds: bob nets +1 (insurance rounded up) -> coins", Heard(bob, "LOOTWINDOWCOINSOUND", markB) == 1 and Heard(bob, "igQuestCancel", markB) == 0)
 Check("sounds: cid loses -> lose sound", Heard(cid, "igQuestCancel", markC) == 1 and Heard(cid, "LOOTWINDOWCOINSOUND", markC) == 0)
