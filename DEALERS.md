@@ -1,13 +1,13 @@
 # CowCasino dealers
 
-Games with a dealer (Blackjack so far) show a strip on top of the window with the
+Games with a dealer (Blackjack and Texas Hold'em so far) show a strip on top of the window with the
 dealer's picture, name and what they're saying. The picture and name come from the
 selected **dealer**. Players pick one in the **CowCasino Options** (the Options button
 on the game list) under **Dealer**; the choice is saved and used by every game.
 
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
-- **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`). He has his own lines for Blackjack.
+- **Goblin** (the default): Fizzlecog, a grinning goblin croupier with a green visor and a gold tooth (`Art\DealerGoblin`). He has his own lines for Blackjack and Hold'em.
 - **Human**: Harold, a human croupier (`Art\DealerHuman`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,
@@ -70,6 +70,20 @@ Blackjack (single player):
 | `win` / `lose` / `push` | ...otherwise | same, and `{loss}` |
 | `surrender` | ...you surrendered | same |
 | `broke` | you're out of chips after a round | |
+
+Texas Hold'em (solo and party tables; every player hears their own chosen dealer):
+
+| Moment | When | Fills in |
+|---|---|---|
+| `holdemDeal` | a hand is dealt | `{button}` who has the button, `{sb}`, `{bb}` |
+| `holdemFlop` / `holdemTurn` / `holdemRiver` | the board cards come (skipped if the dealer is busy talking) | |
+| `holdemAllIn` | another player goes all-in | `{name}`, `{amount}` |
+| `holdemYouAllIn` | you go all-in | `{amount}` |
+| `holdemWin` / `holdemYouWin` | the hand is won at the showdown | `{name}`, `{pot}`, `{hand}` |
+| `holdemFoldWin` / `holdemYouFoldWin` | ...won when everyone else folded | `{name}`, `{pot}` |
+| `holdemSplit` | the pot is split | `{name}` (one of them), `{pot}`, `{hand}` |
+| `holdemKnockout` | another player runs out of chips | `{name}` |
+| `holdemYouBust` | you run out of chips | |
 
 `Dealer.lua` has Fizzlecog's lines as an example.
 

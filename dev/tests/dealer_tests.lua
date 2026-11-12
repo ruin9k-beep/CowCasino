@@ -180,6 +180,46 @@ Check("a message's sound waits for the message", not Heard("LEVELUPSOUND"))
 Tick(0.5)
 Check("...and plays when it shows", Heard("LEVELUPSOUND") and ui.text.text == "Winner!")
 
+-- Hold'em: Fizzlecog talks the table through each hand
+ns.db.chips = 100000
+ns:OpenGame("holdem")
+local HE = ns.games.holdem
+Check("Hold'em has the dealer too", D:IsShown() and ui.name.text == "Fizzlecog" and ui.text.text == "Shuffle up and deal.")
+local HEV = { "holdemDeal", "holdemFlop", "holdemTurn", "holdemRiver", "holdemAllIn", "holdemYouAllIn", "holdemWin", "holdemYouWin",
+              "holdemFoldWin", "holdemYouFoldWin", "holdemSplit", "holdemKnockout", "holdemYouBust" }
+for _, e in ipairs(HEV) do Check("Fizzlecog has Hold'em lines for " .. e, type(G[e]) == "table" and G[e][1] ~= nil) end
+local buy
+for _, o in ipairs(env.all) do if o.kind == "Button" and Visible(o) and o.text == "1,000" then buy = o end end
+env.Fire(buy, "OnClick", "LeftButton")
+local function HEBtn(pre)
+  for _, o in ipairs(env.all) do
+    if o.kind == "Button" and o.text and string.sub(o.text, 1, string.len(pre)) == pre and Visible(o) and o.enabled then return o end
+  end
+end
+local said, filled = {}, true
+for _ = 1, 400 do
+  local b = HEBtn("All-in") or HEBtn("Call") or HEBtn("Check") or HEBtn("Deal")
+  if b then env.Fire(b, "OnClick", "LeftButton") end
+  if HE.T.seats[1] and HE.T.seats[1].stack <= 0 and HE.T.street == "idle" then
+    local l = HEBtn("Leave table"); if l then env.Fire(l, "OnClick", "LeftButton") end
+    for _, o in ipairs(env.all) do if o.kind == "Button" and Visible(o) and o.text == "1,000" then env.Fire(o, "OnClick", "LeftButton") end end
+  end
+  Watch(1, function(t)
+    local e = FromEvents(t, HEV)
+    if e then said[e] = true; if string.find(t, "{", 1, true) then filled = false end end
+  end)
+  if said.holdemDeal and said.holdemYouAllIn and (said.holdemWin or said.holdemYouWin or said.holdemSplit) and said.holdemKnockout then break end
+end
+local list = {}
+for e in pairs(said) do table.insert(list, e) end
+table.sort(list)
+Check("he calls the deal", said.holdemDeal, table.concat(list, ","))
+Check("...your all-ins", said.holdemYouAllIn)
+Check("...who wins", said.holdemWin or said.holdemYouWin or said.holdemSplit or said.holdemFoldWin or said.holdemYouFoldWin)
+Check("...and who's knocked out", said.holdemKnockout or said.holdemYouBust)
+Check("...with every {name} filled in", filled)
+ns:OpenGame("blackjack")
+
 -- other games: no dealer; coming back resets it
 ns:OpenGame("mines")
 Check("Mines has no dealer: the strip hides", not D:IsShown())

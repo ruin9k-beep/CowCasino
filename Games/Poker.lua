@@ -40,6 +40,8 @@ local Poker = {
     name = "Texas Hold'em",
     description = "No-limit poker against three computer players.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\HoldemIcon",   -- painted (dev/art-src/make_game_icons.py)
+    -- the dealer on top of the window (Dealer.lua): the one picked in Options
+    dealer = { idle = "Shuffle up and deal." },
 }
 
 local db      -- ns.db.holdem
@@ -281,7 +283,7 @@ T.offers  = {}      -- client: tables in the group, by host name
 T.fillBots = true
 
 local Net = ns.Net
-local Refresh, Continue, EndRound, StartHand, SetStatus, Leave
+local Refresh, Continue, EndRound, StartHand, SetStatus, Leave, DealerWatch
 
 local STREET_CODE = { idle = "i", preflop = "p", flop = "f", turn = "t", river = "r", showdown = "s" }
 local STREET_NAME = { i = "idle", p = "preflop", f = "flop", t = "turn", r = "river", s = "showdown" }
@@ -658,6 +660,66 @@ local function MyTurn()
     return true
 end
 
+---------------------------------------------------------------------------
+-- The dealer talks the table through each hand. It watches the table as it
+-- is drawn, so it works the same solo, hosting or at someone else's table.
+-- The lines are the chosen dealer's own (DEALERS.md), or nothing.
+---------------------------------------------------------------------------
+local seen = { hand = nil, street = nil, allIn = {}, start = {}, done = true }
+
+local function Say(event, vars, seconds, quiet)
+    ns.Dealer:React(Poker, event, vars, seconds or 6, nil, quiet)
+end
+
+function DealerWatch()
+    if T.street ~= "idle" and T.hand ~= seen.hand then
+        seen.hand, seen.street, seen.allIn, seen.start, seen.done = T.hand, T.street, {}, {}, false
+        for i, p in ipairs(T.seats) do
+            if p.kind ~= "empty" and not p.out then seen.start[i] = p.stack + (p.total or 0) end
+        end
+        local b = T.seats[T.button]
+        Say("holdemDeal", { button = b and Who(b) or "?", sb = Fmt(SB), bb = Fmt(BB) })
+    end
+    if seen.done or T.hand ~= seen.hand then return end
+    if T.street ~= seen.street and T.street ~= "idle" and T.street ~= "showdown" then
+        seen.street = T.street
+        if T.street == "flop" or T.street == "turn" or T.street == "river" then
+            Say("holdem" .. string.upper(string.sub(T.street, 1, 1)) .. string.sub(T.street, 2), nil, 5, true)
+        end
+    end
+    for i, p in ipairs(T.seats) do
+        if p.allIn and not seen.allIn[i] and seen.start[i] then
+            seen.allIn[i] = true
+            if IsMine(p) then Say("holdemYouAllIn", { amount = Fmt(p.total or 0) })
+            else Say("holdemAllIn", { name = Who(p), amount = Fmt(p.total or 0) }) end
+        end
+    end
+    if T.street ~= "idle" then return end
+
+    -- the hand is over: who won, and who's out of chips
+    seen.done = true
+    local winners, pot, mine = {}, 0, false
+    for _, p in ipairs(T.seats) do
+        if (p.won or 0) > 0 and p.kind ~= "empty" then
+            table.insert(winners, p)
+            pot = pot + p.won
+            if IsMine(p) then mine = true end
+        end
+    end
+    local w = winners[1]
+    if w then
+        local vars = { name = Who(w), pot = Fmt(pot), hand = w.score and Describe(w.score) or "the best hand" }
+        if ns.getn(winners) > 1 then Say("holdemSplit", vars)
+        elseif not T.reveal or not w.score then Say(mine and "holdemYouFoldWin" or "holdemFoldWin", vars)
+        else Say(mine and "holdemYouWin" or "holdemWin", vars) end
+    end
+    for i, p in ipairs(T.seats) do
+        if seen.start[i] and seen.start[i] > 0 and p.stack <= 0 and p.kind ~= "empty" then
+            if IsMine(p) then Say("holdemYouBust", nil, 8) else Say("holdemKnockout", { name = Who(p) }, 7) end
+        end
+    end
+end
+
 function Refresh()
     if not ui.table then return end
     local seated = T.seats[1] ~= nil
@@ -739,6 +801,7 @@ function Refresh()
     end
     ui.blinds:SetText("Blinds " .. Fmt(SB) .. "/" .. Fmt(BB))
     ns:UpdateChipsDisplay()
+    if T.seats[1] then DealerWatch() end
 
     if T.dirty then Broadcast() end
 end

@@ -78,6 +78,7 @@ local function NewClient(name)
   for _, o in ipairs(env.all) do
     if not o.parent and o.scripts.OnUpdate then table.insert(c.updaters, o) end
   end
+  if ns.Dealer.UI() then table.insert(c.updaters, ns.Dealer.UI()) end   -- the dealer's messages
   table.insert(clients, c)
   byName[name] = c
   return c
@@ -316,6 +317,16 @@ onTick = function()
   end
 end
 
+-- what the dealer says at each seat
+local dealerSaid = { Host = {}, Bob = {} }
+local prevTick = onTick
+onTick = function()
+  prevTick()
+  for who, set in pairs(dealerSaid) do
+    local u = byName[who].ns.Dealer.UI()
+    if u and u.text.text then set[u.text.text] = true end
+  end
+end
 -- hands deal themselves once party members are seated
 Check("first hand deals itself", host.T.street ~= "idle" or host.T.hand > 0, "hand " .. host.T.hand)
 Run(900)
@@ -328,6 +339,28 @@ end
 Check("15 minutes of play: hands kept coming while 2+ players had chips", handsSeen >= 25 or withChips < 2,
   handsSeen .. " hands, " .. withChips .. " seats with chips at the end")
 Check("chips conserved every hand", table.getn(problems) == 0, problems[1])
+do
+  local G = host.ns.dealers.goblin.lines
+  local function Pattern(line)
+    local q = string.gsub(line, "([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    return "^" .. string.gsub(q, "{%w+}", ".-") .. "$"
+  end
+  for _, who in ipairs({ "Host", "Bob" }) do
+    local kinds = {}
+    for text in pairs(dealerSaid[who]) do
+      for e, lines in pairs(G) do
+        if string.sub(e, 1, 6) == "holdem" then
+          for _, l in ipairs(lines) do if string.find(text, Pattern(l)) then kinds[e] = true end end
+        end
+      end
+    end
+    local n, list = 0, {}
+    for e in pairs(kinds) do n = n + 1; table.insert(list, e) end
+    table.sort(list)
+    Check("Fizzlecog talks " .. who .. "'s table through the hands", kinds.holdemDeal and (kinds.holdemWin or kinds.holdemYouWin
+      or kinds.holdemFoldWin or kinds.holdemYouFoldWin or kinds.holdemSplit) and n >= 5, table.concat(list, ","))
+  end
+end
 for _, c in ipairs({ bob, cid }) do
   local st = c.ns.db.holdem.stats
   Check("sounds: " .. c.name .. " hears one new-hand sound per hand dealt", Heard(c, "igQuestListOpen") == st.hands,

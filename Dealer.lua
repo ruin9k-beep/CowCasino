@@ -438,6 +438,69 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
             "Outta chips? I could offer a loan... at thirty percent a week.",
             "Cleaned out! Grab more chips from the menu, friend. The goblin's always open.",
         },
+
+        -- Texas Hold'em (solo and party tables)
+        holdemDeal = {
+            "Cards in the air! {button} has the button. Blinds are {sb} and {bb}... plus a small dealer's fee. Kiddin'! Mostly.",
+            "Shufflin'... totally fair shufflin'. Don't look at my sleeves. {button}'s on the button.",
+            "New hand! I can smell gold from here, and this nose don't lie.",
+            "Blinds, antes and tips for the dealer. Okay, fine, just the blinds: {sb} and {bb}.",
+            "Dealin' 'em out! Remember, friends: the house always wins. I'm the house. Sorta.",
+        },
+        holdemFlop = {
+            "Here's the flop! Three cards, zero refunds.",
+            "The flop! Somebody just smiled. My nose twitched. That's never a good sign.",
+            "Flop's out. Anybody need a loan? Fizzlecog Financial is open. Terrible rates!",
+        },
+        holdemTurn = {
+            "The turn! Things are heatin' up. I love the smell of a growin' pot.",
+            "Turn card. Ooh, I can almost taste the gold.",
+        },
+        holdemRiver = {
+            "The river! Last card, last chance to make me rich... I mean, make yourselves rich.",
+            "River card. Every coin on this table is lookin' right at me. I can feel it.",
+        },
+        holdemAllIn = {
+            "{name} shoves {amount}! Now THAT'S my kinda customer!",
+            "All-in from {name}! {amount} on the line. My nose is tinglin'!",
+            "{name} pushes it all in! I'll hold those chips for safekeepin'... wink wink.",
+            "{name} is all-in for {amount}! Somebody call a goblin banker!",
+        },
+        holdemYouAllIn = {
+            "You're all-in for {amount}? Bold! Want me to hold your wallet too?",
+            "All of it?! {amount}! I like you. I'll miss you. Maybe.",
+        },
+        holdemWin = {
+            "{name} takes {pot} with {hand}! Don't forget to tip your dealer.",
+            "{hand} wins it! {pot} to {name}. I didn't touch a single coin. Check my pockets... no, don't.",
+            "{name} rakes in {pot}! My nose says there's more where that came from.",
+        },
+        holdemYouWin = {
+            "You win {pot} with {hand}! Ten percent finder's fee? No? Worth a shot.",
+            "{hand}! That's {pot} for you. My nose is cryin' a little.",
+            "Pot's yours: {pot}! Just leave a little somethin' for ol' Fizzlecog, eh?",
+        },
+        holdemFoldWin = {
+            "Everybody folds! {name} scoops {pot} without even showin'. Scam artist! I respect it.",
+            "{name} takes {pot} uncontested. That's my kinda business: no work, all profit.",
+        },
+        holdemYouFoldWin = {
+            "They all folded! {pot} for you, no questions asked. You'd make a fine goblin.",
+            "Took it down! {pot}. Was it a bluff? Don't tell me, I'll sell the secret.",
+        },
+        holdemSplit = {
+            "A split pot! Nothin' sadder than sharin' gold.",
+            "Chop it up! {pot} split between the winners. Ugh, so wholesome.",
+        },
+        holdemKnockout = {
+            "{name} is busted! Don't worry, friend: Fizzlecog Financial offers loans at only fifty percent!",
+            "And {name} is outta chips! The gold always finds its way home... to me.",
+            "{name}'s out! Leave your chips at the... oh wait, you don't have any.",
+        },
+        holdemYouBust = {
+            "You're busted, friend! I'd offer a loan, but... nah. Leave the table to buy back in.",
+            "Cleaned out! Your gold's in good hands now. Mine. Leave the table to buy in again.",
+        },
     } })
 ns:RegisterDealer({ id = "human", name = "Human", title = "Harold", author = "ruin9k",
     image = ART .. "DealerHuman" })
