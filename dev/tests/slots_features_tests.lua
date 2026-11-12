@@ -185,11 +185,15 @@ Check("Stop ends Auto", G.S.autoLeft == 0 and d.stats.spins == stoppedAt and d.s
   d.stats.spins - stoppedAt)
 -- Auto stops when the chips run short
 ns.db.chips = 25
+local autoFrom = d.stats.spins
 Press("Auto 25")
 -- (wins on the way can keep it going for a while, and a free spin round
 -- won on the way plays out first)
 for _ = 1, 900 do if G.S.autoLeft == 0 and not (d.free or G.S.spinning or G.S.waiting) then break end Tick(1) end
-Check("Auto stops when there aren't chips for the bet", G.S.autoLeft == 0 and ns.db.chips < 10 + 1000 and not G.S.spinning)
+-- (it stops once the chips run short, unless a lucky win carries it through all 25)
+local bet = d.bet or 10
+Check("Auto stops when there aren't chips for the bet", G.S.autoLeft == 0 and not G.S.spinning
+  and (ns.db.chips < bet or d.stats.spins - autoFrom >= 25), ns.db.chips .. " chips, " .. (d.stats.spins - autoFrom) .. " spins")
 ns.db.chips = 5000
 Press("Options")
 Check("Options: Auto spins 10 to 100", Shown("Auto spins") ~= nil and Shown("25 spins") ~= nil,

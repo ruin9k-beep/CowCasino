@@ -115,6 +115,24 @@ def draw():
     return frame(img)
 
 
+# --- Video Poker: a machine screen, five cards, two of them HELD --------------
+def videopoker():
+    img = backdrop((30, 50, 140, 255), (8, 10, 45, 255))
+    d = ImageDraw.Draw(img)
+    # the cabinet and its screen
+    shadow(img, lambda sd, o, c: sd.rounded_rectangle((52 + o[0], 110 + o[1], 460 + o[0], 410 + o[1]), radius=30, fill=c))
+    d.rounded_rectangle((52, 110, 460, 410), radius=30, fill=(170, 135, 55, 255), outline=(60, 45, 15, 255), width=6)
+    d.rounded_rectangle((74, 132, 438, 388), radius=16, fill=(10, 20, 110, 255), outline=(20, 15, 5, 255), width=5)
+    fan = [("A", "♠", INK), ("A", "♥", RED), ("7", "♣", INK), ("A", "♦", RED), ("3", "♠", INK)]
+    for i, (rank, suit, color) in enumerate(fan):
+        rotated_card(img, 120 + i * 68, 238, 62, 96, 0, rank, suit, color)
+    d = ImageDraw.Draw(img)
+    for i in (0, 1, 3):     # HELD bars under the kept cards
+        x = 120 + i * 68
+        d.rounded_rectangle((x - 30, 312, x + 30, 334), radius=6, fill=(255, 210, 40, 255))
+    return frame(img)
+
+
 # --- Roulette: the wheel from above, with the ball -----------------------------
 def roulette():
     img = backdrop((95, 60, 30, 255), (35, 18, 8, 255))
@@ -263,7 +281,7 @@ def hilo():
 
 
 ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
-         ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash)]
+         ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker)]
 
 if __name__ == "__main__":
     big = []

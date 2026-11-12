@@ -22,6 +22,7 @@ One addon folder runs on two clients:
 - **Plinko**: 8, 12 or 16 rows, three risk levels, up to 100 balls a drop
 - **Crash**, with auto cash-out
 - **Hi-Lo**: higher or lower, with the multiplier growing each right guess
+- **Video Poker**: Jacks or Better (the 9/6 pay table), one to five coins, hold and draw
 
 A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw and Craps so far).
 Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`

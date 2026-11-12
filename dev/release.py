@@ -60,7 +60,7 @@ TESTS_BOTH = ["harness112", "roulette_tests", "sound_tests", "options_tests", "m
               "chat_tests", "whole_chips_tests", "portrait_tests", "tauren_cards_tests", "split_tests",
               "race_cards_tests", "bj_layout_tests", "startup_tests", "craps_tests", "party_craps_tests",
               "plinko_crash_tests", "slots_features_tests", "hilo_tests", "dealer_tests", "draw_tests",
-              "draw_party_tests"]
+              "draw_party_tests", "videopoker_tests"]
 TESTS_FOREVER_ONLY = ["net_throttle_tests"]
 
 
