@@ -92,6 +92,9 @@ Check("...the win counts up", G.ui.win.text ~= ("WIN " .. ns:FormatChips(expect)
 Tick(2)
 Check("...to the full amount, under a JACKPOT banner", G.ui.win.text == ns:FormatChips(expect) and G.ui.banner.text == "JACKPOT!",
   tostring(G.ui.win.text) .. " / " .. tostring(G.ui.banner.text))
+Check("the last spins line shows the jackpot's net, in green",
+  G.S.recent[1] == expect - 10 and G.ui.history.text == "|cff40ff40+" .. ns:FormatChips(expect - 10) .. "|r", G.ui.history.text)
+local beforeWild = ns.db.chips
 
 -- a wild in view shows its multiplier
 Queue({ PlainStop(S5[1], 4), StopFor(S5[2], "wild", 2), PlainStop(S5[3], 4), PlainStop(S5[4], 4), PlainStop(S5[5], 4) })
@@ -100,6 +103,10 @@ local m = ns.db.slots.pending.wilds[2][2]
 Tick(3)
 Check("a landed wild wears its multiplier", m ~= nil and G.ui.reels[2].badges[2].shown and G.ui.reels[2].badges[2].text == "x" .. m,
   tostring(m))
+local wildNet = ns.db.chips - beforeWild
+local wildText = (wildNet > 0 and "|cff40ff40+" .. ns:FormatChips(wildNet)) or (wildNet < 0 and "|cffff7070-" .. ns:FormatChips(-wildNet)) or "|cffaaaaaa0"
+Check("...the newest spin goes first, net of its bet", G.S.recent[1] == wildNet and G.S.recent[2] == expect - 10
+  and string.sub(G.ui.history.text, 1, string.len(wildText) + 2) == wildText .. "|r", G.ui.history.text)
 
 ---------------------------------------------------------------------------
 -- Free spins
@@ -133,6 +140,9 @@ while d.free and guard < 2000 do
 end
 Check("all the free spins play by themselves", d.free == nil and guard < 2000, guard)
 Check("free spins never charge a bet", d.stats.wagered == paidSpins)
+local sixShown = 0
+for _ in string.gfind(G.ui.history.text, "|r") do sixShown = sixShown + 1 end
+Check("the last spins line keeps to six", sixShown == 6 and table.getn(G.S.recent) <= 12, sixShown)
 Check("the multiplier only ever rises, up to x3", rising and lastMult <= 3)
 Check("they finish with a summary", Shown("Free spins over") ~= nil)
 Check("...and the machine is back to normal", Shown("FREE SPINS") == nil and G.ui.raise.enabled)
@@ -221,6 +231,7 @@ do
   ns:RebuyChips(1000)
   Check("...and starts over with a fresh stack", string.find(G.ui.stats.text, "Spins 0", 1, true) ~= nil
     and string.find(G.ui.stats.text, "Net |cffcccccc0", 1, true) ~= nil, G.ui.stats.text)
+  Check("...and the last spins line clears", table.getn(G.S.recent) == 0 and G.ui.history.text == "", G.ui.history.text)
   ns.db.chips = 5000
 end
 

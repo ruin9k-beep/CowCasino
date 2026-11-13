@@ -151,9 +151,9 @@ local AUTO_CHOICES = { 10, 25, 50, 100 }
 local MACHINES = {
     { id = "3x3", name = "3 x 3", reels = 3, rows = 3, reelW = 80, rowH = 60, gap = 8, lines = LINES_3x3, pays = PAYS_3,
       strips = STRIPS_3, scatterPay = 25, freeSpins = 14 },
-    { id = "5x4", name = "5 x 4", reels = 5, rows = 4, reelW = 60, rowH = 48, gap = 6, lines = LINES_5x4, pays = PAYS_5,
+    { id = "5x4", name = "5 x 4", reels = 5, rows = 4, reelW = 60, rowH = 46, gap = 6, lines = LINES_5x4, pays = PAYS_5,
       strips = STRIPS_5, scatterPay = 20, freeSpins = 12 },
-    { id = "5x5", name = "5 x 5", reels = 5, rows = 5, reelW = 60, rowH = 38, gap = 6, lines = LINES_5x5, pays = PAYS_5,
+    { id = "5x5", name = "5 x 5", reels = 5, rows = 5, reelW = 60, rowH = 37, gap = 6, lines = LINES_5x5, pays = PAYS_5,
       strips = STRIPS_5, scatterPay = 36, freeSpins = 5 },
 }
 local DEFAULT_MACHINE = "5x4"
@@ -187,6 +187,7 @@ local S = {
     pos = { 1, 1, 1, 1, 1 },   -- strip index showing in row 2 of each reel
     stopped = { true, true, true, true, true },
     t = 0, tick = 0,
+    recent = {},            -- net chips of the last spins, newest first
 }
 
 local function Sound(key) ns:Sound(key) end
@@ -334,6 +335,19 @@ local function SetLit(wins, scatters)
     for _, c in ipairs(scatters or {}) do ui.reels[c[1]].glows[c[2]]:Show() end
 end
 
+-- The last few spins along a line, newest on the left: what each one won or
+-- lost after its bet (a free spin costs nothing, so it shows its whole win).
+local RECENT_SHOWN = 6
+local function RecentText()
+    local parts = {}
+    for i = 1, math.min(RECENT_SHOWN, ns.getn(S.recent)) do
+        local n = S.recent[i]
+        local text = (n > 0 and ("|cff40ff40+" .. Fmt(n))) or (n < 0 and ("|cffff7070-" .. Fmt(-n))) or "|cffaaaaaa0"
+        table.insert(parts, text .. "|r")
+    end
+    return table.concat(parts, "  ")
+end
+
 local function Refresh()
     for r = 1, REELS do DrawReel(r) end
 
@@ -374,6 +388,7 @@ local function Refresh()
         ui.felt:SetTexture(0.25, 0.05, 0.08, 0.92)
     end
     ui.stats:SetText(BottomStats())
+    ui.history:SetText(RecentText())
     ns:UpdateChipsDisplay()
     if ui.paytable and ui.paytable:IsShown() then ui.paytable:Refresh() end
 end
@@ -439,6 +454,8 @@ local function Settle(quiet)
         if win > s.biggestWin then s.biggestWin = win end
     end
     if jackpot then s.jackpots = s.jackpots + 1 end
+    table.insert(S.recent, 1, win - (pending.free and 0 or totalBet))
+    if ns.getn(S.recent) > 12 then table.remove(S.recent) end
 
     -- free spins: count this one, raise the multiplier, add more on scatters
     local started, retriggered, finished
@@ -972,7 +989,7 @@ local function ShowMachine()
     ui.win:ClearAllPoints()
     ui.win:SetPoint("TOP", M.frame, "BOTTOM", 0, -4)
     ui.status:ClearAllPoints()
-    ui.status:SetPoint("TOP", M.frame, "BOTTOM", 0, -28)
+    ui.status:SetPoint("TOP", M.frame, "BOTTOM", 0, -26)
     ui.banner:ClearAllPoints()
     ui.banner:SetPoint("CENTER", M.frame, "CENTER", 0, 0)
     ui.banner:SetText("")
@@ -1109,7 +1126,7 @@ function Slots:Build(panel)
     -- Bet controls
     local betRow = ns.CreateFrame("Frame", nil, panel)
     betRow:SetWidth(300); betRow:SetHeight(24)
-    betRow:SetPoint("BOTTOM", betRow:GetParent(), "BOTTOM", 0, 52)
+    betRow:SetPoint("BOTTOM", betRow:GetParent(), "BOTTOM", 0, 48)
     ui.lower = MakeButton(betRow, "-", 26, function() ChangeBet(-1) end)
     ui.lower:SetPoint("LEFT", ui.lower:GetParent(), "LEFT", 0, 0)
     ui.bet = betRow:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -1120,8 +1137,8 @@ function Slots:Build(panel)
     ui.max = MakeButton(betRow, "Max bet", 70, MaxBet)
     ui.max:SetPoint("LEFT", ui.raise, "RIGHT", 10, 0)
 
-    ui.spin = MakeButton(panel, "Spin", 150, function() Spin() end, 32)
-    ui.spin:SetPoint("BOTTOM", ui.spin:GetParent(), "BOTTOM", 0, 16)
+    ui.spin = MakeButton(panel, "Spin", 150, function() Spin() end, 28)
+    ui.spin:SetPoint("BOTTOM", ui.spin:GetParent(), "BOTTOM", 0, 18)
     ui.auto = MakeButton(panel, "Auto", 80, ToggleAuto, 26)
     ui.auto:SetPoint("LEFT", ui.spin, "RIGHT", 10, 0)
     local paytableButton = MakeButton(panel, "Paytable", 80, function()
@@ -1129,6 +1146,10 @@ function Slots:Build(panel)
         ns.SetShown(ui.paytable, not ui.paytable:IsShown())
     end, 26)
     paytableButton:SetPoint("RIGHT", ui.spin, "LEFT", -10, 0)
+
+    -- the last few spins, just above the bet
+    ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 76)
 
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
@@ -1190,6 +1211,7 @@ function Slots:ResetStats()
     if not d then return end
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
+    for i = ns.getn(S.recent), 1, -1 do table.remove(S.recent, i) end
     if ui.stats and db then Refresh() end
 end
 
