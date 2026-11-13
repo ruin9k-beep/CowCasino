@@ -42,7 +42,13 @@ local function Wrap(script, f)
             this, event = self, ev
             arg1, arg2, arg3, arg4, arg5 = ...
             if ev == "CHAT_MSG_ADDON" then
-                if arg4 then arg4 = Ambiguate(arg4, "short") end
+                -- The sender as the group knows them: WoW Forever sends
+                -- "Rohk Proudhorn-Realm" while UnitName gives "Rohk", so drop
+                -- the realm and anything after the first name.
+                if arg4 then
+                    arg4 = Ambiguate(arg4, "short")
+                    arg4 = string.match(arg4, "^[^%s]+") or arg4
+                end
                 if ns.PREFIX_POOL and ns.PREFIX_POOL[arg1] then arg1 = "CowCasino" end
             end
             f()

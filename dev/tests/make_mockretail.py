@@ -139,7 +139,7 @@ QUESTION_MODEL = "Interface\\\\Buttons\\\\talktomequestionmark.mdx"
 function PrefixHeard(prefix) return true end   -- 1.12 delivers every prefix
 function SoundName(id) return id end           -- sounds are already 1.12 names
 ''', '''ROSTER_EVENT = "GROUP_ROSTER_UPDATE"
-REALM_SUFFIX = "-Nordanaar"
+REALM_SUFFIX = " Proudhorn-Nordanaar"     -- WoW Forever: the sender's surname, then realm
 QUESTION_MODEL = "Interface\\\\Buttons\\\\talktomequestionmark.m2"
 function PrefixHeard(prefix) return C_ChatInfo.IsAddonMessagePrefixRegistered(prefix) end
 -- sound kit numbers back to the 1.12 names the tests use
