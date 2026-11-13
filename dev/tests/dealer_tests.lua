@@ -151,7 +151,12 @@ Check("each stays up at least 3 seconds", firstAt and secondAt and secondAt - fi
 Tick(20)
 Check("the last message stays up, even one given a time", ui.text.text == "Second.", ui.text.text)
 for i = 1, 8 do D:Say(BJ, "Spam " .. i) end
-Check("the queue keeps only the latest few", D.Pending() <= 4, D.Pending())
+Check("four messages at most: the one on screen and three waiting (the newest)", D.Pending() == 3, D.Pending())
+local spam = {}
+Watch(15, function(t) if spam[table.getn(spam)] ~= t then table.insert(spam, t) end end)
+Check("...so the catch-up is short: the last three said, in order", spam[table.getn(spam)] == "Spam 8"
+  and spam[table.getn(spam) - 1] == "Spam 7" and spam[table.getn(spam) - 2] == "Spam 6" and table.getn(spam) <= 5,
+  table.concat(spam, " | "))
 D:Idle(BJ)
 Tick(0.5)
 Check("Idle drops what's waiting and goes back to the idle line", D.Pending() == 0 and ui.text.text == "Place your bet and I'll deal.", ui.text.text)

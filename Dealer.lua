@@ -93,7 +93,8 @@ local customName    -- the game changed the name line
 local idleText = ""
 local MIN_SHOW  = 3       -- seconds each message stays up before the next one
 local FADE      = 0.2     -- seconds to fade the text out, and again to fade it in
-local MAX_QUEUE = 4       -- messages waiting; the oldest waiting one goes first
+local MAX_QUEUE = 3       -- messages waiting behind the one on screen (four in all); a new one
+                          -- pushes out the oldest waiting
 local queue = {}    -- messages waiting: { text, seconds, sound }
 local current       -- the message on screen (with shownAt), or nil for the idle line
 local fade          -- { out = true/false, t0, msg }: the text is changing
