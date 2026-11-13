@@ -33,7 +33,7 @@ local DEFAULT_STATS = { duels = 0, wins = 0, losses = 0, partyDuels = 0, biggest
 local Deathroll = {
     id = "deathroll",
     name = "Deathroll",
-    description = "Take turns rolling lower and lower. Roll a 1 and you lose. Duel the dealer or your party.",
+    description = "Roll lower and lower. Roll a 1 and you lose.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\DeathrollIcon",   -- painted (dev/art-src/make_game_icons.py)
     dealer = { idle = "Fancy a deathroll? Roll a 1 and you lose." },
 }
