@@ -231,20 +231,20 @@ Run(1)
 
 Press(host, "Host a table")          -- default 500
 Run(1)
-Check("host: table open, wallet paid 500", host.T.mode == "host" and host.ns.db.chips == 4500 and host.T.seats[1].stack == 500)
+Check("host: table open with a free 500 stack, wallet untouched", host.T.mode == "host" and host.ns.db.chips == 5000 and host.T.seats[1].stack == 500)
 bob.P:OnShow()
 Run(1)
 Check("bob: sees Host's table", Enabled(bob, "Join"))
-Press(bob, ">")                      -- 1,000
+Press(bob, ">")                      -- (his own pick doesn't matter: the host's stack does)
 Press(bob, "Join")
 Run(2)
-Check("bob: seated with 1,000", bob.T.mode == "client" and bob.ns.db.chips == 4000 and host.T.seats[2].name == "Bob"
-  and host.T.seats[2].stack == 1000)
+Check("bob: seated free with the host's 500", bob.T.mode == "client" and bob.ns.db.chips == 5000 and host.T.seats[2].name == "Bob"
+  and host.T.seats[2].stack == 500)
 cid.P:OnShow()
 Run(1)
 Press(cid, "Join")
 Run(2)
-Check("cid: seated with 500", cid.T.mode == "client" and cid.ns.db.chips == 4500 and host.T.seats[3].stack == 500)
+Check("cid: seated with 500", cid.T.mode == "client" and cid.ns.db.chips == 5000 and host.T.seats[3].stack == 500)
 Check("dan (not in group): no tables listed", Find(dan, "Join") == nil)
 
 -- Portraits: every player at the table gets one, aimed at the right person.
@@ -562,6 +562,8 @@ end
 -- Count from a betting phase so the books are clean.
 RunUntil(function() return host.T.phase == "betting" end, 60)
 local startSum = TableAndWallets()
+local function Wallets() return host.ns.db.chips + bob.ns.db.chips + cid.ns.db.chips end
+local walletsBefore = Wallets()
 netTotal = 0
 Run(900)
 RunUntil(function() return host.T.phase == "betting" end, 60)
@@ -570,8 +572,7 @@ Check("random: payouts and stacks match independent rules", table.getn(problems)
 Check("random: clients mirror the host after every round", consistent >= rounds - 2, consistent .. "/" .. rounds)
 Check("random: hole card hidden on clients during play", hiddenOk)
 Check("random: hole card never sent during decisions", holeLeak == nil, holeLeak)
-Check("random: chips accounted for", math.abs(TableAndWallets() - (startSum + netTotal)) < 0.001,
-  TableAndWallets() .. " vs " .. (startSum + netTotal))
+Check("random: nobody's wallet moves at a party table", Wallets() == walletsBefore, Wallets() .. " vs " .. walletsBefore)
 Check("random: messages within 254 chars", stats.longest <= 254, "longest " .. stats.longest)
 
 ---------------------------------------------------------------------------
@@ -595,7 +596,7 @@ Check("timeout: cid seated with chips", cid.T.mode == "client" and host.T.seats[
 local kicked = RunUntil(function() return cid.T.mode == "lobby" end, 400)
 Check("timeout: cid removed after missed turns", kicked and host.T.seats[3].kind == "empty")
 local kickedStack = LAST_KICK and tonumber(string.sub(LAST_KICK, string.find(LAST_KICK, "[%d%.]+$")))
-Check("timeout: cid got his stack back", kickedStack ~= nil and math.abs(cid.ns.db.chips - (cidWallet + kickedStack)) < 0.001,
+Check("timeout: cid's wallet untouched (the stack was free)", kickedStack ~= nil and math.abs(cid.ns.db.chips - cidWallet) < 0.001,
   tostring(kickedStack))
 Check("timeout: no payout problems", table.getn(problems) == 0, problems[1])
 idle.Cid = "all"
@@ -615,7 +616,7 @@ Press(bob, "Leave table")
 Run(2)
 -- if a round had just started, the host frees the seat when it ends
 RunUntil(function() return host.T.seats[2].kind == "empty" end, 120)
-Check("leave: bob back in the lobby with his stack", bob.T.mode == "lobby" and math.abs(bob.ns.db.chips - (bobWallet + bobStack)) < 0.001
+Check("leave: bob back in the lobby, wallet untouched", bob.T.mode == "lobby" and math.abs(bob.ns.db.chips - bobWallet) < 0.001
   and host.T.seats[2].kind == "empty")
 
 -- Bob rejoins; the host disappears mid-round: Bob gets back his stack from before the round.
@@ -634,8 +635,8 @@ actors = {}
 group = { "Bob", "Cid" }
 GroupChanged()
 Run(1)
-Check("host gone: bob refunded his pre-round stack", bob.T.mode == "lobby" and before ~= nil
-  and math.abs(bob.ns.db.chips - (bobWallet + before)) < 0.001, tostring(before))
+Check("host gone: bob back in the lobby, wallet untouched", bob.T.mode == "lobby" and before ~= nil
+  and math.abs(bob.ns.db.chips - bobWallet) < 0.001, tostring(before))
 -- the host's own table: close it when the host is solo, then re-form the group
 group = { "Host", "Bob", "Cid" }
 GroupChanged()
@@ -652,8 +653,8 @@ RunUntil(function() return host.T.mode == "lobby" end, 200)
 Run(3)
 local finalBob = lastZ2
 Check("close: host back in lobby", host.T.mode == "lobby" and host.ns.db.partybj.host == nil)
-Check("close: bob cashed out with his settled stack", bob.T.mode == "lobby" and finalBob ~= nil
-  and math.abs(bob.ns.db.chips - (bobWallet + finalBob)) < 0.001, tostring(finalBob))
+Check("close: bob back in the lobby, wallet untouched", bob.T.mode == "lobby" and finalBob ~= nil
+  and math.abs(bob.ns.db.chips - bobWallet) < 0.001, tostring(finalBob))
 Check("close: offer gone from bob's lobby", Find(bob, "Join") == nil)
 
 ---------------------------------------------------------------------------
@@ -683,7 +684,7 @@ Run(16)
 Check("no answer: request dropped after 15s, Join usable again", bob.T.joining == nil)
 
 ---------------------------------------------------------------------------
--- Reload safety: saved seat / hosted table are paid back on load
+-- Reload safety: a saved seat / hosted table is cleared on load (party stacks are free)
 ---------------------------------------------------------------------------
 PREP = function(ns)
   ns.db.chips = 1000
@@ -691,14 +692,14 @@ PREP = function(ns)
 end
 local eve = NewClient("Eve")
 PREP = nil
-Check("reload: seat refunded once", eve.ns.db.chips == 1300 and eve.ns.db.partybj.seat == nil)
+Check("reload: seat cleared, wallet untouched", eve.ns.db.chips == 1000 and eve.ns.db.partybj.seat == nil)
 PREP = function(ns)
   ns.db.chips = 1000
   ns.db.partybj = { host = { stack = 450 } }
 end
 local fay = NewClient("Fay")
 PREP = nil
-Check("reload: hosted table refunded once", fay.ns.db.chips == 1450 and fay.ns.db.partybj.host == nil)
+Check("reload: hosted table cleared, wallet untouched", fay.ns.db.chips == 1000 and fay.ns.db.partybj.host == nil)
 
 io.write(string.format("messages sent %d, longest %d\n", stats.sent, stats.longest))
 io.write(ok and "ALL PASS\n" or "SOME FAILED\n")

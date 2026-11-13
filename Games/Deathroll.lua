@@ -8,11 +8,12 @@
 --   * against the dealer: you roll first, the dealer answers on its own
 --   * a party duel: put up a challenge and anyone in your party or raid
 --     with CowCasino can take it. The challenger rolls first. Party rolls
---     are real /rolls, so the whole group sees them in chat.
+--     are real /rolls, so the whole group sees them in chat. Party duels are
+--     free: the stake is just for bragging rights, and nobody's chips move.
 -- A party duel's rolls are read from the game's own roll messages, and each
 -- player's addon also sends its roll in case a message is missed. A duel
 -- against the dealer is saved, so a reload carries on where it was; a party
--- duel cut off by a reload is called off and both stakes go back.
+-- duel cut off by a reload is called off.
 
 local ns = CowCasino.ns
 local Net = ns.Net
@@ -124,6 +125,12 @@ local function OpenOffers()
     return list
 end
 
+-- what's riding on a duel: chips against the dealer, bragging rights in a party
+local function StakeText(d)
+    if d.kind == "party" then return "for " .. Fmt(d.stake) .. " (free)" end
+    return Fmt(d.stake) .. " each"
+end
+
 local function Quiet(d)
     return d and d.kind == "party" and d.turn == "them" and GetTime() - (d.heard or 0) > QUIET_LIMIT
 end
@@ -142,9 +149,9 @@ local function Refresh()
     if d then
         ui.range:SetText("1 - " .. Fmt(d.max))
         if d.turn == "me" then
-            ui.whose:SetText("|cff66ff66Your roll|r against " .. OppName(d) .. "  -  " .. Fmt(d.stake) .. " each")
+            ui.whose:SetText("|cff66ff66Your roll|r against " .. OppName(d) .. "  -  " .. StakeText(d))
         else
-            ui.whose:SetText(OppName(d) .. "'s roll  -  " .. Fmt(d.stake) .. " each")
+            ui.whose:SetText(OppName(d) .. "'s roll  -  " .. StakeText(d))
         end
     elseif db.lastLog then
         ui.range:SetText(db.lastRange or "")
@@ -170,9 +177,9 @@ local function Refresh()
         local row, offer = ui.rows[r], list[r]
         row.offer = offer
         if offer then
-            row.text:SetText(string.format("%s: %s each, from %s", offer.host, Fmt(offer.stake), Fmt(offer.start)))
+            row.text:SetText(string.format("%s: for %s, from %s (free)", offer.host, Fmt(offer.stake), Fmt(offer.start)))
             row:Show()
-            ns.SetEnabled(row.accept, ns.db.chips >= offer.stake and not S.accepting and not S.posted)
+            ns.SetEnabled(row.accept, not S.accepting and not S.posted)
         else
             row:Hide()
         end
@@ -215,7 +222,7 @@ local function Refresh()
             ns.SetEnabled(ui.go, true)
         else
             ui.go:SetText("Challenge the group")
-            ns.SetEnabled(ui.go, Net:InGroup() and ns.db.chips >= db.stake and not S.accepting)
+            ns.SetEnabled(ui.go, Net:InGroup() and not S.accepting)
         end
     else
         ui.go:SetText("Duel " .. DealerName() .. " for " .. Fmt(db.stake))
@@ -240,8 +247,9 @@ local function StartDuel(kind, stake, start, first, opp, id)
     if kind == "solo" then db.duel = d else db.partyDuel = { id = id, stake = stake, opp = opp } end
     db.stats.duels = db.stats.duels + 1
     if kind == "party" then db.stats.partyDuels = db.stats.partyDuels + 1 end
-    db.stats.wagered = db.stats.wagered + stake
-    AddLog(d, string.format("|cffffd100Deathroll from %s, %s each.|r", Fmt(start), Fmt(stake)))
+    if kind == "solo" then db.stats.wagered = db.stats.wagered + stake end   -- party duels are free
+    AddLog(d, string.format(kind == "solo" and "|cffffd100Deathroll from %s, %s each.|r"
+        or "|cffffd100Deathroll from %s, for %s (just for bragging rights).|r", Fmt(start), Fmt(stake)))
     ns:PlayGameSound(db, "newHand")
     local who = first == "me" and "You roll" or (OppName(d) .. " rolls")
     SetStatus(who .. " first. Roll a 1 and you lose!")
@@ -262,26 +270,35 @@ local function EndDuel(loser, how)
     db.duel, db.partyDuel = nil, nil
     local s = db.stats
     local opp = OppName(d)
+    local party = d.kind == "party"
     if loser == "them" then
         local paid = d.stake * 2
-        ns:AddChips(paid)
         s.wins = s.wins + 1
-        s.won = s.won + paid
-        if d.stake > s.biggestWin then s.biggestWin = d.stake end
-        SetStatus((how or (opp .. " rolled a 1!")) .. " You win " .. Fmt(paid) .. ".", 0.25, 1, 0.25)
+        if party then
+            SetStatus((how or (opp .. " rolled a 1!")) .. " You win the duel!", 0.25, 1, 0.25)
+        else
+            ns:AddChips(paid)
+            s.won = s.won + paid
+            if d.stake > s.biggestWin then s.biggestWin = d.stake end
+            SetStatus((how or (opp .. " rolled a 1!")) .. " You win " .. Fmt(paid) .. ".", 0.25, 1, 0.25)
+        end
         ns:PlayGameSound(db, "win")
         Say("deathrollWin", { name = opp, amount = Fmt(d.stake) }, "You win the duel!")
     elseif loser == "me" then
         s.losses = s.losses + 1
-        SetStatus((how or "You rolled a 1!") .. " " .. opp .. " takes the " .. Fmt(d.stake * 2) .. ".", 1, 0.4, 0.4)
+        SetStatus((how or "You rolled a 1!") .. " " .. opp .. (party and " wins the duel." or (" takes the " .. Fmt(d.stake * 2) .. ".")), 1, 0.4, 0.4)
         ns:PlayGameSound(db, "lose")
         Say("deathrollLose", { name = opp, amount = Fmt(d.stake) }, "A 1. That's the duel.")
     else
-        ns:AddChips(d.stake)
-        s.wagered = s.wagered - d.stake
         s.duels = s.duels - 1
-        if d.kind == "party" then s.partyDuels = s.partyDuels - 1 end
-        SetStatus((how or "The duel is called off.") .. " Your " .. Fmt(d.stake) .. " is back.", 0.85, 0.85, 0.85)
+        if party then
+            s.partyDuels = s.partyDuels - 1
+            SetStatus(how or "The duel is called off.", 0.85, 0.85, 0.85)
+        else
+            ns:AddChips(d.stake)
+            s.wagered = s.wagered - d.stake
+            SetStatus((how or "The duel is called off.") .. " Your " .. Fmt(d.stake) .. " is back.", 0.85, 0.85, 0.85)
+        end
     end
     if ns.Dealer and d.kind == "party" then ns.Dealer:SetImage(Deathroll, nil) end
     db.lastLog = d.log
@@ -366,13 +383,9 @@ end
 
 local function PostChallenge()
     if S.duel or S.posted or not Net:InGroup() then return end
-    if ns.db.chips < db.stake then
-        SetStatus(ns:LowChipsText(db.stake), 1, 0.35, 0.35)
-        return
-    end
     S.posted = { id = NewId(), stake = db.stake, start = db.start }
     SendOffer()
-    SetStatus("Challenge sent: " .. Fmt(db.stake) .. " each, from " .. Fmt(db.start) .. ". Waiting for someone to take it...")
+    SetStatus("Challenge sent: for " .. Fmt(db.stake) .. ", from " .. Fmt(db.start) .. " (free, for bragging rights). Waiting for someone to take it...")
     Refresh()
 end
 
@@ -386,10 +399,6 @@ end
 
 local function Accept(offer)
     if S.duel or S.posted or S.accepting or not offer then return end
-    if ns.db.chips < offer.stake then
-        SetStatus(ns:LowChipsText(offer.stake), 1, 0.35, 0.35)
-        return
-    end
     S.accepting = { host = offer.host, id = offer.id, at = GetTime() }
     Net:Send(Msg({ "A", offer.id }))
     SetStatus("Taking " .. offer.host .. "'s challenge...")
@@ -434,12 +443,6 @@ local function OnMessage(sender, f)
         local p = S.posted
         if not p or p.id ~= id or S.duel or not Net:IsMember(sender) then return end
         S.posted = nil
-        if not ns:SpendChips(p.stake) then
-            Net:Send(Msg({ "X", p.id }), "DT-O")
-            SetStatus(ns:LowChipsText(p.stake), 1, 0.35, 0.35)
-            Refresh()
-            return
-        end
         Net:Send(Msg({ "S", p.id, sender }), "DT-O")
         StartDuel("party", p.stake, p.start, "me", sender, p.id)
         return
@@ -454,9 +457,8 @@ local function OnMessage(sender, f)
             S.accepting = nil
             if f[4] ~= Net:Me() then
                 SetStatus(f[4] .. " took " .. sender .. "'s challenge first.")
-            elseif not offer or not ns:SpendChips(offer.stake) then
+            elseif not offer then
                 Net:Send(Msg({ "C", id }))
-                SetStatus("Not enough chips for that duel any more.", 1, 0.35, 0.35)
             else
                 StartDuel("party", offer.stake, offer.start, "them", sender, id)
                 return
@@ -600,10 +602,10 @@ local function BuildOptions(panel)
         .. "each roll after that is 1 to the last roll. Whoever rolls a 1 loses, and the other takes both "
         .. "stakes. It's an even game: neither side has the edge.\n\n"
         .. "Vs the dealer: you roll first and the dealer answers.\n\n"
-        .. "Party duel: Challenge the group, and the first player with CowCasino to accept is your opponent. "
-        .. "The challenger rolls first. Party rolls are real /rolls everyone can see. Forfeit gives up the "
-        .. "duel; if the other player goes quiet for a minute you can call it off instead, and both stakes "
-        .. "go back. A reload calls a party duel off too.")
+        .. "Party duel: free to play, for bragging rights only (your chips are never touched). Challenge the "
+        .. "group, and the first player with CowCasino to accept is your opponent. The challenger rolls first. "
+        .. "Party rolls are real /rolls everyone can see. Forfeit gives up the duel; if the other player goes "
+        .. "quiet for a minute you can call it off instead. A reload calls a party duel off too.")
 
     local reset
     reset = MakeButton(o, "Reset stats", 110, function()
@@ -733,11 +735,8 @@ function Deathroll:Build(panel)
         -- a party duel cut off by a reload: call it off, both stakes go back
         local p = db.partyDuel
         db.partyDuel = nil
-        ns:AddChips(p.stake)
-        db.stats.wagered = db.stats.wagered - p.stake
         Net:Send(Msg({ "C", p.id }))
-        SetStatus("Your party duel with " .. tostring(p.opp) .. " was called off by the reload. Your "
-            .. Fmt(p.stake) .. " is back.")
+        SetStatus("Your party duel with " .. tostring(p.opp) .. " was called off by the reload.")
     elseif db.duel then
         S.duel = db.duel
         S.duel.pending = nil
@@ -766,7 +765,8 @@ end
 
 function Deathroll:ChipsInPlay()
     local d = ns.db.deathroll
-    return S.duel ~= nil or (d ~= nil and (d.duel ~= nil or d.partyDuel ~= nil))
+    -- only a duel against the dealer holds chips (party duels are free)
+    return (S.duel ~= nil and S.duel.kind == "solo") or (d ~= nil and d.duel ~= nil)
 end
 
 -- Start over (Options): a duel in progress is forfeited.

@@ -3,8 +3,8 @@
 -- "Party play" (Games\Craps.lua), the way Blackjack does.
 -- Up to four players from your party or raid at one craps table. One player
 -- hosts: their client rolls the dice and settles every bet, and tells the
--- others what happened. Everyone buys in from their own chips and gets their
--- stack back (with any bets still on the table) when they leave.
+-- others what happened. Seats are free: everyone plays with the stack the
+-- host picked, and nobody's own chips are touched.
 -- The dice pass around the table: the shooter rolls when ready (or the
 -- dice roll themselves when the betting time runs out), and hands them on
 -- after a seven out. Rules and bets match solo Craps.
@@ -14,7 +14,7 @@ local ns = CowCasino.ns
 local DEFAULT_STATS = { rolls = 0, net = 0, pointsMade = 0, buyIns = 0 }
 
 local NUM_SEATS     = 4
-local BUY_INS       = { 200, 500, 1000 }
+local BUY_INS       = { 200, 500, 1000, 2500, 5000, 10000 }   -- the host picks everyone's (free) stack
 local CHIP_VALUES   = { 5, 25, 100, 500 }
 local ODDS_MAX      = 3
 local BET_TIME      = 25     -- seconds of betting before the dice roll themselves
@@ -148,7 +148,7 @@ end
 
 local function SendOffer()
     if T.mode ~= "host" then return end
-    Net:Send(Msg({ "O", T.tid, NUM_SEATS - OpenSeats(), OpenSeats() }), "CR-O")
+    Net:Send(Msg({ "O", T.tid, NUM_SEATS - OpenSeats(), OpenSeats(), T.tableBuyIn or T.partyBuyIn }), "CR-O")
 end
 
 -- Seat updates first, then the table state, so a client never sees a roll
@@ -360,16 +360,16 @@ function Game.HostLeave()
     end
     local stack = SafeStack(Me())
     Net:Send(Msg({ "X", T.tid }))
-    if stack > 0 then ns:AddChips(stack) end
     db.host = nil
     ResetToLobby()
-    SetLobbyMessage("You closed your table with " .. Fmt(stack) .. " chips.")
+    SetLobbyMessage("You closed your table.")
     Refresh()
 end
 
 local function HostTable(buyin)
-    if T.mode ~= "lobby" or not Net:InGroup() or not ns:SpendChips(buyin) then return end
+    if T.mode ~= "lobby" or not Net:InGroup() then return end   -- free: party tables don't use your chips
     db.stats.buyIns = db.stats.buyIns + 1
+    T.tableBuyIn = buyin            -- everyone who joins sits down with this
     T.mode, T.mySeat = "host", 1
     T.tid = tostring(math.random(1, 99999))
     T.version, T.rollNo, T.shooter = 0, 0, 1
@@ -423,10 +423,10 @@ end
 
 -- Client side ---------------------------------------------------------------
 local function ClientCashOut(amount, message)
-    if amount and amount > 0 then ns:AddChips(amount) end
+    -- a party seat is free, so its stack stays at the table
     db.seat = nil
     ResetToLobby()
-    SetLobbyMessage(message .. ((amount and amount > 0) and (" You got " .. Fmt(amount) .. " chips back.") or ""))
+    SetLobbyMessage(message .. ((amount and amount > 0) and (" You finished with " .. Fmt(amount) .. ".") or ""))
     Refresh()
 end
 
@@ -445,12 +445,9 @@ local function ClientLeave()
 end
 
 local function JoinTable(host, tid)
-    local buyin = T.partyBuyIn
+    local offer = T.offers[host]
+    local buyin = (offer and offer.buyin) or T.partyBuyIn     -- the host's stack, free
     if T.mode ~= "lobby" then return end
-    if ns.db.chips < buyin then
-        SetLobbyMessage("You need " .. Fmt(buyin) .. " chips for that buy-in.")
-        return
-    end
     T.joining = { host = host, tid = tid, buyin = buyin, at = GetTime() }
     Net:Send(Msg({ "J", tid, buyin }))
     SetLobbyMessage("Asking " .. host .. " for a seat...")
@@ -572,22 +569,16 @@ local function OnMessage(sender, f)
         if T.mode == "host" then SendOffer() end
         return
     elseif kind == "O" then
-        T.offers[sender] = { tid = tid, players = tonumber(f[4]) or 0, open = tonumber(f[5]) or 0, heard = GetTime() }
+        T.offers[sender] = { tid = tid, players = tonumber(f[4]) or 0, open = tonumber(f[5]) or 0,
+            buyin = tonumber(f[6]), heard = GetTime() }
         if T.mode == "lobby" then Refresh() end
         return
     end
 
     if T.mode == "host" and tid == T.tid then
         if kind == "J" then
-            local buyin = tonumber(f[4]) or 0
-            local valid = false
-            for _, b in ipairs(BUY_INS) do
-                if b == buyin then valid = true end
-            end
-            if valid then
-                SeatPlayer(sender, buyin)
-                Refresh()
-            end
+            SeatPlayer(sender, T.tableBuyIn or 500)    -- everyone gets the host's stack
+            Refresh()
         elseif kind == "A" then
             local i
             for s = 2, NUM_SEATS do
@@ -607,7 +598,7 @@ local function OnMessage(sender, f)
         if kind == "S" and f[4] == Net:Me() then
             local seat, stack = tonumber(f[5]), tonumber(f[6]) or 0
             T.joining = nil
-            if not seat or not ns:SpendChips(stack) then
+            if not seat then
                 Net:Send(Msg({ "L", tid }))
                 return
             end
@@ -726,12 +717,12 @@ local function RefreshLobby()
     ui.groupInfo:SetText(inGroup and ("You're in a group of " .. Net:GroupSize() .. ". Everyone needs CowCasino to play.")
         or "Join a party or raid to play with friends.")
     ui.buyIn:SetText(Fmt(T.partyBuyIn))
-    ns.SetEnabled(ui.host, inGroup and ns.db.chips >= T.partyBuyIn)
+    ns.SetEnabled(ui.host, inGroup)
 
     local list = {}
     for name, offer in pairs(T.offers) do
         if GetTime() - offer.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-            table.insert(list, { host = name, tid = offer.tid, players = offer.players, open = offer.open })
+            table.insert(list, { host = name, tid = offer.tid, players = offer.players, open = offer.open, buyin = offer.buyin })
         end
     end
     table.sort(list, function(a, b) return a.host < b.host end)
@@ -739,9 +730,10 @@ local function RefreshLobby()
         local row, offer = ui.rows[r], list[r]
         row.offer = offer
         if offer then
-            row.text:SetText(string.format("%s's table - %d playing, %d open", offer.host, offer.players, offer.open))
+            row.text:SetText(string.format("%s's table - %d playing, %d open", offer.host, offer.players, offer.open)
+                .. (offer.buyin and ("\n|cffccccccFree " .. Fmt(offer.buyin) .. " stack|r") or ""))
             row.join:Show()
-            ns.SetEnabled(row.join, offer.open > 0 and ns.db.chips >= T.partyBuyIn and not T.joining)
+            ns.SetEnabled(row.join, offer.open > 0 and not T.joining)
         else
             row.text:SetText((r == 1 and inGroup) and "|cff888888No tables yet. Ask someone to host, or host one.|r" or "")
             row.join:Hide()
@@ -875,8 +867,8 @@ local function BuildLobby(panel)
     local info = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     info:SetPoint("TOP", title, "BOTTOM", 0, -8)
     info:SetWidth(AREA_W - 24)
-    info:SetText("Up to four players from your group at one table, passing the dice. Buy in from your chips; "
-        .. "your stack and bets go back to your chips when you leave.")
+    info:SetText("Up to four players from your group at one table, passing the dice. Free to join: everyone "
+        .. "plays with the stack the host picks, and your own chips are never touched.")
 
     ui.groupInfo = l:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     ui.groupInfo:SetPoint("TOP", l, "TOP", 0, -84)
@@ -884,7 +876,7 @@ local function BuildLobby(panel)
 
     local label = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("TOPLEFT", l, "TOPLEFT", 16, -112)
-    label:SetText("Buy-in")
+    label:SetText("Table stack")
     ui.buyIn = l:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     local function StepBuyIn(dir)
         local idx = 1
@@ -1063,20 +1055,16 @@ function Game:Build(panel)
     BuildTable(panel)
     ResetToLobby()
 
-    -- A party table can't survive a reload: pay back what was safe.
+    -- A party table can't survive a reload (its stacks are free, so nothing
+    -- goes back to your chips).
     local message
     if db.host then
-        local stack = db.host.stack or 0
-        if stack > 0 then ns:AddChips(stack) end
         db.host = nil
-        message = "Your craps table closed when the game reloaded; " .. Fmt(stack) .. " chips went back to you."
+        message = "Your craps table closed when the game reloaded."
     end
     if db.seat then
-        local stack = db.seat.stack or 0
         if db.seat.host and Net:IsMember(db.seat.host) then Net:Send(Msg({ "L", db.seat.tid })) end
-        if stack > 0 then ns:AddChips(stack) end
-        message = "You left " .. (db.seat.host or "the") .. "'s craps table when the game reloaded; "
-            .. Fmt(stack) .. " chips went back to you."
+        message = "You left " .. (db.seat.host or "the") .. "'s craps table when the game reloaded."
         db.seat = nil
     end
     SetLobbyMessage(message)
@@ -1103,11 +1091,11 @@ function Game:ChatTable()
     return { game = "CR", host = host, tid = T.tid, members = members }
 end
 
--- For the out-of-chips check: seated at a party table, or a seat saved from a reload.
+-- For the out-of-chips check: at a party table (its stack is free, but you stay in the game).
 function Game:ChipsInPlay()
-    local d = ns.db.partycraps
-    if T.mode ~= "lobby" then return true end
-    return d ~= nil and (d.seat ~= nil or d.host ~= nil)
+    -- Party tables are free (everyone plays with the host's stack, not their
+    -- chips), but sitting at one still keeps you in the game when you're out.
+    return T.mode ~= "lobby"
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.

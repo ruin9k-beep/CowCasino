@@ -97,13 +97,13 @@ Press(leave.text)
 Tick(10)
 Check("closing the table goes back to the party lobby", party.T.mode == "lobby" and Find("< Solo table") ~= nil)
 
--- A reload while seated still pays back, now when Blackjack opens.
+-- A reload while seated clears the seat when Blackjack opens (party stacks are free).
 local env2, ns2 = Start(nil, function(n)
   n.db.chips = 1000
   n.db.partybj = { seat = { host = "Nobody", tid = "1", stack = 300 } }
 end)
 ns2:OpenGame("blackjack")
-Check("reload while seated: chips come back when Blackjack opens", ns2.db.chips == 1300 and ns2.db.partybj.seat == nil, ns2.db.chips)
+Check("reload while seated: the seat is cleared when Blackjack opens, chips untouched", ns2.db.chips == 1000 and ns2.db.partybj.seat == nil, ns2.db.chips)
 
 io.write(ok and "MERGE PASS\n" or "MERGE FAIL\n")
 os.exit(ok and 0 or 1)

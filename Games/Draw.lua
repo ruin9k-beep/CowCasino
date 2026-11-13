@@ -7,8 +7,10 @@
 -- 20, 50 or 100 big blinds; a party table uses the host's blinds and buy-in.
 -- Built on the Texas Hold'em table (Poker.lua): same betting, side pots,
 -- party play and saving, with the draw in place of the board.
--- Buy in from the chip wallet; your stack goes back to the wallet when you
--- leave the table. Busted opponents are replaced by fresh ones.
+-- A solo table buys in from the chip wallet, and your stack goes back to the
+-- wallet when you leave. Party tables are free: everyone sits down with the
+-- host's buy-in and the wallet is never touched. Busted opponents are
+-- replaced by fresh ones.
 -- Cards are drawn by the selected card art (Cards.lua).
 -- If a hand is interrupted by a reload or logout, it is canceled and every
 -- stack goes back to what it was before that hand.
@@ -1576,21 +1578,23 @@ function Leave()
     if T.street ~= "idle" then return end
     T.closeAfterHand = nil
     local stack = Me().stack
-    if stack > 0 then ns:AddChips(stack) end
-    if T.mode == "host" then
+    local party = T.mode == "host"
+    if stack > 0 and not party then ns:AddChips(stack) end     -- party stacks are free and stay at the table
+    if party then
         Net:Send(Msg({ "X", T.tid }))
         db.partyHost = nil
     end
     db.seat = nil
     ResetToLobby()
-    SetLobbyMessage(stack > 0 and ("You left the table with " .. Fmt(stack) .. " chips.") or "")
+    SetLobbyMessage(party and "You closed your party table." or
+        (stack > 0 and ("You left the table with " .. Fmt(stack) .. " chips.") or ""))
     Refresh()
 end
 
 local function HostTable()
     local sb, bb, buyin = HostSettings()
     if HostSettingsProblem(sb, bb, buyin) then return end
-    if T.seats[1] or not Net:InGroup() or not ns:SpendChips(buyin) then return end
+    if T.seats[1] or not Net:InGroup() then return end   -- free: party tables don't use your chips
     db.stats.buyIns = db.stats.buyIns + 1
     SB, BB = sb, bb
     T.mode, T.mySeat = "host", 1
@@ -1651,10 +1655,10 @@ end
 -- Client: sitting at someone else's table
 ---------------------------------------------------------------------------
 local function ClientCashOut(amount, message)
-    if amount and amount > 0 then ns:AddChips(amount) end
+    -- a party seat is free, so its stack stays at the table
     db.party = nil
     ResetToLobby()
-    SetLobbyMessage(message .. (amount and amount > 0 and (" You got " .. Fmt(amount) .. " chips back.") or ""))
+    SetLobbyMessage(message .. (amount and amount > 0 and (" You finished with " .. Fmt(amount) .. ".") or ""))
     Refresh()
 end
 
@@ -1827,10 +1831,6 @@ local function JoinTable(host, tid)
     local sb, bb = (offer and offer.sb) or 5, (offer and offer.bb) or 10
     local buyin = offer and OfferBuyIn(offer) or 50 * bb
     if T.seats[1] then return end
-    if ns.db.chips < buyin then
-        ui.partyMsg:SetText("You need " .. Fmt(buyin) .. " chips for that buy-in.")
-        return
-    end
     T.joining = { host = host, tid = tid, buyin = buyin, sb = sb, bb = bb }
     Net:Send(Msg({ "J", tid, buyin }))
     ui.partyMsg:SetText("Asking " .. host .. " for a seat...")
@@ -1914,7 +1914,7 @@ local function OnMessage(sender, f)
             local seat, stack = tonumber(f[5]), tonumber(f[6]) or 0
             local joining = T.joining
             T.joining = nil
-            if not seat or not ns:SpendChips(stack) then
+            if not seat then
                 Net:Send(Msg({ "L", tid }))
                 return
             end
@@ -2532,7 +2532,7 @@ local function BuildParty(panel)
             hostInfo:SetText("|cffff6060" .. problem .. "|r")
         else
             hostInfo:SetText("Your table: blinds " .. Fmt(sb) .. "/" .. Fmt(bb) .. ", buy-in " .. Fmt(myBuyIn)
-                .. " (" .. math.floor(myBuyIn / bb) .. " big blinds). Players who join buy in for the same.")
+                .. " (" .. math.floor(myBuyIn / bb) .. " big blinds). Everyone sits down with that stack, free.")
         end
         bots:SetChecked(T.fillBots)
         local solo = T.mode == "solo" and T.seats[1] ~= nil
@@ -2544,7 +2544,7 @@ local function BuildParty(panel)
                 and ("You're at a solo table with " .. Fmt(Me().stack) .. ". Leave it (your stack goes back to your chips) to host or join.")
                 or "You're in the middle of a solo hand. Finish it, then leave the solo table to play with your party.")
         end
-        ns.SetEnabled(host, inGroup and not problem and ns.db.chips >= (myBuyIn or 0) and not T.seats[1])
+        ns.SetEnabled(host, inGroup and not problem and not T.seats[1])
 
         local list = {}
         for name, offer in pairs(T.offers) do
@@ -2559,10 +2559,10 @@ local function BuildParty(panel)
             rows[r].offer = offer
             if offer then
                 local need = OfferBuyIn(offer)
-                rows[r].text:SetText(string.format("%s: blinds %s/%s, buy-in %s\n%d seated, %d open",
+                rows[r].text:SetText(string.format("%s: blinds %s/%s, free %s stack\n%d seated, %d open",
                     offer.host, Fmt(offer.sb), Fmt(offer.bb), Fmt(need), offer.players, offer.open))
                 rows[r].join:Show()
-                ns.SetEnabled(rows[r].join, offer.open > 0 and ns.db.chips >= need and not T.joining and not T.seats[1])
+                ns.SetEnabled(rows[r].join, offer.open > 0 and not T.joining and not T.seats[1])
             else
                 rows[r].text:SetText(r == 1 and (inGroup and "|cff888888No tables yet. Ask someone to host, or host one.|r" or "") or "")
                 rows[r].join:Hide()
@@ -2603,20 +2603,16 @@ function Poker:Build(panel)
     ResetToLobby()
     local message
     -- A party table can't survive a reload: pay back what was safe.
+    -- (party stacks are free, so nothing goes back to your chips)
     if db.partyHost then
-        local stack = db.partyHost.stack or 0
-        if stack > 0 then ns:AddChips(stack) end
         db.partyHost = nil
-        message = "Your party table closed when the game reloaded; " .. Fmt(stack) .. " chips went back to you."
+        message = "Your party table closed when the game reloaded."
     end
     if db.party then
-        local stack = db.party.stack or 0
         if db.party.host and Net:IsMember(db.party.host) then
             Net:Send(Msg({ "L", db.party.tid }))
         end
-        if stack > 0 then ns:AddChips(stack) end
-        message = "You left " .. (db.party.host or "the") .. "'s table when the game reloaded; "
-            .. Fmt(stack) .. " chips went back to you."
+        message = "You left " .. (db.party.host or "the") .. "'s table when the game reloaded."
         db.party = nil
     end
 
@@ -2680,9 +2676,11 @@ end
 
 function Poker:ChipsInPlay()
     local d = ns.db.draw
-    -- seated: chips in play unless your stack is empty between hands
-    if T.seats[1] then return (Me() and (Me().stack or 0) > 0) or T.street ~= "idle" end
-    return d ~= nil and (d.seat ~= nil or d.party ~= nil or d.partyHost ~= nil)
+    -- a solo seat: chips in play unless your stack is empty between hands
+    -- (a party seat is free, so it never holds your chips)
+    if T.seats[1] and T.mode == "solo" then return (Me() and (Me().stack or 0) > 0) or T.street ~= "idle" end
+    if T.seats[1] then return true end    -- at a party table: free, but it keeps you in the game
+    return d ~= nil and d.seat ~= nil
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.

@@ -27,6 +27,9 @@ One addon folder runs on two clients:
 - **Keno**: pick 1 to 10 of 80 numbers, twenty are drawn; quick pick and auto play
 - **Deathroll**: the classic gold duel, against the dealer or with your party (real /rolls)
 
+Party tables and party duels are free to join: everyone plays with the stack the host
+picks, and nobody's own chips are touched.
+
 A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker and Deathroll).
 Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
 explains how a game drives it, including showing a party member's 3D portrait.

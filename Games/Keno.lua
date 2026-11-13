@@ -59,6 +59,23 @@ local function Fill(t, defaults)
     end
 end
 
+-- The last few games along a line, newest on the left: what each one won or
+-- lost after its bet.
+local recent = {}
+local function RecentText()
+    local parts = {}
+    for i = 1, math.min(6, ns.getn(recent)) do
+        local n = recent[i]
+        local text = (n > 0 and ("|cff40ff40+" .. Fmt(n))) or (n < 0 and ("|cffff7070-" .. Fmt(-n))) or "|cffaaaaaa0"
+        table.insert(parts, text .. "|r")
+    end
+    return table.concat(parts, "  ")
+end
+local function AddRecent(n)
+    table.insert(recent, 1, n)
+    if ns.getn(recent) > 12 then table.remove(recent) end
+end
+
 local function FmtMult(m)
     if m == math.floor(m) then return Fmt(m) end
     return string.format("%.1f", m)
@@ -193,6 +210,7 @@ local function Refresh()
         ui.catch:SetText("")
     end
     ui.stats:SetText(StatsText())
+    ui.history:SetText(RecentText())
 end
 
 ---------------------------------------------------------------------------
@@ -212,6 +230,7 @@ local function Finish()
     if hits > s.bestHits then s.bestHits = hits end
     db.last = g
     db.game = nil
+    AddRecent(paid - g.bet)
     if paid > 0 then
         ns:AddChips(paid)
         s.won = s.won + paid
@@ -541,6 +560,10 @@ function Keno:Build(panel)
     ui.auto = MakeButton(panel, "Auto", 80, ToggleAuto, 26)
     ui.auto:SetPoint("LEFT", ui.play, "RIGHT", 10, 0)
 
+    -- the last few games, just above the bet
+    ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 76)
+
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
@@ -601,11 +624,12 @@ function Keno:ResetStats()
     if not d then return end
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
+    for i = ns.getn(recent), 1, -1 do table.remove(recent, i) end
     if ui.stats and db then Refresh() end
 end
 
 -- Exposed for tests.
-Keno.PAYS, Keno.Payout, Keno.DrawNumbers, Keno.S, Keno.ui = PAYS, Payout, DrawNumbers, S, ui
+Keno.PAYS, Keno.Payout, Keno.DrawNumbers, Keno.S, Keno.ui, Keno.recent = PAYS, Payout, DrawNumbers, S, ui, recent
 function Keno.SetDraw(fn) DrawNumbers = fn end
 
 ns:RegisterGame(Keno)

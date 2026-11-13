@@ -242,7 +242,7 @@ Run(1)
 Check("the first to accept gets the duel", host.S.duel and host.S.duel.opp == "Bob" and bob.S.duel and bob.S.duel.opp == "Host")
 Check("...the other is told someone was quicker", cid.S.duel == nil and cid.S.accepting == nil
   and string.find(cid.G.ui.status.text or "", "Bob took", 1, true) ~= nil, cid.G.ui.status.text)
-Check("both stakes are in", host.ns.db.chips == 900 and bob.ns.db.chips == 900 and cid.ns.db.chips == 1000)
+Check("party duels are free: no chips taken", host.ns.db.chips == 1000 and bob.ns.db.chips == 1000 and cid.ns.db.chips == 1000)
 Check("the challenger rolls first", Enabled(host, "Roll 1-1,000") and not Enabled(bob, "Roll", true))
 
 ROLLS = { 640 }
@@ -274,7 +274,10 @@ while host.S.duel and guard < 200 do
 end
 local hw, bw = host.ns.db.chips, bob.ns.db.chips
 Check("the duel ends for both", host.S.duel == nil and bob.S.duel == nil)
-Check("...the winner has both stakes, the loser none", (hw == 1100 and bw == 900) or (hw == 900 and bw == 1100), hw .. "/" .. bw)
+Check("...and nobody's chips move", hw == 1000 and bw == 1000, hw .. "/" .. bw)
+local hs, bs = host.ns.db.deathroll.stats, bob.ns.db.deathroll.stats
+Check("...but the win and the loss are counted", hs.wins + bs.wins >= 1 and hs.losses + bs.losses >= 1
+, hs.wins .. "/" .. bs.wins)
 local function Rolls(log)
   local t = {}
   for _, line in ipairs(log) do
@@ -296,8 +299,9 @@ Check("Host takes Cid's challenge", host.S.duel and host.S.duel.opp == "Cid" and
 Check("...Bob can't take it any more", bob.G.ui.rows[1].offer == nil or bob.G.ui.rows[1].shown == false)
 Press(host, "Forfeit")
 Run(1)
-Check("a forfeit hands the stakes over", host.S.duel == nil and cid.S.duel == nil and host.ns.db.chips == 900
-  and cid.ns.db.chips == 1100, host.ns.db.chips .. "/" .. cid.ns.db.chips)
+Check("a forfeit gives Cid the win, and no chips move", host.S.duel == nil and cid.S.duel == nil and host.ns.db.chips == 1000
+  and cid.ns.db.chips == 1000 and string.find(cid.G.ui.status.text or "", "forfeits", 1, true) ~= nil,
+  host.ns.db.chips .. "/" .. cid.ns.db.chips)
 
 -- Withdrawing a challenge
 Press(bob, "Challenge the group")
@@ -313,12 +317,12 @@ Press(bob, "Challenge the group")
 Run(1)
 cid.env.Fire(cid.G.ui.rows[1].accept, "OnClick", "LeftButton")
 Run(1)
-Check("Bob and Cid are dueling", bob.S.duel and cid.S.duel and bob.ns.db.chips == 900)
-Check("their stakes count as chips in play", bob.ns:ChipsInPlay() and cid.ns:ChipsInPlay())
+Check("Bob and Cid are dueling", bob.S.duel and cid.S.duel and bob.ns.db.chips == 1000)
+Check("a free party duel holds no chips", not bob.ns:ChipsInPlay() and not cid.ns:ChipsInPlay())
 group = { "Host", "Bob" }
 GroupChanged()
 Run(0.5)
-Check("Cid leaves: called off, both stakes back", bob.S.duel == nil and bob.ns.db.chips == 1000
+Check("Cid leaves: called off", bob.S.duel == nil and bob.ns.db.chips == 1000
   and cid.S.duel == nil and cid.ns.db.chips == 1000, bob.ns.db.chips .. "/" .. cid.ns.db.chips)
 
 -- A reload calls a duel off; the other player gets their stake back too
@@ -337,8 +341,8 @@ local bobSaved = bob.env.CowCasinoDB
 for i, c in ipairs(clients) do if c == bob then table.remove(clients, i) end end
 local bob2 = NewClient("Bob", Copy(bobSaved))
 Run(1)
-Check("after Bob's reload his stake is back", bob2.S.duel == nil and bob2.ns.db.chips == 1000, bob2.ns.db.chips)
-Check("...and Host's duel is called off with his stake back", host.S.duel == nil and host.ns.db.chips == 1000, host.ns.db.chips)
+Check("after Bob's reload the duel is gone, chips untouched", bob2.S.duel == nil and bob2.ns.db.chips == 1000, bob2.ns.db.chips)
+Check("...and Host's duel is called off", host.S.duel == nil and host.ns.db.chips == 1000, host.ns.db.chips)
 
 -- Going quiet: after a minute without a roll, the duel can be called off
 for _, c in ipairs(clients) do c.ns.db.chips = 1000 end
@@ -354,7 +358,7 @@ Run(61)
 Check("a minute of quiet: Call it off", Find(host, "Call it off") ~= nil)
 Press(host, "Call it off")
 Run(1)
-Check("calling it off gives both stakes back", host.S.duel == nil and cid.S.duel == nil and host.ns.db.chips == 1000
+Check("calling it off ends it for both, chips untouched", host.S.duel == nil and cid.S.duel == nil and host.ns.db.chips == 1000
   and cid.ns.db.chips == 1000)
 
 io.write(ok and "DEATHROLL PASS\n" or "DEATHROLL FAIL\n")

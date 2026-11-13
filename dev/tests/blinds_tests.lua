@@ -250,8 +250,8 @@ Check("bob sees the host's blinds", Shown(bob, "Host: blinds 25/50") ~= nil)
 local bobBefore = bob.ns.db.chips
 Press(bob, "Join")
 Run(8)
-Check("bob buys in for 50 of the host's big blinds (2,500)", bob.T.mode == "client" and bob.ns.db.chips == bobBefore - 2500,
-  bobBefore - bob.ns.db.chips)
+Check("bob sits down free with 50 of the host's big blinds (2,500)", bob.T.mode == "client" and bob.ns.db.chips == bobBefore
+  and host.T.tableBuyIn == 2500, bobBefore - bob.ns.db.chips)
 Check("bob's table shows 25/50 (his own setting is 5/10)", Shown(bob, "Blinds 25/50") ~= nil)
 -- play a hand where bob is to act: his raise steps are the host's big blind
 local stepOk = nil

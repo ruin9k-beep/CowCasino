@@ -77,6 +77,23 @@ local function SetStatus(text, r, g, b)
     ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
 end
 
+-- The last few games along a line, newest on the left: what each one won or
+-- lost after its bet.
+local recent = {}
+local function RecentText()
+    local parts = {}
+    for i = 1, math.min(6, ns.getn(recent)) do
+        local n = recent[i]
+        local text = (n > 0 and ("|cff40ff40+" .. Fmt(n))) or (n < 0 and ("|cffff7070-" .. Fmt(-n))) or "|cffaaaaaa0"
+        table.insert(parts, text .. "|r")
+    end
+    return table.concat(parts, "  ")
+end
+local function AddRecent(n)
+    table.insert(recent, 1, n)
+    if ns.getn(recent) > 12 then table.remove(recent) end
+end
+
 local function StatsText()
     local s = db.stats
     local net = s.net
@@ -138,6 +155,7 @@ local function Refresh()
     for _, b in ipairs(ui.chipButtons) do ns.SetEnabled(b, g == nil) end
     ns.SetEnabled(ui.clear, g == nil and db.bet > 0)
     ui.stats:SetText(StatsText())
+    ui.history:SetText(RecentText())
 end
 
 ---------------------------------------------------------------------------
@@ -174,6 +192,7 @@ local function CashOut(auto)
     local s = db.stats
     s.cashouts = s.cashouts + 1
     s.net = s.net + pay - g.bet
+    AddRecent(pay - g.bet)
     if g.mult > s.bestMultiplier then s.bestMultiplier = g.mult end
     if pay - g.bet > s.biggestWin then s.biggestWin = pay - g.bet end
     last = { card = g.card, history = g.history, cashed = pay }
@@ -208,6 +227,7 @@ local function Guess(key)
         local s = db.stats
         s.busts = s.busts + 1
         s.net = s.net - g.bet
+        AddRecent(-g.bet)
         last = { card = nextCard, history = g.history, bust = true }
         SetStatus(ns.RANKS[nextCard.rank].name .. " - wrong guess. You lose " .. Fmt(g.bet) .. ".", 1, 0.35, 0.35)
         ns:PlayGameSound(db, "lose")
@@ -411,6 +431,10 @@ function HiLo:Build(panel)
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 5)
 
+    -- the last few games, just above the bet chips
+    ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 84)
+
     ui.options = BuildOptions(panel)
     ui.sounds = ns:CreateSoundOptions(panel, "Hi-Lo Options", function() return db end)
 
@@ -452,11 +476,12 @@ function HiLo:ResetStats()
     if not d then return end
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
+    for i = ns.getn(recent), 1, -1 do table.remove(recent, i) end
     if ui.stats and db then Refresh() end
 end
 
 -- Exposed for tests.
-HiLo.Choices, HiLo.StepMult, HiLo.Pay, HiLo.ui = Choices, StepMult, Pay, ui
+HiLo.Choices, HiLo.StepMult, HiLo.Pay, HiLo.ui, HiLo.recent = Choices, StepMult, Pay, ui, recent
 function HiLo.SetDraw(fn) Draw = fn end
 
 ns:RegisterGame(HiLo)

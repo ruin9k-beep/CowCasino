@@ -245,8 +245,9 @@ for _, c in ipairs({ bob, cid }) do
   Press(c, "Join")
   Run(2)
 end
-Check("Bob and Cid sit down with the host's buy-in", bob.T.mode == "client" and cid.T.mode == "client"
-  and bob.ns.db.chips == 3000 and cid.ns.db.chips == 3000)
+Check("Bob and Cid sit down free with the host's buy-in", bob.T.mode == "client" and cid.T.mode == "client"
+  and bob.ns.db.chips == 5000 and cid.ns.db.chips == 5000 and host.ns.db.chips == 5000
+  and host.T.seats[bob.T.mySeat].stack == 2000)
 local kinds = {}
 for i = 1, 5 do kinds[i] = host.T.seats[i].kind end
 local bots, people = 0, 0
@@ -312,7 +313,8 @@ Run(1)          -- (everyone hears how the hand ended; the next one deals in 5)
 local onTable = TableChips(host.T)
 local inWallets = 0
 for _, c in ipairs(clients) do inWallets = inWallets + c.ns.db.chips end
-Check("chips are never made or lost (wallets + table)", inWallets + onTable == wallets, (inWallets + onTable) .. " vs " .. wallets)
+Check("party play never touches a wallet", inWallets == wallets, inWallets .. " vs " .. wallets)
+Check("chips are never made or lost at the table (five 1,000,000 stacks)", onTable == 5000000, onTable)
 for i = 2, 5 do
   local seat = host.T.seats[i]
   local c = byName[seat.name]

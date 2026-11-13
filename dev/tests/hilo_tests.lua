@@ -100,6 +100,8 @@ Check("wrong: 4 isn't higher or the same as 5, the bet is lost", db.active == ni
 Check("...the card shows, marked", ui.big.card.rank == 4 and ui.bust.shown and string.find(ui.status.text, "wrong", 1, true) ~= nil)
 Check("stats: net matches the chips", db.stats.net == ns.db.chips - 1000, db.stats.net)
 Check("the stats line shows it", string.find(ui.stats.text, "Net", 1, true) ~= nil and string.find(ui.stats.text, "Games 2", 1, true) ~= nil, ui.stats.text)
+Check("the last games line: the bust first, then the cash-out", ui.history.text == "|cffff7070-100|r  |cff40ff40+"
+  .. ns:FormatChips(pay - 100) .. "|r", ui.history.text)
 
 -- an unfinished game survives a reload
 table.insert(DECK, C(2))
@@ -137,6 +139,7 @@ Check("60,000 one-guess games return about 99%", math.abs(back / staked - 0.99) 
 
 ns:RebuyChips(1000)
 Check("a fresh stack starts the Hi-Lo stats over", db.stats.games == 0 and db.stats.net == 0)
+Check("...and clears the last games line", table.getn(ns.games.hilo.recent) == 0)
 
 io.write(ok and "HILO PASS\n" or "HILO FAIL\n")
 os.exit(ok and 0 or 1)

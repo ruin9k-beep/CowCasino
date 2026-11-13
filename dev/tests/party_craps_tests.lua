@@ -183,8 +183,10 @@ for _, c in ipairs({ host, bob, cid }) do
 end
 
 -- every chip, everywhere: wallets, stacks at the table, bets on the table
+-- what a player has at the table: stack plus bets (party seats are free, so
+-- the wallet never moves)
 local function Wealth(c)
-  local total = c.ns.db.chips
+  local total = 0
   if c.T.mode ~= "lobby" then
     local me = c.T.seats[c.T.mySeat]
     total = total + me.stack
@@ -197,7 +199,7 @@ table.insert(group, "Host"); table.insert(group, "Bob"); table.insert(group, "Ci
 GroupChanged()
 Check("lobby: hosting needs a group", Find(dan, "Host a table") ~= nil and not Find(dan, "Host a table").enabled)
 Press(host, "Host a table")
-Check("host buys in 500", host.T.mode == "host" and host.ns.db.chips == 4500 and host.T.seats[1].stack == 500)
+Check("host sits down free with a 500 stack", host.T.mode == "host" and host.ns.db.chips == 5000 and host.T.seats[1].stack == 500)
 Run(1)
 Press(bob, "Refresh")
 Run(1)
@@ -211,13 +213,13 @@ cid.env.Fire(JoinButton(cid), "OnClick", "LeftButton")
 Run(2)
 Check("Bob and Cid are seated", bob.T.mode == "client" and cid.T.mode == "client" and host.T.seats[2].name == "Bob"
   and host.T.seats[3].name == "Cid")
-Check("buy-ins come out of their chips", bob.ns.db.chips == 4500 and cid.ns.db.chips == 4500)
+Check("joining is free: their chips are untouched", bob.ns.db.chips == 5000 and cid.ns.db.chips == 5000)
 -- each player's chips are their 5000 plus what the table says they won or lost
 local function Square()
   local bad = {}
   for _, c in ipairs({ host, bob, cid }) do
-    if c.T.mode ~= "lobby" and Wealth(c) ~= 5000 + c.ns.db.partycraps.stats.net then
-      table.insert(bad, c.name .. " " .. Wealth(c) .. " vs " .. (5000 + c.ns.db.partycraps.stats.net))
+    if c.T.mode ~= "lobby" and (Wealth(c) ~= 500 + c.ns.db.partycraps.stats.net or c.ns.db.chips ~= 5000) then
+      table.insert(bad, c.name .. " " .. Wealth(c) .. " vs " .. (500 + c.ns.db.partycraps.stats.net) .. ", wallet " .. c.ns.db.chips)
     end
   end
   return table.getn(bad) == 0, table.concat(bad, "; ")
@@ -299,18 +301,18 @@ Check("every player's chips still match their wins and losses", sq, why)
 Check("table chat: everyone's at the same craps table", host.ns:ChatTable() and bob.ns:ChatTable()
   and host.ns:ChatTable().game == "CR" and bob.ns:ChatTable().tid == host.ns:ChatTable().tid
   and bob.ns:ChatTable().members.Cid == true)
-Check("chips in play while seated", bob.ns:ChipsInPlay())
+Check("a party seat keeps you in the game", bob.ns:ChipsInPlay())
 
 -- Cid leaves with his stack and bets
-local cidBefore = Wealth(cid)
+local cidBefore = cid.ns.db.chips
 Bet(cid, "field", 5); Run(1)
 Check("no point is on", host.T.point == nil)
 Press(cid, "Leave table")
 Run(1)
-Check("Cid leaves with his stack and bets", cid.T.mode == "lobby" and cid.ns.db.chips == cidBefore and host.T.seats[3].kind == "empty")
+Check("Cid leaves; his wallet is untouched", cid.T.mode == "lobby" and cid.ns.db.chips == cidBefore and host.T.seats[3].kind == "empty")
 
 -- Bob drops from the group: he gets his chips back, the host frees the seat
-local bobBefore = Wealth(bob)
+local bobBefore = bob.ns.db.chips
 do
   local G = host.ns.dealers.goblin.lines
   local function Pattern(line)
@@ -334,13 +336,13 @@ end
 table.remove(group, 2)
 GroupChanged()
 Run(1)
-Check("Bob left the group: cashed out, seat freed", bob.T.mode == "lobby" and bob.ns.db.chips == bobBefore and host.T.seats[2].kind == "empty")
+Check("Bob left the group: back in the lobby, wallet untouched, seat freed", bob.T.mode == "lobby" and bob.ns.db.chips == bobBefore and host.T.seats[2].kind == "empty")
 Check("the dice move on if the shooter leaves", host.T.shooter == 1, host.T.shooter)
 
 -- the host closes the table
-local hostBefore = Wealth(host)
+local hostBefore = host.ns.db.chips
 Press(host, "Close table")
-Check("closing gives the host the stack and bets back", host.T.mode == "lobby" and host.ns.db.chips == hostBefore)
+Check("closing the table leaves the host's wallet untouched", host.T.mode == "lobby" and host.ns.db.chips == hostBefore)
 
 -- a reload while seated pays back the safe stack
 table.insert(group, "Bob"); GroupChanged()
@@ -349,14 +351,14 @@ Press(bob, "Refresh"); Run(1)
 bob.env.Fire(JoinButton(bob), "OnClick", "LeftButton"); Run(2)
 Bet(bob, "pass", 100); Run(1)
 local saved = bob.ns.db
-local bobWealth = Wealth(bob)
+local bobWealth = bob.ns.db.chips
 local env2 = setmetatable({}, { __index = function(t, k) if BLOCKED[k] then return nil end return base[k] end })
 env2.arg = { ADDON }; env2.PLAYER_NAME = "Bob"; env2.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env2))()
 env2.CowCasinoDB = saved
 for _, o in ipairs(env2.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env2.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
 env2.CowCasino.ns:OpenGame("craps")
-Check("a reload at a craps table pays back the stack and bets", env2.CowCasino.ns.db.chips == bobWealth, env2.CowCasino.ns.db.chips .. " vs " .. bobWealth)
+Check("a reload at a craps table leaves the wallet untouched", env2.CowCasino.ns.db.chips == bobWealth, env2.CowCasino.ns.db.chips .. " vs " .. bobWealth)
 
 io.write(string.format("addon messages: %d sent, %d parts, longest %d\n", stats.sent, stats.parts or 0, stats.longest))
 io.write(ok and "PARTY CRAPS PASS\n" or "PARTY CRAPS FAIL\n")

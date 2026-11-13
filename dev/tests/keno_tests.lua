@@ -105,6 +105,7 @@ Check("catches show gold, misses red, other picks blue", K.ui.cells[1].bg.color[
   and K.ui.cells[30].bg.color[3] < 0.2 and K.ui.cells[4].bg.color[3] > 0.8)
 Check("stats: one game, one win", kdb.stats.games == 1 and kdb.stats.wins == 1 and kdb.stats.won == 60 and kdb.stats.bestHits == 3)
 Check("the picks stay for the next game", kdb.picks[1] and kdb.picks[4])
+Check("the last games line shows the win after the bet (+50)", K.ui.history.text == "|cff40ff40+50|r", K.ui.history.text)
 
 -- Auto: three games in a row
 kdb.autoCount = 5; K:OnShow()

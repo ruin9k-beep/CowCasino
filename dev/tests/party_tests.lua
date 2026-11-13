@@ -217,24 +217,24 @@ host.env.TypeInto(sbBox, "5"); host.env.TypeInto(bbBox, "10"); host.env.TypeInto
 Check("host: 5/10 with a 1,000 buy-in is fine", Find(host, "Host a table").enabled and host.ns.db.holdem.hostSettings.buyin == 1000)
 Press(host, "Host a table")
 Run(1)
-Check("host: table open, wallet paid 1,000", host.T.mode == "host" and host.ns.db.chips == 4000 and host.T.seats[1].stack == 1000)
+Check("host: table open with a free 1,000 stack, wallet untouched", host.T.mode == "host" and host.ns.db.chips == 5000 and host.T.seats[1].stack == 1000)
 
 -- Bob and Cid find it and join.
 Press(bob, "Play with your party")
 Run(1)
 Check("bob: sees Host's table", Find(bob, "Join") ~= nil and Find(bob, "Join").enabled ~= nil)
 local listed
-for _, o in ipairs(bob.env.all) do if type(o.text) == "string" and string.find(o.text, "Host: blinds 5/10, buy-in 1,000", 1, true) then listed = o.text end end
+for _, o in ipairs(bob.env.all) do if type(o.text) == "string" and string.find(o.text, "Host: blinds 5/10, free 1,000 stack", 1, true) then listed = o.text end end
 Check("bob: the table list shows the host's blinds and buy-in", listed ~= nil)
 Press(bob, "Join")
 Run(2)
-Check("bob: seated with the host's buy-in, 1,000", bob.T.mode == "client" and bob.ns.db.chips == 4000
+Check("bob: seated free with the host's buy-in, 1,000", bob.T.mode == "client" and bob.ns.db.chips == 5000
   and host.T.seats[bob.T.mySeat].name == "Bob" and host.T.seats[bob.T.mySeat].stack == 1000)
 Press(cid, "Play with your party")
 Run(1)
 Press(cid, "Join")
 Run(2)
-Check("cid: seated with 1,000 too", cid.T.mode == "client" and cid.ns.db.chips == 4000 and host.T.seats[cid.T.mySeat].stack == 1000)
+Check("cid: seated with 1,000 too", cid.T.mode == "client" and cid.ns.db.chips == 5000 and host.T.seats[cid.T.mySeat].stack == 1000)
 
 -- Portraits: people get a 3D portrait, computer players don't.
 local function SeatUI(c, who)
@@ -466,7 +466,7 @@ end
 Check("silent player removed after two missed turns", bob.T.mode == "solo" and host.T.seats[bobSeat].name ~= "Bob",
   string.format("%.0fs", waited))
 local kicked = LAST_KICK and tonumber(string.sub(LAST_KICK, (string.find(LAST_KICK, ";Bob;", 1, true) or 0) + 5))
-Check("removed player gets the stack the host had for them", kicked and bob.ns.db.chips == bobWalletBefore + kicked,
+Check("a removed player's wallet is untouched (the stack was free)", kicked and bob.ns.db.chips == bobWalletBefore,
   bobWalletBefore .. " + " .. tostring(kicked) .. " = " .. bob.ns.db.chips)
 
 -- Cid leaves between hands.
@@ -484,7 +484,7 @@ if cid.T.mode == "client" then
   Press(cid, "Leave table")
   Run(2)
 end
-Check("leaving pays your stack into your wallet", cid.ns.db.chips == cidWallet + cidStack and cid.T.mode == "solo",
+Check("leaving leaves your wallet as it was (party stacks are free)", cid.ns.db.chips == cidWallet and cid.T.mode == "solo",
   cidWallet .. " + " .. cidStack .. " = " .. cid.ns.db.chips)
 Check("host frees the seat", host.T.seats[cidSeat].kind ~= "remote" or host.T.seats[cidSeat].name ~= "Cid")
 
@@ -504,7 +504,7 @@ local bobWallet = bob.ns.db.chips
 group = { "Bob", "Cid" }     -- the host leaves the party
 GroupChanged()
 Run(1)
-Check("host leaves mid-hand: clients get their start-of-hand stack", bob.T.mode == "solo" and bob.ns.db.chips == bobWallet + bobStart,
+Check("host leaves mid-hand: clients back in the lobby, wallets untouched", bob.T.mode == "solo" and bob.ns.db.chips == bobWallet,
   bobWallet .. " + " .. bobStart .. " = " .. bob.ns.db.chips)
 local hs = host.T.seats[bobSeatNow]
 Check("host's table folds and drops the missing player", hs.kind ~= "remote" or (hs.leaving and hs.folded))
@@ -532,8 +532,8 @@ local hStack = host.T.seats[1].stack
 local hWallet = host.ns.db.chips
 Press(host, "Close table")
 Run(2)
-Check("host closes: host and players paid out", host.T.mode == "solo" and host.ns.db.chips == hWallet + hStack
-  and bob.T.mode == "solo" and bob.ns.db.chips == bWallet + bStack, string.format("host +%d, bob +%d", hStack, bStack))
+Check("host closes: everyone back in the lobby, wallets untouched", host.T.mode == "solo" and host.ns.db.chips == hWallet
+  and bob.T.mode == "solo" and bob.ns.db.chips == bWallet, string.format("host +%d, bob +%d", hStack, bStack))
 
 -- The host can close mid-hand: it shuts after the hand, everyone paid.
 Press(host, "Play with your party")
@@ -566,8 +566,8 @@ end
 local seatField = fields[14 + bobCloseSeat]
 local finalBob = tonumber(string.sub(seatField, 1, (string.find(seatField, ",", 1, true) or 0) - 1))
 local idleFinal = fields[6] == "i"
-Check("...then closes and pays everyone their final stack", host.T.mode == "solo" and bob.T.mode == "solo" and idleFinal
-  and finalBob and bob.ns.db.chips == bobW + finalBob, bobW .. " + " .. tostring(finalBob) .. " = " .. bob.ns.db.chips)
+Check("...then closes after the hand, wallets untouched", host.T.mode == "solo" and bob.T.mode == "solo" and idleFinal
+  and finalBob and bob.ns.db.chips == bobW, bobW .. " + " .. tostring(finalBob) .. " = " .. bob.ns.db.chips)
 
 -- A client reloading mid-hand gets their start-of-hand stack and frees the seat.
 Press(host, "Play with your party")
@@ -585,7 +585,7 @@ local cidW = cid.ns.db.chips
 local cSeat = cid.T.mySeat
 cid.P:Build(cid.env.CreateFrame("Frame", nil, cid.env.UIParent))   -- the reload
 Run(2)
-Check("client reload mid-hand: start-of-hand stack refunded", cid.ns.db.chips == cidW + cidStart and cid.T.mode == "solo",
+Check("client reload mid-hand: back in the lobby, wallet untouched", cid.ns.db.chips == cidW and cid.T.mode == "solo",
   cidW .. " + " .. cidStart .. " = " .. cid.ns.db.chips)
 Check("host marks the reloaded player as gone", host.T.seats[cSeat].leaving or host.T.seats[cSeat].kind ~= "remote")
 UntilIdle(120)
