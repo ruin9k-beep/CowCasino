@@ -3,7 +3,8 @@
 
 local ns = CowCasino.ns
 
-local FRAME_W, FRAME_H = 380, 440
+local FRAME_W, FRAME_H = 436, 440
+local INSET = 42            -- the menu and game pages sit this far in from the sides (clear of the totem poles)
 local ROW_H, ROW_GAP = 56, 6
 local LIST_H = 318          -- room for the game list under the header
 local PAGER_H = 24          -- page buttons under the list, when the games need more than one page
@@ -187,8 +188,8 @@ end
 ---------------------------------------------------------------------------
 function ns:BuildOptionsPage(frame)
     local o = ns.CreateFrame("Frame", nil, frame)
-    o:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -36)
-    o:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -14, 14)
+    o:SetPoint("TOPLEFT", frame, "TOPLEFT", INSET, -36)
+    o:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -INSET, 14)
     o:SetFrameLevel(frame:GetFrameLevel() + 60)
     o:EnableMouse(true)
     o:Hide()
@@ -527,7 +528,7 @@ function ns:SkinFrame(frame)
     skin:SetTexture(ART .. "TaurenFrame")
     skin:SetPoint("TOPLEFT", frame, "TOPLEFT", -SKIN_PAD, SKIN_PAD)
     skin:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", SKIN_PAD, -SKIN_PAD)
-    -- the art is 400 x 460 in the top-left of a 512 x 512 file
+    -- the art is 456 x 460 in the top-left of a 512 x 512 file
     skin:SetTexCoord(0, (FRAME_W + 2 * SKIN_PAD) / 512, 0, (FRAME_H + 2 * SKIN_PAD) / 512)
 
     -- horn bases sit on the top corner conchos
@@ -577,7 +578,7 @@ function ns:BuildMainFrame()
     self:RestorePosition()
 
     local close = ns.CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -6)
+    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -INSET + 8, -6)   -- clear of the right totem's head
 
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOP", frame, "TOP", 0, -17)
@@ -585,8 +586,8 @@ function ns:BuildMainFrame()
 
     -- Page 1: game list ----------------------------------------------------
     local menu = ns.CreateFrame("Frame", nil, frame)
-    menu:SetPoint("TOPLEFT", menu:GetParent(), "TOPLEFT", 14, -36)
-    menu:SetPoint("BOTTOMRIGHT", menu:GetParent(), "BOTTOMRIGHT", -14, 14)
+    menu:SetPoint("TOPLEFT", menu:GetParent(), "TOPLEFT", INSET, -36)
+    menu:SetPoint("BOTTOMRIGHT", menu:GetParent(), "BOTTOMRIGHT", -INSET, 14)
     frame.menu = menu
 
     local header = ns:BigFont(menu:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 22)
@@ -653,8 +654,8 @@ function ns:BuildMainFrame()
 
     -- Page 2: open game ----------------------------------------------------
     local gamePage = ns.CreateFrame("Frame", nil, frame)
-    gamePage:SetPoint("TOPLEFT", gamePage:GetParent(), "TOPLEFT", 14, -36)
-    gamePage:SetPoint("BOTTOMRIGHT", gamePage:GetParent(), "BOTTOMRIGHT", -14, 14)
+    gamePage:SetPoint("TOPLEFT", gamePage:GetParent(), "TOPLEFT", INSET, -36)
+    gamePage:SetPoint("BOTTOMRIGHT", gamePage:GetParent(), "BOTTOMRIGHT", -INSET, 14)
     gamePage:Hide()
     frame.gamePage = gamePage
 

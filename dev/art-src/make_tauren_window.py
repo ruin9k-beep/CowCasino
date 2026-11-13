@@ -7,7 +7,7 @@ at 4x and shrunk for smooth edges.
 
     python3 make_tauren_window.py <Art folder> [preview.png]
 
-Writes TaurenFrame.tga (the ring: 400 x 460 art in a 512 x 512 file),
+Writes TaurenFrame.tga (the ring: 456 x 460 art in a 512 x 512 file),
 TaurenHorn.tga (128 x 128, the left horn; the game mirrors it) and
 TaurenTotemL.tga / TaurenTotemR.tga (64 x 512 each, the art in the top 480).
 """
@@ -19,7 +19,7 @@ from scipy.ndimage import gaussian_filter
 OUT = sys.argv[1]
 PREVIEW = sys.argv[2] if len(sys.argv) > 2 else None
 SS = 4                                  # supersampling
-FW, FH = 380, 440                       # the window
+FW, FH = 436, 440                       # the window
 PAD = 10                                # the ring reaches this far outside it
 RING = PAD + 14
 W, H = FW + 2 * PAD, FH + 2 * PAD
