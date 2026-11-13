@@ -23,8 +23,11 @@ One addon folder runs on two clients:
 - **Crash**, with auto cash-out
 - **Hi-Lo**: higher or lower, with the multiplier growing each right guess
 - **Video Poker**: Jacks or Better (the 9/6 pay table), one to five coins, hold and draw
+- **Three Card Poker**: Ante and Play against the dealer, with the Ante bonus and a Pair Plus side bet
+- **Keno**: pick 1 to 10 of 80 numbers, twenty are drawn; quick pick and auto play
+- **Deathroll**: the classic gold duel, against the dealer or with your party (real /rolls)
 
-A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw and Craps so far).
+A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker and Deathroll).
 Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
 explains how a game drives it, including showing a party member's 3D portrait.
 

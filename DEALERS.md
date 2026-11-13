@@ -115,6 +115,25 @@ Craps (solo and party tables; everyone at a party table hears the call):
 
 Every roll also fills in `{win}` and `{loss}` (what it won or lost you) and `{name}`.
 
+Three Card Poker:
+
+| Moment | When | Fills in |
+|---|---|---|
+| `tcpDeal` | the cards are dealt (skipped if the dealer is busy talking) | `{hand}` yours |
+| `tcpFold` | you fold | `{hand}`, `{dealer}` (the dealer's hand) |
+| `tcpNoQualify` | you play and the dealer doesn't qualify | `{hand}`, `{dealer}`, `{amount}` (your net win) |
+| `tcpWin` / `tcpLose` / `tcpPush` | you play and win / lose / tie | same |
+| `tcpBigPairPlus` | Pair Plus pays 30 to 1 or more | same |
+
+Deathroll (against the dealer, and party duels):
+
+| Moment | When | Fills in |
+|---|---|---|
+| `deathrollStart` | a duel against the dealer starts | `{stake}`, `{start}` |
+| `deathrollParty` | a party duel starts | `{name}` (the other player), `{stake}`, `{start}` |
+| `deathrollClose` | a roll drops into single digits (skipped if busy) | `{name}` (who rolled), `{value}` |
+| `deathrollWin` / `deathrollLose` | the duel ends | `{name}` (the other player or dealer), `{amount}` (the stake) |
+
 `Dealer.lua` has Fizzlecog's lines as an example.
 
 Registering an `id` again replaces that dealer. A dealer without an `id` or an

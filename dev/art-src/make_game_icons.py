@@ -133,6 +133,84 @@ def videopoker():
     return frame(img)
 
 
+# --- Three Card Poker: three queens fanned, a chip in front -------------------
+def threecard():
+    img = backdrop((40, 150, 90, 255), (8, 45, 22, 255))
+    fan = [("Q", "♣", INK), ("Q", "♥", RED), ("Q", "♠", INK)]
+    for i, (rank, suit, color) in enumerate(fan):
+        k = i - 1
+        rotated_card(img, 256 + k * 82, 240 + abs(k) * 16, 180, 254, -k * 15, rank, suit, color)
+    d = ImageDraw.Draw(img)
+    shadow(img, lambda sd, o, c: sd.ellipse((330 + o[0], 330 + o[1], 450 + o[0], 450 + o[1]), fill=c))
+    chip(d, 390, 390, 60, (190, 30, 30, 255))
+    return frame(img)
+
+
+# --- Keno: a board of numbers, some caught in gold, and a drawn ball ----------
+def keno():
+    img = backdrop((95, 60, 150, 255), (25, 12, 50, 255))
+    d = ImageDraw.Draw(img)
+    f = ImageFont.truetype(SANS, 34)
+    caught = {(0, 1), (1, 3), (2, 0), (2, 2), (3, 1)}
+    picked = {(0, 3), (1, 0), (3, 3)}
+    x0, y0, cw, gap = 70, 82, 80, 12
+    shadow(img, lambda sd, o, c: sd.rounded_rectangle((x0 - 14 + o[0], y0 - 14 + o[1], x0 + 4 * cw + 3 * gap + 14 + o[0],
+                                                    y0 + 4 * cw + 3 * gap + 14 + o[1]), radius=18, fill=c))
+    d.rounded_rectangle((x0 - 14, y0 - 14, x0 + 4 * cw + 3 * gap + 14, y0 + 4 * cw + 3 * gap + 14), radius=18,
+                        fill=(20, 16, 30, 255), outline=(150, 118, 52, 255), width=6)
+    n = 1
+    for r in range(4):
+        for c in range(4):
+            x, y = x0 + c * (cw + gap), y0 + r * (cw + gap)
+            if (r, c) in caught:
+                fill, ink = (240, 190, 40, 255), INK
+            elif (r, c) in picked:
+                fill, ink = (40, 110, 230, 255), IVORY
+            else:
+                fill, ink = (45, 42, 60, 255), (200, 200, 210, 255)
+            d.rounded_rectangle((x, y, x + cw, y + cw), radius=10, fill=fill)
+            t = str(n * 5)
+            tw = d.textlength(t, font=f)
+            d.text((x + cw / 2 - tw / 2, y + cw / 2 - 20), t, font=f, fill=ink)
+            n += 1
+    # a drawn ball
+    cx, cy, r = 392, 392, 78
+    shadow(img, lambda sd, o, c: sd.ellipse((cx - r + o[0], cy - r + o[1], cx + r + o[0], cy + r + o[1]), fill=c))
+    for k in range(r, 0, -2):
+        d.ellipse((cx - k, cy - k, cx + k, cy + k), fill=lerp((255, 255, 255, 255), (190, 25, 25, 255), k / r))
+    d.ellipse((cx - r * 0.55, cy - r * 0.55, cx + r * 0.55, cy + r * 0.55), fill=IVORY)
+    fb = ImageFont.truetype(SANS, 56)
+    tw = d.textlength("42", font=fb)
+    d.text((cx - tw / 2, cy - 34), "42", font=fb, fill=INK)
+    return frame(img)
+
+
+# --- Deathroll: a die showing the dreaded 1, on blood red ----------------------
+def deathroll():
+    img = backdrop((150, 30, 25, 255), (40, 5, 5, 255))
+    d = ImageDraw.Draw(img)
+    cx, cy, R = 256, 262, 175
+    hexagon = [(cx + R * math.cos(math.pi / 6 + k * math.pi / 3), cy + R * math.sin(math.pi / 6 + k * math.pi / 3)) for k in range(6)]
+    shadow(img, lambda sd, o, c: sd.polygon([(x + o[0], y + o[1]) for x, y in hexagon], fill=c), off=(16, 22), blur=16)
+    d.polygon(hexagon, fill=IVORY, outline=(60, 50, 40, 255))
+    # the facets of a d20 seen face on
+    inner = [(cx + R * 0.5 * math.cos(-math.pi / 2 + k * 2 * math.pi / 3), cy + R * 0.5 * math.sin(-math.pi / 2 + k * 2 * math.pi / 3)) for k in range(3)]
+    shade = [(225, 215, 195, 255), (205, 195, 175, 255), (230, 222, 205, 255)]
+    for k in range(6):
+        a, b = hexagon[k], hexagon[(k + 1) % 6]
+        tip = inner[((k + 2) // 2) % 3]
+        d.polygon([a, b, tip], fill=shade[k % 3])
+    d.polygon(inner, fill=(250, 245, 232, 255))
+    for k in range(6):
+        d.line([hexagon[k], inner[((k + 1) // 2) % 3]], fill=(120, 105, 85, 255), width=4)
+    d.polygon(inner, outline=(120, 105, 85, 255), width=4)
+    d.polygon(hexagon, outline=(60, 50, 40, 255), width=8)
+    f = ImageFont.truetype(SERIF, 120)
+    tw = d.textlength("1", font=f)
+    d.text((cx - tw / 2, cy - 78), "1", font=f, fill=(185, 15, 15, 255))
+    return frame(img)
+
+
 # --- Roulette: the wheel from above, with the ball -----------------------------
 def roulette():
     img = backdrop((95, 60, 30, 255), (35, 18, 8, 255))
@@ -281,7 +359,8 @@ def hilo():
 
 
 ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
-         ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker)]
+         ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker),
+         ("ThreeCardIcon", threecard), ("KenoIcon", keno), ("DeathrollIcon", deathroll)]
 
 if __name__ == "__main__":
     big = []

@@ -49,7 +49,7 @@ function methods:SetBackdrop(b) assert(rawget(self, "backdropOK"), "modern clien
 ''' + s[j:]
 rep('''function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0, "bad SetFont") end''','''function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0 and type(flags) == "string", "bad SetFont (modern client wants flags)") end''')
 rep('''function methods:SetModel(m) assert(type(m) == "string"); self.model = m; self.unit = nil end''','''function methods:SetModel(m) assert(type(m) == "string" and string.find(m, "%.m2$"), "modern client models are .m2: " .. tostring(m)); self.model = m; self.unit = nil end''')
-rep('''function methods:RegisterEvent(e) self.events = self.events or {}; self.events[e] = true end''','''local EVENTS = set("ADDON_LOADED CHAT_MSG_ADDON GROUP_ROSTER_UPDATE PLAYER_LOGIN PLAYER_ENTERING_WORLD")
+rep('''function methods:RegisterEvent(e) self.events = self.events or {}; self.events[e] = true end''','''local EVENTS = set("ADDON_LOADED CHAT_MSG_ADDON CHAT_MSG_SYSTEM GROUP_ROSTER_UPDATE PLAYER_LOGIN PLAYER_ENTERING_WORLD")
 function methods:RegisterEvent(e) assert(EVENTS[e], "modern client has no event " .. tostring(e)); self.events = self.events or {}; self.events[e] = true end''')
 rep('''  if name then _G[name] = o end
   if template == "OptionsSliderTemplate" then''','''  if name then _G[name] = o end

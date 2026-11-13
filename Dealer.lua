@@ -656,6 +656,61 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
             "You're busted, friend! I'd offer a loan, but... nah. Leave the table to buy back in.",
             "Cleaned out! Your gold's in good hands now. Mine. Leave the table to buy in again.",
         },
+
+        -- Three Card Poker
+        tcpDeal = {
+            "Three cards each. Small hands, big profits. For me, mostly.",
+            "{hand}, eh? Play it or fold it, but decide before my nose gets itchy.",
+            "Cards are out! Queen high or better and I'm in. And I'm ALWAYS in. Kiddin'.",
+        },
+        tcpFold = {
+            "Folded! Your Ante goes in my pocket. Very warm in there.",
+            "Ah, a fold. Smart. Cowardly, but smart. I had {dealer}, by the way.",
+        },
+        tcpNoQualify = {
+            "Bah! {dealer}. I don't even qualify. Take your Ante and stop smilin'.",
+            "No Queen, no game. Your Ante wins. Ugh, payin' out hurts my nose.",
+        },
+        tcpWin = {
+            "{hand} beats my {dealer}. That's {amount} walkin' outta my bank!",
+            "You win! {amount}. I'll be countin' my coins twice tonight.",
+            "Your {hand} takes it. Somebody check this deck. Not me. Somebody.",
+        },
+        tcpLose = {
+            "My {dealer} beats your {hand}! Gold comes home to papa.",
+            "Dealer wins! Don't worry, your gold's gonna have a great life with me.",
+        },
+        tcpPush = {
+            "A tie! Nobody wins. Worst kinda hand there is.",
+        },
+        tcpBigPairPlus = {
+            "{hand} on the Pair Plus?! Who let you near my deck?!",
+            "That Pair Plus just cost me a new pair of boots. Enjoy 'em.",
+        },
+
+        -- Deathroll
+        deathrollStart = {
+            "A deathroll for {stake}? From {start}? Ha! You roll first, friend.",
+            "{stake} on the line! Roll a 1 and it's mine. Roll anything else and... well, it's still gonna be mine.",
+            "Deathroll! The purest form of gamblin'. No skill, all greed. My favorite!",
+        },
+        deathrollParty = {
+            "A duel with {name}! {stake} each, from {start}. Fizzlecog's holdin' the pot. Totally safe.",
+            "{name} wants a deathroll! Place your bets, everybody. Well, them. Not you lot.",
+        },
+        deathrollClose = {
+            "Ooh, {name} rolled {value}! Now we're gettin' somewhere.",
+            "{value}! Single digits! I can hear the gold rattlin'.",
+            "Down to {value}. Somebody's sweatin'. My nose can smell it.",
+        },
+        deathrollWin = {
+            "You beat {name}! {amount} up. Don't spend it all in one goblin shop. Actually, do.",
+            "{name} rolled a 1! Ha! The winner, and still champion: you.",
+        },
+        deathrollLose = {
+            "A 1! Ouch. {name} takes it. Wanna go again? Double or nothin'?",
+            "You rolled the big one... the little one. A 1! Gold's gone, friend.",
+        },
     } })
 ns:RegisterDealer({ id = "human", name = "Human", title = "Harold", author = "ruin9k",
     image = ART .. "DealerHuman" })
