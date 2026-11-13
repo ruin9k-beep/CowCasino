@@ -1086,19 +1086,14 @@ function Slots:Build(panel)
     felt:SetTexture(0.25, 0.05, 0.08, 0.92)
     ui.felt = felt
 
-    -- Options sits in the top bar where the other games have theirs, with
-    -- the Paytable beside it.
+    -- Options sits in the top bar where the other games have theirs; the
+    -- Paytable button is down by Spin (on its left, mirroring Auto).
     ui.options = BuildOptions(panel)
     local optionsButton = MakeButton(panel, "Options", 70, function()
         if ui.paytable then ui.paytable:Hide() end
         ns.SetShown(ui.options, not ui.options:IsShown())
     end, 22)
     optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
-    local paytableButton = MakeButton(panel, "Paytable", 70, function()
-        ui.options:Hide()
-        ns.SetShown(ui.paytable, not ui.paytable:IsShown())
-    end, 22)
-    paytableButton:SetPoint("RIGHT", optionsButton, "LEFT", -4, 0)
 
     ui.topPay = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.topPay:SetPoint("TOP", panel, "TOP", 0, -8)
@@ -1129,6 +1124,11 @@ function Slots:Build(panel)
     ui.spin:SetPoint("BOTTOM", ui.spin:GetParent(), "BOTTOM", 0, 16)
     ui.auto = MakeButton(panel, "Auto", 80, ToggleAuto, 26)
     ui.auto:SetPoint("LEFT", ui.spin, "RIGHT", 10, 0)
+    local paytableButton = MakeButton(panel, "Paytable", 80, function()
+        ui.options:Hide()
+        ns.SetShown(ui.paytable, not ui.paytable:IsShown())
+    end, 26)
+    paytableButton:SetPoint("RIGHT", ui.spin, "LEFT", -10, 0)
 
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
