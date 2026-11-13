@@ -21,7 +21,7 @@ local FLY_W      = 230
 local ROW_H      = 46
 local PORTRAIT   = 38
 local ROW_CHARS  = 90      -- about three lines of small text beside a portrait
-local EDGE       = 10      -- the window art reaches this far past the window's edge
+local EDGE       = 30      -- the totem poles reach this far past the window's side edge
 
 local Chat = { rows = {}, scroll = 0, unread = 0 }
 ns.Chat = Chat

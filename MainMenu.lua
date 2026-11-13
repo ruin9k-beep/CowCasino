@@ -509,12 +509,18 @@ function ns:BuildOptionsPage(frame)
     return o
 end
 
--- The window's Tauren look: hide leather with a Thunder Bluff-style band,
--- laced stitching and bone conchos, with horns rising from the top corners.
--- All of it is drawn around the window's edge, so nothing inside moves.
+-- The window's Tauren look: a wooden rim and a Thunder Bluff-style painted
+-- band with rawhide lacing along the top and bottom, a carved totem pole
+-- down each side (a kodo head on top, then a thunderbird, a bear and a
+-- tauren) and horns rising from the kodo heads. Painted by
+-- dev/art-src/make_tauren_window.py. All of it is drawn around the window's
+-- edge, so nothing inside moves.
 local ART = "Interface\\AddOns\\CowCasino\\Art\\"
 local SKIN_PAD = 10                -- the art reaches this far outside the window
 local HORN = 96                    -- shown size of each horn
+local TOTEM_W, TOTEM_H = 64, 512   -- each totem pole's texture (the pole is 480 tall in it)
+local TOTEM_X = -8                 -- the pole's middle, from the window's side edge (outward)
+local TOTEM_TOP = 18               -- the pole's top, above the window's top edge
 
 function ns:SkinFrame(frame)
     local skin = frame:CreateTexture(nil, "BORDER")   -- over the horns
@@ -534,7 +540,16 @@ function ns:SkinFrame(frame)
     right:SetTexCoord(1, 0, 0, 1)    -- mirrored
     right:SetWidth(HORN); right:SetHeight(HORN)
     right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 74, 85)
-    frame.skin, frame.hornL, frame.hornR = skin, left, right
+    -- the totem poles, over the ring's sides (the window's contents draw over them)
+    local totemL = frame:CreateTexture(nil, "ARTWORK")
+    totemL:SetTexture(ART .. "TaurenTotemL")
+    totemL:SetWidth(TOTEM_W); totemL:SetHeight(TOTEM_H)
+    totemL:SetPoint("TOPLEFT", frame, "TOPLEFT", TOTEM_X - TOTEM_W / 2, TOTEM_TOP)
+    local totemR = frame:CreateTexture(nil, "ARTWORK")
+    totemR:SetTexture(ART .. "TaurenTotemR")
+    totemR:SetWidth(TOTEM_W); totemR:SetHeight(TOTEM_H)
+    totemR:SetPoint("TOPLEFT", frame, "TOPRIGHT", -TOTEM_X - TOTEM_W / 2, TOTEM_TOP)
+    frame.skin, frame.hornL, frame.hornR, frame.totemL, frame.totemR = skin, left, right, totemL, totemR
 end
 
 function ns:BuildMainFrame()
