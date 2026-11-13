@@ -19,6 +19,7 @@ function ns.getglobal(name) return getglobal(name) end
 function ns.CreateFrame(kind, name, parent, template) return CreateFrame(kind, name, parent, template) end
 function ns.PlaySound(name) return PlaySound(name) end
 function ns.NumParty() return GetNumPartyMembers() end
+function ns.AddonVersion() return GetAddOnMetadata("CowCasino", "Version") or "?" end
 function ns.NumRaid() return GetNumRaidMembers() end
 
 -- The 1.12 client sends everything it is given (it never refuses).

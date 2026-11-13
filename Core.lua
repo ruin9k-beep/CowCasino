@@ -298,10 +298,13 @@ SlashCmdList["COWCASINO"] = function(msg)
         ns:SetMinimapButtonShown(ns.db.minimap.hide)
         ns:Print(ns.db.minimap.hide and "minimap button hidden. Type /casino minimap to bring it back."
             or "minimap button shown.")
+    elseif msg == "net" then
+        ns.Net:Report()
     elseif msg == "help" then
         ns:Print("/casino - open or close the casino")
         ns:Print("/casino reset - move the window back to the center, at normal size")
         ns:Print("/casino minimap - show or hide the minimap button")
+        ns:Print("/casino net - check that party play can reach your group")
     else
         ns:Toggle()
     end

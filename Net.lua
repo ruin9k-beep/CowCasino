@@ -132,8 +132,12 @@ pump:SetScript("OnUpdate", function()
             -- A client that limits addon messages (WoW Forever) can refuse a
             -- send for now: keep it queued and try again on a later frame.
             -- (The 1.12 client never refuses.)
-            if ns.SendAddonMessage(PREFIX, text, chan) == false then return end
+            if ns.SendAddonMessage(PREFIX, text, chan) == false then
+                Net.refused = (Net.refused or 0) + 1
+                return
+            end
             Net.sentCount = Net.sentCount + 1
+            Net.lastChannel = chan
             Net.packedCount = Net.packedCount + n
             if string.len(text) > Net.longest then Net.longest = string.len(text) end
         end
@@ -172,6 +176,8 @@ listener:RegisterEvent("RAID_ROSTER_UPDATE")
 listener:SetScript("OnEvent", function()
     if event == "CHAT_MSG_ADDON" then
         if arg1 ~= PREFIX or arg4 == Net:Me() then return end
+        Net.heard = (Net.heard or 0) + 1
+        Net.lastFrom, Net.lastFromChannel = arg4, arg3
         local text = arg2 or ""
         local parts
         if string.sub(text, 1, 3) == "CH;" then parts = { text } else parts = Net.Split(text, SEP) end
@@ -185,3 +191,38 @@ listener:SetScript("OnEvent", function()
         for _, h in pairs(Net.groupHandlers) do h() end
     end
 end)
+
+---------------------------------------------------------------------------
+-- /casino net: what party play can see from here, and a ping to the group
+-- that every CowCasino in it answers (with its version).
+---------------------------------------------------------------------------
+Net.handlers.NT = function(sender, f)
+    if f[2] == "PI" then
+        Net:Send("NT;PO;" .. (ns.AddonVersion and ns.AddonVersion() or "?"))
+    elseif f[2] == "PO" then
+        ns:Print("party check: " .. sender .. " answered (CowCasino " .. (f[3] or "?") .. ").")
+    end
+end
+
+function Net:Report()
+    local chan = self:Channel()
+    ns:Print("party check: CowCasino " .. (ns.AddonVersion and ns.AddonVersion() or "?") .. ", channel "
+        .. (chan or "none (not in a group)") .. ", group of " .. self:GroupSize() .. ".")
+    local names = {}
+    if ns.NumRaid() > 0 then
+        for i = 1, ns.NumRaid() do table.insert(names, tostring(UnitName("raid" .. i))) end
+    else
+        for i = 1, ns.NumParty() do table.insert(names, tostring(UnitName("party" .. i))) end
+    end
+    ns:Print("party check: members seen: " .. (names[1] and table.concat(names, ", ") or "nobody"))
+    ns:Print("party check: sent " .. self.sentCount .. ", refused " .. (self.refused or 0) .. ", heard " .. (self.heard or 0)
+        .. (self.lastFrom and (" (last from " .. tostring(self.lastFrom) .. " on " .. tostring(self.lastFromChannel) .. ")") or "")
+        .. ", waiting " .. ns.getn(queue) .. ".")
+    if ns.lastSendResult ~= nil then ns:Print("party check: last send result: " .. tostring(ns.lastSendResult)) end
+    if ns.PrefixAllowance then ns:Print("party check: sends left per prefix: " .. ns.PrefixAllowance()) end
+    if chan then
+        self:Send("NT;PI")
+        ns:Print("party check: pinged the group; everyone with CowCasino should answer in a few seconds.")
+    end
+end
+

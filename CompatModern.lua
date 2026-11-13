@@ -183,6 +183,11 @@ for i = 1, POOL_SIZE do
 end
 ns.PREFIX_POOL = inPool
 
+function ns.AddonVersion()
+    local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    return get and get("CowCasino", "Version") or "?"
+end
+
 local function Refill(b)
     local now = GetTime()
     b.left = math.min(ALLOWANCE, b.left + (now - b.at) * REGAIN)
@@ -191,6 +196,16 @@ end
 
 local R = Enum and Enum.SendAddonMessageResult or {}
 local warned
+
+-- For /casino net: how many sends each prefix has left right now.
+function ns.PrefixAllowance()
+    local t = {}
+    for _, b in ipairs(pool) do
+        Refill(b)
+        table.insert(t, math.floor(b.left))
+    end
+    return table.concat(t, " ")
+end
 
 -- Returns false when no prefix has allowance left right now (try again soon).
 function ns.SendAddonMessage(prefix, text, channel)
@@ -206,6 +221,8 @@ function ns.SendAddonMessage(prefix, text, channel)
     if string.sub(text, 1, 3) == "CH;" and C_ChatInfo.SendAddonMessageLogged then send = C_ChatInfo.SendAddonMessageLogged end
     local result = send(best.prefix, text, channel)
     best.left = best.left - 1
+    ns.lastSendResult = result
+    for k, v in pairs(R) do if v == result then ns.lastSendResult = k end end
     if result == nil or result == true or result == 0 or result == R.Success then return true end
     if result == R.AddonMessageThrottle or result == R.ChannelThrottle then
         best.left = 0              -- the server says this one's spent: wait for it

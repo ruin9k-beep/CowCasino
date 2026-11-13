@@ -183,6 +183,17 @@ group = { "Host", "Bob", "Cid" }
 GroupChanged()
 Run(1)
 
+-- /casino net: a report, and a ping every CowCasino in the group answers
+local printed = {}
+host.env.DEFAULT_CHAT_FRAME.AddMessage = function(_, m) table.insert(printed, m) end
+host.env.SlashCmdList.COWCASINO("net")
+Run(3)
+local text = table.concat(printed, "\n")
+Check("/casino net: reports the channel and the members", string.find(text, "channel PARTY", 1, true) ~= nil
+  and string.find(text, "Bob", 1, true) ~= nil and string.find(text, "Cid", 1, true) ~= nil, printed[1])
+Check("/casino net: Bob and Cid answer the ping with their version", string.find(text, "Bob answered (CowCasino test)", 1, true) ~= nil
+  and string.find(text, "Cid answered (CowCasino test)", 1, true) ~= nil, printed[table.getn(printed)])
+
 -- Host types in the blinds and buy-in, and opens a table (computer players
 -- fill the empty seat).
 local function Boxes(c)

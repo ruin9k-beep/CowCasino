@@ -195,6 +195,7 @@ GetCursorPosition = function() return 400, 600 end
 IsShiftKeyDown = function() return nil end
 PLAYER_NAME = PLAYER_NAME or "Tester"
 UnitName = function(u) if u == "player" then return PLAYER_NAME end return nil end
+GetAddOnMetadata = function(addon, field) if field == "Version" then return "test" end end
 GetNumPartyMembers = function() return 0 end
 GetNumRaidMembers = function() return 0 end
 UNIT_VISIBLE = UNIT_VISIBLE or {}

@@ -2,7 +2,7 @@
 ## Title: |cffffd100CowCasino|r
 ## Notes: A just-for-fun casino. No real gold is ever wagered. Type /casino to open.
 ## Author: ruin9k
-## Version: 0.10.0
+## Version: 0.10.1
 ## SavedVariables: CowCasinoDB
 
 Compat112.lua
