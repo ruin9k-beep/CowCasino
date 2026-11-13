@@ -119,6 +119,26 @@ local function Build()
     ui:SetScript("OnDragStop", function() ns.frame:StopMovingOrSizing(); ns:SavePosition() end)
     ui:Hide()
 
+    -- The arrow on the window's top edge that shows and hides the strip
+    -- (like the table chat's arrow); the choice is saved.
+    local toggle = ns.CreateFrame("Button", nil, ns.frame)
+    toggle:SetWidth(26); toggle:SetHeight(26)
+    toggle:SetPoint("CENTER", ns.frame, "TOP", 0, 3)
+    toggle:SetFrameLevel(ns.frame:GetFrameLevel() + 20)
+    toggle:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+    toggle:SetScript("OnClick", function()
+        ns:Sound("IG_MAINMENU_OPTION")
+        Dealer:SetOpen(not Dealer:Open())
+    end)
+    toggle:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+        GameTooltip:SetText(Dealer:Open() and "Hide the dealer" or "Show the dealer")
+        GameTooltip:Show()
+    end)
+    toggle:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    toggle:Hide()
+    ui.toggle = toggle
+
     -- the picture: an image or a 3D portrait, in a small dark box
     ui.box = ns.CreateFrame("Frame", nil, ui)
     ui.box:SetWidth(PIC); ui.box:SetHeight(PIC)
@@ -208,6 +228,29 @@ local function ShowImage(image)
     ui.image:Show()
 end
 
+-- Is the strip wanted (the arrow on the window's top edge)? Saved; on unless hidden.
+function Dealer:Open()
+    return not (ns.db and ns.db.dealerHidden)
+end
+
+-- Show the strip if this game has a dealer and it's wanted; the arrow shows
+-- whenever the game has a dealer, pointing the way the strip will go.
+local ARROW = "Interface\\Buttons\\UI-ScrollBar-Scroll"
+local function Place()
+    if not ui then return end
+    local open = Dealer:Open()
+    ns.SetShown(ui, owner ~= nil and open)
+    ns.SetShown(ui.toggle, owner ~= nil)
+    local dir = open and "Down" or "Up"
+    ui.toggle:SetNormalTexture(ARROW .. dir .. "Button-Up")
+    ui.toggle:SetPushedTexture(ARROW .. dir .. "Button-Down")
+end
+
+function Dealer:SetOpen(open)
+    if ns.db then ns.db.dealerHidden = not open or nil end
+    Place()
+end
+
 -- Called by the menu whenever a game opens (or nil for the menu): show this
 -- game's dealer, reset to its table, or hide the strip.
 function Dealer:Attach(game)
@@ -215,7 +258,7 @@ function Dealer:Attach(game)
     queue, current, fade = {}, nil, nil
     local def = game and game.dealer
     if not def then
-        if ui then ui:Hide() end
+        Place()
         return
     end
     Build()
@@ -227,7 +270,7 @@ function Dealer:Attach(game)
     ui.text:SetText(idleText)
     ui.text:SetAlpha(1)
     ShowImage(DefaultImage())
-    ui:Show()
+    Place()
 end
 
 -- A different dealer picked in Options: show it now, unless the game has a
@@ -239,6 +282,8 @@ function Dealer:Repaint()
 end
 
 function Dealer:IsShown() return ui ~= nil and ui:IsShown() end
+-- (the show/hide arrow, for tests)
+function Dealer:ArrowShown() return ui ~= nil and ui.toggle:IsShown() end
 
 -- A message, after any already waiting. It stays up until the next one
 -- (3 seconds at least), so the last thing said stays on screen. sound

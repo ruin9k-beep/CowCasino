@@ -268,6 +268,21 @@ Rules.Roll = realRoll
 Tick(8)
 ns:OpenGame("blackjack")
 
+-- the arrow on the window's top edge shows and hides the strip
+ns:OpenGame("blackjack")
+Check("a game with a dealer has the show/hide arrow", D:ArrowShown() and D:IsShown())
+env.Fire(ui.toggle, "OnClick", "LeftButton")
+Check("the arrow hides the strip (and remembers)", not D:IsShown() and D:ArrowShown() and ns.db.dealerHidden == true)
+D:Say(BJ, "While you weren't looking.")
+ns:OpenGame("mines")
+Check("Mines has no dealer: no arrow either", not D:ArrowShown() and not D:IsShown())
+ns:OpenGame("blackjack")
+Check("back at Blackjack the strip stays hidden", not D:IsShown() and D:ArrowShown())
+env.Fire(ui.toggle, "OnClick", "LeftButton")
+Check("the arrow brings it back", D:IsShown() and not ns.db.dealerHidden)
+ns:ShowMenu()
+Check("the menu hides the strip and the arrow", not D:IsShown() and not D:ArrowShown())
+
 -- other games: no dealer; coming back resets it
 ns:OpenGame("mines")
 Check("Mines has no dealer: the strip hides", not D:IsShown())
