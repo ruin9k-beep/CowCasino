@@ -123,45 +123,10 @@ end
 ---------------------------------------------------------------------------
 -- Scoring
 ---------------------------------------------------------------------------
-local function CardValue(c)
-    if c.rank == 1 then return 11 end
-    if c.rank >= 10 then return 10 end
-    return c.rank
-end
-
-local function HandValue(cards)
-    local total, aces = 0, 0
-    for _, c in ipairs(cards) do
-        if not c.hidden then
-            local v = CardValue(c)
-            total = total + v
-            if v == 11 then aces = aces + 1 end
-        end
-    end
-    while total > 21 and aces > 0 do
-        total = total - 10
-        aces = aces - 1
-    end
-    return total, aces > 0
-end
-
-local function IsBlackjack(h)
-    return ns.getn(h.cards) == 2 and not h.fromSplit and HandValue(h.cards) == 21
-end
-
-local function DealerBlackjack()
-    return ns.getn(T.dealer) == 2 and not T.dealer[2].hidden and HandValue(T.dealer) == 21
-end
-
-local function TotalText(h)
-    local cards = h.cards
-    if ns.getn(cards) == 0 then return "" end
-    if IsBlackjack(h) then return "|cffffd100Blackjack|r" end
-    local total, soft = HandValue(cards)
-    if total > 21 then return "|cffff5050Bust " .. total .. "|r" end
-    if soft and total < 21 then return "Soft " .. total end
-    return tostring(total)
-end
+local Rules = ns.BlackjackRules
+local HandValue, IsBlackjack = Rules.HandValue, Rules.IsBlackjack
+local function DealerBlackjack() return Rules.DealerBlackjack(T.dealer) end
+local function TotalText(h) return Rules.TotalText(h.cards, IsBlackjack(h)) end
 
 ---------------------------------------------------------------------------
 -- Seats
@@ -355,17 +320,7 @@ function Settle()
     for i, p in ipairs(T.seats) do
         if p.inRound then
             for _, h in ipairs(p.hands) do
-                local pv = HandValue(h.cards)
-                local pbj = IsBlackjack(h)
-                local pay, res
-                if h.surrendered then pay, res = ns.SurrenderBack(h.bet), "S"
-                elseif pv > 21 then pay, res = 0, "L"
-                elseif pbj and not dbj then pay, res = ns.BlackjackPay(h.bet), "B"
-                elseif dbj and not pbj then pay, res = 0, "L"
-                elseif pbj and dbj then pay, res = h.bet, "P"
-                elseif dTotal > 21 or pv > dTotal then pay, res = h.bet * 2, "W"
-                elseif pv < dTotal then pay, res = 0, "L"
-                else pay, res = h.bet, "P" end
+                local pay, res = Rules.Settle(h, dTotal, dbj)
                 h.payout, h.result, h.done = pay, res, true
                 p.stack = p.stack + pay
                 if p == me then
@@ -565,7 +520,7 @@ end
 
 local function CanSplit(p, h)
     return h and ns.getn(h.cards) == 2 and ns.getn(p.hands) == 1 and p.stack >= h.bet
-        and CardValue(h.cards[1]) == CardValue(h.cards[2])
+        and Rules.Pair(h)
 end
 
 local function CanSurrender(p, h)

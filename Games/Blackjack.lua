@@ -66,43 +66,19 @@ local Fill = ns.UI.Fill
 ---------------------------------------------------------------------------
 -- Scoring
 ---------------------------------------------------------------------------
-local function CardValue(card)
-    if card.rank == 1 then return 11 end
-    if card.rank >= 10 then return 10 end
-    return card.rank
-end
+local Rules = ns.BlackjackRules
+local HandValue, IsBlackjack = Rules.HandValue, Rules.IsBlackjack
+local TotalText = Rules.TotalText
 
--- Total and whether it is soft (an ace still counted as 11).
 -- "an Ace", "a 7", "an 8", "a King": how the dealer names a card
 local CARD_NAMES = { "an Ace", "a 2", "a 3", "a 4", "a 5", "a 6", "a 7", "an 8", "a 9", "a 10", "a Jack", "a Queen", "a King" }
 local function CardName(card) return card and CARD_NAMES[card.rank] or "a card" end
-
-local function HandValue(cards, upto)
-    local total, aces = 0, 0
-    for i = 1, (upto or ns.getn(cards)) do
-        local v = CardValue(cards[i])
-        total = total + v
-        if v == 11 then aces = aces + 1 end
-    end
-    while total > 21 and aces > 0 do
-        total = total - 10
-        aces = aces - 1
-    end
-    return total, aces > 0
-end
 
 local function NewHand(bet)
     return { cards = {}, bet = bet }
 end
 
--- A 21 made on a split hand is not a blackjack.
-local function IsBlackjack(hand)
-    return ns.getn(hand.cards) == 2 and not hand.fromSplit and HandValue(hand.cards) == 21
-end
-
-local function DealerBlackjack()
-    return ns.getn(S.dealer) == 2 and HandValue(S.dealer) == 21
-end
+local function DealerBlackjack() return Rules.DealerBlackjack(S.dealer) end
 
 local function ActiveHand()
     return S.hands[S.active]
@@ -122,7 +98,7 @@ end
 
 local function CanSplit(h)
     return CanHit(h) and ns.getn(h.cards) == 2 and ns.getn(S.hands) < MAX_HANDS and ns.db.chips >= h.bet
-        and CardValue(h.cards[1]) == CardValue(h.cards[2])
+        and Rules.Pair(h)
 end
 
 local function CanSurrender(h)
@@ -160,15 +136,6 @@ local function LayoutCards(group, cards, hideSecond)
             w:Clear()
         end
     end
-end
-
-local function TotalText(cards, blackjack)
-    if ns.getn(cards) == 0 then return "" end
-    if blackjack then return "|cffffd100Blackjack!|r" end
-    local total, soft = HandValue(cards)
-    if total > 21 then return "|cffff5050Bust (" .. total .. ")|r" end
-    if soft and total < 21 then return "Soft " .. total end
-    return tostring(total)
 end
 
 local function HandInfoText(h)
@@ -276,28 +243,15 @@ local function SettleRound()
     end
 
     for _, h in ipairs(S.hands) do
-        local p = HandValue(h.cards)
-        local pBJ = IsBlackjack(h)
-        local pay, outcome
-
-        if h.surrendered then
-            pay, outcome, h.result = ns.SurrenderBack(h.bet), "loss", "Surrendered"
-        elseif p > 21 then
-            pay, outcome, h.result = 0, "loss", "Bust"
-        elseif pBJ and not dBJ then
-            pay, outcome, h.result = ns.BlackjackPay(h.bet), "win", "Blackjack"
-            s.blackjacks = s.blackjacks + 1
-        elseif dBJ and not pBJ then
-            pay, outcome, h.result = 0, "loss", "Dealer blackjack"
-        elseif pBJ and dBJ then
-            pay, outcome, h.result = h.bet, "push", "Push"
-        elseif dealerTotal > 21 or p > dealerTotal then
-            pay, outcome, h.result = h.bet * 2, "win", "Win"
-        elseif p < dealerTotal then
-            pay, outcome, h.result = 0, "loss", "Lose"
-        else
-            pay, outcome, h.result = h.bet, "push", "Push"
-        end
+        local pay, code = Rules.Settle(h, dealerTotal, dBJ)
+        local outcome = (code == "W" or code == "B") and "win" or (code == "P" and "push") or "loss"
+        if code == "S" then h.result = "Surrendered"
+        elseif code == "B" then h.result = "Blackjack"; s.blackjacks = s.blackjacks + 1
+        elseif code == "W" then h.result = "Win"
+        elseif code == "P" then h.result = "Push"
+        elseif HandValue(h.cards) > 21 then h.result = "Bust"
+        elseif dBJ then h.result = "Dealer blackjack"
+        else h.result = "Lose" end
 
         h.payout = pay
         wagered = wagered + h.bet
@@ -355,9 +309,7 @@ local function SettleRound()
     end
 
     -- Keep the last bet for the next round if it is still affordable.
-    if db.bet > ns.db.chips then
-        db.bet = math.floor(ns.db.chips / MIN_BET) * MIN_BET
-    end
+    db.bet = ns:FitBet(db.bet, MIN_BET)
     if ns.db.chips < MIN_BET then
         SetStatus(ns:LowChipsText(MIN_BET), 1, 0.35, 0.35)
         if ns.Dealer:Line("broke") then React("broke", nil, 10) end
@@ -931,10 +883,7 @@ function Blackjack:Build(panel)
 end
 
 function Blackjack:OnShow()
-    -- after a fresh stack the last bet may be 0: start again from 25
-    if db and S.phase == "betting" and (db.bet < MIN_BET or db.bet > ns.db.chips) then
-        db.bet = math.min(25, math.floor(ns.db.chips / MIN_BET) * MIN_BET)
-    end
+    if db and S.phase == "betting" then db.bet = ns:FreshBet(db.bet, MIN_BET) end
     if ui.status then Refresh() end
     -- Back at your party table, if you're at one.
     local party = ns.PartyBlackjack
