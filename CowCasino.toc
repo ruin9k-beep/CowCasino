@@ -9,6 +9,7 @@ Compat112.lua
 Core.lua
 Net.lua
 Sounds.lua
+UI.lua
 Portraits.lua
 Cards.lua
 Art\Plain.lua
@@ -26,6 +27,7 @@ Minimap.lua
 Games\Blackjack.lua
 Games\Mines.lua
 Games\Slots.lua
+Games\PokerTable.lua
 Games\Poker.lua
 Games\Draw.lua
 Games\Roulette.lua

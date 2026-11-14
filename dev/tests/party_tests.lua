@@ -556,7 +556,7 @@ while host.T.mode == "host" and t5 < 300 do
   if bob.T.mode == "client" then lastBob = bob.T.seats[bob.T.mySeat].stack end
 end
 Run(2)
--- Bob's final stack, from the host's last table message (seat s is field 14 + s)
+-- Bob's final stack, from the host's last table message (seat s is field 14 + s, in base 36)
 local fields, start = {}, 1
 while true do
   local i = string.find(LAST_P, ";", start, true)
@@ -564,7 +564,7 @@ while true do
   table.insert(fields, string.sub(LAST_P, start, i - 1)); start = i + 1
 end
 local seatField = fields[14 + bobCloseSeat]
-local finalBob = tonumber(string.sub(seatField, 1, (string.find(seatField, ",", 1, true) or 0) - 1))
+local finalBob = tonumber(string.sub(seatField, 1, (string.find(seatField, ",", 1, true) or 0) - 1), 36)   -- amounts are base 36
 local idleFinal = fields[6] == "i"
 Check("...then closes after the hand, wallets untouched", host.T.mode == "solo" and bob.T.mode == "solo" and idleFinal
   and finalBob and bob.ns.db.chips == bobW, bobW .. " + " .. tostring(finalBob) .. " = " .. bob.ns.db.chips)
@@ -591,5 +591,31 @@ Check("host marks the reloaded player as gone", host.T.seats[cSeat].leaving or h
 UntilIdle(120)
 Run(6)
 Check("table carries on without them", host.T.seats[cSeat].kind ~= "remote")
+
+-- Topping up (free) back to the table's stack: the host, and a player
+UntilIdle(120)
+host.T.seats[1].stack = 30
+host.P:OnShow()
+local wallet = host.ns.db.chips
+Check("top up: the host can top up when short", Enabled(host, "Top up to 1,000"))
+Press(host, "Top up to 1,000")
+Check("top up: the host's stack is back to 1,000, wallet untouched", host.T.seats[1].stack == 1000 and host.ns.db.chips == wallet)
+if not Find(bob, "Join") then Press(bob, "Play with your party") end
+Run(25)                                 -- the host's offer comes round again
+Press(bob, "Join")
+Run(2)
+Check("top up: Bob sits back down", bob.T.mode == "client")
+UntilIdle(120)
+local cs = bob.T.mySeat
+host.T.seats[cs].stack = 15
+host.T.dirty = true
+host.P:OnShow(); Run(1)
+Check("top up: Bob is offered a top-up", Enabled(bob, "Top up to 1,000"), bob.T.seats[cs].stack)
+local cw = bob.ns.db.chips
+Press(bob, "Top up to 1,000")
+Run(2)
+Check("top up: Bob is back to 1,000 (now or before the next hand), wallet untouched",
+  (host.T.seats[cs].stack >= 1000 or host.T.seats[cs].topUp) and bob.ns.db.chips == cw,
+  host.T.seats[cs].stack .. " " .. tostring(host.T.seats[cs].topUp))
 
 io.write(ok and "PARTY PASS\n" or "PARTY FAIL\n")

@@ -675,13 +675,62 @@ RunUntil(function() return host.T.mode == "lobby" end, 120)
 Run(3)
 Check("join mid-round: table closed, request cleared", bob.T.joining == nil and bob.T.mode == "lobby")
 idle.Host = nil
-bob.T.offers.Cid = { tid = "999", players = 1, open = 3, heard = CLOCK }
+bob.T.offers.Cid = { tid = "999", players = 1, open = 3, ver = bob.ns.Net.PARTY_VERSION, heard = CLOCK }
 bob.P:OnShow(); Run(0.5)
-bob.T.offers.Cid = { tid = "999", players = 1, open = 3, heard = CLOCK }
+bob.T.offers.Cid = { tid = "999", players = 1, open = 3, ver = bob.ns.Net.PARTY_VERSION, heard = CLOCK }
 Press(bob, "Join"); Run(1)
 Check("no answer: request pending", bob.T.joining ~= nil)
 Run(16)
 Check("no answer: request dropped after 15s, Join usable again", bob.T.joining == nil)
+
+---------------------------------------------------------------------------
+-- Versions: a table from another CowCasino version can't be joined
+---------------------------------------------------------------------------
+idle.Bob, idle.Host = "all", "all"
+RunUntil(function() return host.T.mode == "lobby" end, 30)
+Press(host, "Host a table")
+bob.ns.Net.PARTY_VERSION = 1            -- Bob runs an older copy
+bob.P:OnShow(); Run(2)
+local vrow
+for _, row in ipairs(bob.P.ui.rows) do if row.offer and row.offer.host == "Host" then vrow = row end end
+Check("versions: an older copy sees the table but can't join", vrow ~= nil and not vrow.join.enabled
+  and string.find(vrow.text:GetText() or "", "newer CowCasino", 1, true) ~= nil, vrow and vrow.text:GetText())
+-- (and if it asked anyway, the host ignores it)
+bob.T.joining = { host = "Host", tid = host.T.tid, at = CLOCK }
+bob.ns.Net:Send("BJ;J;" .. host.T.tid .. ";500;1")
+Run(2)
+local seated = false
+for _, p in ipairs(host.T.seats) do if p.name == "Bob" then seated = true end end
+Check("versions: the host doesn't seat a different version", not seated)
+bob.T.joining = nil
+bob.ns.Net.PARTY_VERSION = host.ns.Net.PARTY_VERSION
+bob.T.offers.Host = nil
+bob.P:OnShow(); Run(25)          -- the host's next offer, now matching
+
+---------------------------------------------------------------------------
+-- Topping up: free, back to the table's stack
+---------------------------------------------------------------------------
+bob.T.offers.Cid = nil          -- (the made-up table from the test above)
+Check("versions: the same version can join again", JoinFully(bob))
+Run(1)
+local bobSeat
+for i, p in ipairs(host.T.seats) do if p.name == "Bob" then bobSeat = i end end
+host.T.seats[bobSeat].stack = 120
+host.T.dirtySeats[bobSeat] = true
+host.T.dirty = true
+host.P:OnShow(); Run(1)
+Check("top up: offered when you're below the table's stack", Enabled(bob, "Top up to 500"), bob.T.seats[bob.T.mySeat].stack)
+local wallet = bob.ns.db.chips
+Press(bob, "Top up to 500")
+RunUntil(function() return bob.T.seats[bob.T.mySeat].stack == 500 end, 10)
+Check("top up: back to 500, free", host.T.seats[bobSeat].stack == 500 and bob.T.seats[bob.T.mySeat].stack == 500
+  and bob.ns.db.chips == wallet, host.T.seats[bobSeat].stack)
+Check("top up: off again at a full stack", not Enabled(bob, "Top up to 500"))
+host.T.seats[1].stack = 40
+host.P:OnShow()
+Press(host, "Top up to 500")
+Check("top up: the host can too", host.T.seats[1].stack == 500)
+Press(host, "Close table"); Run(2)
 
 ---------------------------------------------------------------------------
 -- Reload safety: a saved seat / hosted table is cleared on load (party stacks are free)

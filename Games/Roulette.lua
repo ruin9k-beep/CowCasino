@@ -524,13 +524,7 @@ end
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick, height)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(height or 22)
-    b:SetText(text)
-    b:SetScript("OnClick", function() local self, button = this, arg1 onClick(self, button) end)
-    return b
-end
+local MakeButton = ns.UI.Button
 
 -- A colored box with a label: board cells, pockets, history.
 local function MakeBox(parent, w, h, font)

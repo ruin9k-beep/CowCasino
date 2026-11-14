@@ -148,7 +148,7 @@ end
 
 local function SendOffer()
     if T.mode ~= "host" then return end
-    Net:Send(Msg({ "O", T.tid, NUM_SEATS - OpenSeats(), OpenSeats(), T.tableBuyIn or T.partyBuyIn }), "CR-O")
+    Net:Send(Msg({ "O", T.tid, NUM_SEATS - OpenSeats(), OpenSeats(), T.tableBuyIn or T.partyBuyIn, Net.PARTY_VERSION }), "CR-O")
 end
 
 -- Seat updates first, then the table state, so a client never sees a roll
@@ -342,6 +342,7 @@ local function ResetToLobby()
     T.phase, T.point, T.d1, T.d2, T.event = "waiting", nil, 0, 0, ""
     T.round = T.round + 1          -- stops timers from the old table
     T.deadline, T.dirty = nil, false
+    T.tableBuyIn = nil
     T.tid, T.host, T.closeAfterRoll, T.shooter = nil, nil, nil, 1
     T.dirtySeats = {}
     T.seenRoll = nil
@@ -349,6 +350,31 @@ local function ResetToLobby()
 end
 
 local function SetLobbyMessage(text) if ui.lobbyMsg then ui.lobbyMsg:SetText(text or "") end end
+
+local HostTopUp   -- (below)
+
+-- Top up to the table's stack (free): the host does it, a client asks.
+local function DoTopUp()
+    local me = T.seats[MySeat()]
+    if T.mode == "lobby" or not me or not T.tableBuyIn or me.stack >= T.tableBuyIn or me.topUp then return end
+    if T.mode == "host" then
+        HostTopUp(MySeat())
+    else
+        me.topUp = true
+        Net:Send(Msg({ "U", T.tid }))
+    end
+    ns:Sound("IG_MAINMENU_OPTION")
+    Refresh()
+end
+
+local function RefreshTopUp(me)
+    if not ui.topUp then return end
+    if me.topUp and T.tableBuyIn and me.stack >= T.tableBuyIn then me.topUp = nil end   -- (a client's came through)
+    ns.SetShown(ui.topUp, T.tableBuyIn ~= nil)
+    if not T.tableBuyIn then return end
+    ui.topUp:SetText(me.topUp and "Topping up..." or ("Top up to " .. Fmt(T.tableBuyIn)))
+    ns.SetEnabled(ui.topUp, me.stack < T.tableBuyIn and not me.topUp)
+end
 
 -- Closing the table hands everyone their stack and their bets back.
 function Game.HostLeave()
@@ -409,6 +435,22 @@ end
 
 -- A player who leaves (or drops from the group) takes their stack and the
 -- bets they could take down; line bets riding on a point are left behind.
+-- Party tables are free, so a player who's short can top back up to the
+-- table's stack (at once, or when the next round starts if they're mid-hand).
+function HostTopUp(i)
+    local p = T.seats[i]
+    if not p or p.kind == "empty" or not T.tableBuyIn or p.stack >= T.tableBuyIn then return end
+    if false then
+        p.topUp = true
+        return
+    end
+    p.topUp = nil
+    p.stack = T.tableBuyIn
+    MarkSeat(i)
+    Changed()
+    Refresh()
+end
+
 local function HostDropPlayer(i)
     local p = T.seats[i]
     if not p or p.kind ~= "remote" then return end
@@ -449,7 +491,7 @@ local function JoinTable(host, tid)
     local buyin = (offer and offer.buyin) or T.partyBuyIn     -- the host's stack, free
     if T.mode ~= "lobby" then return end
     T.joining = { host = host, tid = tid, buyin = buyin, at = GetTime() }
-    Net:Send(Msg({ "J", tid, buyin }))
+    Net:Send(Msg({ "J", tid, buyin, Net.PARTY_VERSION }))
     SetLobbyMessage("Asking " .. host .. " for a seat...")
 end
 
@@ -570,13 +612,14 @@ local function OnMessage(sender, f)
         return
     elseif kind == "O" then
         T.offers[sender] = { tid = tid, players = tonumber(f[4]) or 0, open = tonumber(f[5]) or 0,
-            buyin = tonumber(f[6]), heard = GetTime() }
+            buyin = tonumber(f[6]), ver = tonumber(f[7]), heard = GetTime() }
         if T.mode == "lobby" then Refresh() end
         return
     end
 
     if T.mode == "host" and tid == T.tid then
         if kind == "J" then
+            if Net:VersionProblem(f[5]) then return end   -- another version can't sit here
             SeatPlayer(sender, T.tableBuyIn or 500)    -- everyone gets the host's stack
             Refresh()
         elseif kind == "A" then
@@ -589,6 +632,10 @@ local function OnMessage(sender, f)
         elseif kind == "L" then
             for i = 2, NUM_SEATS do
                 if T.seats[i].kind == "remote" and T.seats[i].name == sender then HostDropPlayer(i) end
+            end
+        elseif kind == "U" then
+            for i = 2, NUM_SEATS do
+                if T.seats[i].kind == "remote" and T.seats[i].name == sender then HostTopUp(i) end
             end
         end
         return
@@ -604,6 +651,7 @@ local function OnMessage(sender, f)
             end
             db.stats.buyIns = db.stats.buyIns + 1
             T.mode, T.host, T.tid, T.mySeat = "client", sender, tid, seat
+            T.tableBuyIn = stack            -- the host's stack, for topping up
             T.seats = {}
             for i = 1, NUM_SEATS do T.seats[i] = NewSeat("empty") end
             T.seats[seat] = NewSeat("human", Net:Me(), stack)
@@ -722,7 +770,7 @@ local function RefreshLobby()
     local list = {}
     for name, offer in pairs(T.offers) do
         if GetTime() - offer.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-            table.insert(list, { host = name, tid = offer.tid, players = offer.players, open = offer.open, buyin = offer.buyin })
+            table.insert(list, { host = name, tid = offer.tid, players = offer.players, open = offer.open, buyin = offer.buyin, ver = offer.ver })
         end
     end
     table.sort(list, function(a, b) return a.host < b.host end)
@@ -731,9 +779,9 @@ local function RefreshLobby()
         row.offer = offer
         if offer then
             row.text:SetText(string.format("%s's table - %d playing, %d open", offer.host, offer.players, offer.open)
-                .. (offer.buyin and ("\n|cffccccccFree " .. Fmt(offer.buyin) .. " stack|r") or ""))
+                .. (offer.buyin and ("\n|cffccccccFree " .. Fmt(offer.buyin) .. " stack|r") or "") .. Net:VersionNote(offer.ver))
             row.join:Show()
-            ns.SetEnabled(row.join, offer.open > 0 and not T.joining)
+            ns.SetEnabled(row.join, offer.open > 0 and not T.joining and not Net:VersionProblem(offer.ver))
         else
             row.text:SetText((r == 1 and inGroup) and "|cff888888No tables yet. Ask someone to host, or host one.|r" or "")
             row.join:Hide()
@@ -833,6 +881,7 @@ function Refresh()
     ns.SetEnabled(ui.takeDown, betting and Rules.Total(me.bets) > 0)
     ui.onTable:SetText("Your bets: " .. Fmt(Rules.Total(me.bets)))
 
+    RefreshTopUp(me)
     if T.mode == "host" then
         ui.leave:SetText(T.closeAfterRoll and "Closing..." or "Close table")
         ns.SetEnabled(ui.leave, not T.closeAfterRoll)
@@ -847,13 +896,7 @@ end
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick, height)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(height or 22)
-    b:SetText(text)
-    b:SetScript("OnClick", function() onClick(this, arg1) end)
-    return b
-end
+local MakeButton = ns.UI.Button
 
 local function BuildLobby(panel)
     local l = ns.CreateFrame("Frame", nil, panel)
@@ -1037,6 +1080,8 @@ local function BuildTable(panel)
         if T.mode == "host" then Game.HostLeave() else ClientLeave() end
     end, 22)
     ui.leave:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -4, 4)
+    ui.topUp = MakeButton(t, "Top up", 120, DoTopUp, 22)        -- free, to the table's stack
+    ui.topUp:SetPoint("RIGHT", ui.leave, "LEFT", -4, 0)
 end
 
 function Game:Build(panel)

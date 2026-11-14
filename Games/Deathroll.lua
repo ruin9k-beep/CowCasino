@@ -51,11 +51,7 @@ local S = {
 local function Fmt(n) return ns:FormatChips(n) end
 local function Msg(parts) return GAME_TAG .. ";" .. table.concat(parts, ";") end
 
-local function Fill(t, defaults)
-    for k, v in pairs(defaults) do
-        if t[k] == nil then t[k] = v end
-    end
-end
+local Fill = ns.UI.Fill
 
 local function DealerName()
     local d = ns:GetDealer()
@@ -104,7 +100,7 @@ end
 local function StatsText()
     local s = db.stats
     local net = s.won - s.wagered
-    local netText = (net > 0 and ("|cff40ff40+" .. Fmt(net))) or (net < 0 and ("|cffff5050-" .. Fmt(-net))) or "|cffcccccc0"
+    local netText = ns.UI.Net(net)
     return string.format("Duels %d  Won %d  Lost %d  Biggest win %s  Net %s|r",
         s.duels, s.wins, s.losses, Fmt(s.biggestWin), netText)
 end
@@ -118,7 +114,7 @@ local function OpenOffers()
     local list = {}
     for name, o in pairs(S.offers) do
         if GetTime() - o.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-            table.insert(list, { host = name, id = o.id, stake = o.stake, start = o.start })
+            table.insert(list, { host = name, id = o.id, stake = o.stake, start = o.start, ver = o.ver })
         end
     end
     table.sort(list, function(a, b) return a.host < b.host end)
@@ -177,9 +173,10 @@ local function Refresh()
         local row, offer = ui.rows[r], list[r]
         row.offer = offer
         if offer then
-            row.text:SetText(string.format("%s: for %s, from %s (free)", offer.host, Fmt(offer.stake), Fmt(offer.start)))
+            row.text:SetText(string.format("%s: for %s, from %s (free)", offer.host, Fmt(offer.stake), Fmt(offer.start))
+                .. Net:VersionNote(offer.ver))
             row:Show()
-            ns.SetEnabled(row.accept, not S.accepting and not S.posted)
+            ns.SetEnabled(row.accept, not S.accepting and not S.posted and not Net:VersionProblem(offer.ver))
         else
             row:Hide()
         end
@@ -378,7 +375,7 @@ local function SendOffer()
     local p = S.posted
     if not p then return end
     p.sentAt = GetTime()
-    Net:Send(Msg({ "O", p.id, p.stake, p.start }), "DT-O")
+    Net:Send(Msg({ "O", p.id, p.stake, p.start, Net.PARTY_VERSION }), "DT-O")
 end
 
 local function PostChallenge()
@@ -400,7 +397,7 @@ end
 local function Accept(offer)
     if S.duel or S.posted or S.accepting or not offer then return end
     S.accepting = { host = offer.host, id = offer.id, at = GetTime() }
-    Net:Send(Msg({ "A", offer.id }))
+    Net:Send(Msg({ "A", offer.id, Net.PARTY_VERSION }))
     SetStatus("Taking " .. offer.host .. "'s challenge...")
     Refresh()
 end
@@ -425,7 +422,8 @@ local function OnMessage(sender, f)
         SendOffer()
         return
     elseif kind == "O" then
-        S.offers[sender] = { id = id, stake = tonumber(f[4]) or 0, start = tonumber(f[5]) or 0, heard = GetTime() }
+        S.offers[sender] = { id = id, stake = tonumber(f[4]) or 0, start = tonumber(f[5]) or 0, ver = tonumber(f[6]),
+            heard = GetTime() }
         if ns.currentGame == "deathroll" then Refresh() end
         return
     elseif kind == "X" then
@@ -442,6 +440,7 @@ local function OnMessage(sender, f)
     if kind == "A" then
         local p = S.posted
         if not p or p.id ~= id or S.duel or not Net:IsMember(sender) then return end
+        if Net:VersionProblem(f[4]) then return end        -- another version can't duel this one
         S.posted = nil
         Net:Send(Msg({ "S", p.id, sender }), "DT-O")
         StartDuel("party", p.stake, p.start, "me", sender, p.id)
@@ -549,13 +548,7 @@ end)
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick, height)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(height or 22)
-    b:SetText(text)
-    b:SetScript("OnClick", function() onClick(this, arg1) end)
-    return b
-end
+local MakeButton = ns.UI.Button
 
 local function Step(list, key, dir)
     if S.duel or S.posted then return end

@@ -40,6 +40,28 @@ function Net:Me()
     return UnitName("player")
 end
 
+-- Party tables only work between copies of CowCasino that play by the same
+-- rules. Every table offer and join request carries this number; bump it
+-- whenever a party game changes in a way older copies can't follow.
+--   1: before 0.13.1 (offers carry no number)
+--   2: 0.13.1: free seats with the host's stack; Hold'em sends base-36 amounts
+Net.PARTY_VERSION = 2
+
+-- Nothing if a table from a copy at version v can be played, or why not.
+function Net:VersionProblem(v)
+    v = tonumber(v)
+    if v == Net.PARTY_VERSION then return nil end
+    if not v or v < Net.PARTY_VERSION then return "an older CowCasino" end
+    return "a newer CowCasino (update yours)"
+end
+
+-- A lobby line's note for a table from another version, or "".
+function Net:VersionNote(v)
+    local problem = self:VersionProblem(v)
+    if not problem then return "" end
+    return "\n|cffff7070Can't join: the host has " .. problem .. ".|r"
+end
+
 function Net:Channel()
     if ns.NumRaid() > 0 then return "RAID" end
     if ns.NumParty() > 0 then return "PARTY" end

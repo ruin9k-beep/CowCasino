@@ -88,11 +88,7 @@ local last     -- the board that just ended: { board, revealed, hit }
 
 local function Sound(key) ns:Sound(key) end
 
-local function Fill(t, defaults)
-    for k, v in pairs(defaults) do
-        if t[k] == nil then t[k] = v end
-    end
-end
+local Fill = ns.UI.Fill
 
 local function Round2(n)
     return math.floor(n * 100 + 0.5) / 100
@@ -329,15 +325,11 @@ end
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(24)
-    b:SetText(text)
-    b:SetScript("OnClick", function() local self, button = this, arg1
+local function MakeButton(parent, text, width, onClick)     -- (with a click sound)
+    return ns.UI.Button(parent, text, width, function(self, button)
         Sound("IG_MAINMENU_OPTION")
         onClick(self, button)
-    end)
-    return b
+    end, 24)
 end
 
 local function MakeTile(parent, index)

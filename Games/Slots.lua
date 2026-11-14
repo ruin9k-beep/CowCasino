@@ -192,11 +192,7 @@ local S = {
 
 local function Sound(key) ns:Sound(key) end
 
-local function Fill(t, defaults)
-    for k, v in pairs(defaults) do
-        if t[k] == nil then t[k] = v end
-    end
-end
+local Fill = ns.UI.Fill
 
 local function Fmt(n) return ns:FormatChips(n) end
 
@@ -295,7 +291,7 @@ end
 local function BottomStats()
     local s = db.stats
     local net = s.won - s.wagered
-    local netText = (net > 0 and ("|cff40ff40+" .. Fmt(net))) or (net < 0 and ("|cffff5050-" .. Fmt(-net))) or "|cffcccccc0"
+    local netText = ns.UI.Net(net)
     return string.format("Spins %d  Biggest win %s  Free spin rounds %d  Net %s|r",
         s.spins, Fmt(s.biggestWin), s.freeRounds, netText)
 end
@@ -685,11 +681,7 @@ end
 -- Build helpers
 ---------------------------------------------------------------------------
 local function MakeButton(parent, text, width, onClick, height)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(height or 24)
-    b:SetText(text)
-    b:SetScript("OnClick", function() local self, button = this, arg1 onClick(self, button) end)
-    return b
+    return ns.UI.Button(parent, text, width, onClick, height or 24)
 end
 
 local function BuildReel(machine, r)

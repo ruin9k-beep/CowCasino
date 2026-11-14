@@ -42,11 +42,7 @@ local last          -- the last hand, for the screen: { cards, dealer, result te
 
 local function Fmt(n) return ns:FormatChips(n) end
 
-local function Fill(t, defaults)
-    for k, v in pairs(defaults) do
-        if t[k] == nil then t[k] = v end
-    end
-end
+local Fill = ns.UI.Fill
 
 local function Say(event, vars, fallback, quiet)
     if ns.Dealer then ns.Dealer:React(TCP, event, vars, nil, fallback, quiet) end
@@ -155,7 +151,7 @@ end
 local function StatsText()
     local s = db.stats
     local net = s.won - s.wagered
-    local netText = (net > 0 and ("|cff40ff40+" .. Fmt(net))) or (net < 0 and ("|cffff5050-" .. Fmt(-net))) or "|cffcccccc0"
+    local netText = ns.UI.Net(net)
     return string.format("Hands %d  Wins %d  Folds %d  Pair Plus %d  Net %s|r",
         s.hands, s.wins, s.folds, s.pairPlusWins, netText)
 end
@@ -315,13 +311,7 @@ end
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick, height)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(height or 22)
-    b:SetText(text)
-    b:SetScript("OnClick", function() onClick(this, arg1) end)
-    return b
-end
+local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
     local o = ns.CreateFrame("Frame", nil, panel)

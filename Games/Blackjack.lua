@@ -61,11 +61,7 @@ local function Sound(key) ns:Sound(key) end
 
 local function Fmt(n) return ns:FormatChips(n) end
 
-local function Fill(t, defaults)
-    for k, v in pairs(defaults) do
-        if t[k] == nil then t[k] = v end
-    end
-end
+local Fill = ns.UI.Fill
 
 ---------------------------------------------------------------------------
 -- Scoring
@@ -194,7 +190,7 @@ end
 local function UpdateStats()
     local s = db.stats
     local net = s.net or 0
-    local netText = (net > 0 and ("|cff40ff40+" .. Fmt(net))) or (net < 0 and ("|cffff5050-" .. Fmt(-net))) or "|cffcccccc0"
+    local netText = ns.UI.Net(net)
     ui.stats:SetText(string.format("Rounds %d  Won |cff40ff40%d|r  Lost |cffff5050%d|r  Push |cffcccccc%d|r  Blackjacks |cffffd100%d|r  Net %s|r", s.rounds, s.wins, s.losses, s.pushes, s.blackjacks, netText))
 end
 
@@ -633,15 +629,11 @@ end
 ---------------------------------------------------------------------------
 -- Build helpers
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(24)
-    b:SetText(text)
-    b:SetScript("OnClick", function() local self, button = this, arg1
+local function MakeButton(parent, text, width, onClick)     -- (with a click sound)
+    return ns.UI.Button(parent, text, width, function(self, button)
         Sound("IG_MAINMENU_OPTION")
         onClick(self, button)
-    end)
-    return b
+    end, 24)
 end
 
 local function MakeButtonRow(parent, specs, gap)

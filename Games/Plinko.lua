@@ -63,11 +63,7 @@ local last = {}       -- recent results, newest first: { mult = }
 
 local function Fmt(n) return ns:FormatChips(n) end
 
-local function Fill(t, defaults)
-    for k, v in pairs(defaults) do
-        if t[k] == nil then t[k] = v end
-    end
-end
+local Fill = ns.UI.Fill
 
 local function FmtMult(m)
     if m >= 1000 then return math.floor(m / 1000) .. "k" end
@@ -109,7 +105,7 @@ end
 local function StatsText()
     local s = db.stats
     local net = s.net
-    local netText = (net > 0 and ("|cff40ff40+" .. Fmt(net))) or (net < 0 and ("|cffff5050-" .. Fmt(-net))) or "|cffcccccc0"
+    local netText = ns.UI.Net(net)
     return string.format("Balls %d  Best %sx  Biggest win %s  Net %s|r", s.balls, FmtMult(s.bestMultiplier),
         Fmt(s.biggestWin), netText)
 end
@@ -340,13 +336,7 @@ end)
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick, height)
-    local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
-    b:SetWidth(width); b:SetHeight(height or 22)
-    b:SetText(text)
-    b:SetScript("OnClick", function() onClick(this, arg1) end)
-    return b
-end
+local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
     local o = ns.CreateFrame("Frame", nil, panel)
