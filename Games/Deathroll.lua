@@ -292,11 +292,7 @@ local function EndDuel(loser, how)
     if ns.Dealer and d.kind == "party" then ns.Dealer:SetImage(Deathroll, nil) end
     db.lastLog = d.log
     db.lastRange = "1 - " .. Fmt(d.max)
-    while db.stake > STAKES[1] and db.stake > ns.db.chips do
-        local i = 1
-        for k, v in ipairs(STAKES) do if v == db.stake then i = k end end
-        db.stake = STAKES[i - 1]
-    end
+    db.stake = ns:FitList(STAKES, db.stake)
     if ns.db.chips < STAKES[1] and not S.duel then SetStatus(ns:LowChipsText(STAKES[1]), 1, 0.35, 0.35) end
     Refresh()
 end

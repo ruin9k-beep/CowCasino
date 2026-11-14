@@ -550,9 +550,7 @@ function Plinko:Build(panel)
 end
 
 function Plinko:OnShow()
-    if db and InFlight() == 0 and (db.bet < MIN_BET or db.bet > ns.db.chips) then
-        db.bet = math.min(25, math.floor(ns.db.chips / MIN_BET) * MIN_BET)
-    end
+    if db and InFlight() == 0 then db.bet = ns:FreshBet(db.bet, MIN_BET) end
     if ui.board then Refresh() end
 end
 

@@ -235,11 +235,7 @@ local function Finish()
     if S.autoLeft <= 0 and ns.db.chips < BETS[1] then
         SetStatus(ns:LowChipsText(BETS[1]), 1, 0.35, 0.35)
     end
-    while db.bet > BETS[1] and db.bet > ns.db.chips do
-        local i = 1
-        for k, v in ipairs(BETS) do if v == db.bet then i = k end end
-        db.bet = BETS[i - 1]
-    end
+    db.bet = ns:FitList(BETS, db.bet)
     Refresh()
 end
 

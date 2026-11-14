@@ -216,7 +216,7 @@ local function Guess(key)
         SetStatus(ns.RANKS[nextCard.rank].name .. " - wrong guess. You lose " .. Fmt(g.bet) .. ".", 1, 0.35, 0.35)
         ns:PlayGameSound(db, "lose")
         if ns.db.chips < MIN_BET then SetStatus(ns:LowChipsText(MIN_BET), 1, 0.35, 0.35) end
-        if db.bet > ns.db.chips then db.bet = math.floor(ns.db.chips / MIN_BET) * MIN_BET end
+        db.bet = ns:FitBet(db.bet, MIN_BET)
     end
     Refresh()
 end
@@ -382,9 +382,7 @@ function HiLo:Build(panel)
 end
 
 function HiLo:OnShow()
-    if db and not db.active and (db.bet < MIN_BET or db.bet > ns.db.chips) then
-        db.bet = math.min(25, math.floor(ns.db.chips / MIN_BET) * MIN_BET)
-    end
+    if db and not db.active then db.bet = ns:FreshBet(db.bet, MIN_BET) end
     if ui.big then Refresh() end
 end
 

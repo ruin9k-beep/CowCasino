@@ -153,6 +153,28 @@ function ns.BlackjackPay(bet) return bet + math.ceil(bet * 1.5) end   -- bet bac
 function ns.SurrenderBack(bet) return math.ceil(bet / 2) end
 function ns.InsuranceCost(bet) return math.ceil(bet / 2) end
 
+-- Bets: keep the last bet affordable. FitBet drops it to the most you can
+-- stake in steps of `step`; FreshBet also restarts a bet that fell to zero
+-- (after a fresh stack) at `start`; FitList steps down a list of allowed
+-- bets to the biggest you can cover.
+function ns:FitBet(bet, step)
+    if bet > self.db.chips then return math.floor(self.db.chips / step) * step end
+    return bet
+end
+function ns:FreshBet(bet, step, start)
+    if bet < step or bet > self.db.chips then
+        return math.min(start or 25, math.floor(self.db.chips / step) * step)
+    end
+    return bet
+end
+function ns:FitList(list, bet)
+    if bet <= self.db.chips then return bet end
+    local i = 1
+    for k, v in ipairs(list) do if v == bet then i = k end end
+    while i > 1 and list[i] > self.db.chips do i = i - 1 end
+    return list[i]
+end
+
 local function Whole(n) return math.floor((n or 0) + 0.5) end
 
 function ns:AddChips(amount)

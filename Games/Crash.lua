@@ -185,7 +185,7 @@ local function EndRun()
         SetStatus("Crashed at " .. FmtMult(run.crash) .. " - you were out at " .. FmtMult(run.cashed) .. ".", 0.25, 1, 0.25)
     end
     if ns.db.chips < MIN_BET then SetStatus(ns:LowChipsText(MIN_BET), 1, 0.35, 0.35) end
-    if db.bet > ns.db.chips then db.bet = math.floor(ns.db.chips / MIN_BET) * MIN_BET end
+    db.bet = ns:FitBet(db.bet, MIN_BET)
     Refresh()
 end
 
@@ -381,9 +381,7 @@ function Crash:Build(panel)
 end
 
 function Crash:OnShow()
-    if db and not (run and not run.over) and (db.bet < MIN_BET or db.bet > ns.db.chips) then
-        db.bet = math.min(25, math.floor(ns.db.chips / MIN_BET) * MIN_BET)
-    end
+    if db and not (run and not run.over) then db.bet = ns:FreshBet(db.bet, MIN_BET) end
     if ui.graph then Refresh() end
 end
 

@@ -217,9 +217,7 @@ local function EndGame(hit)
     local game = db.active
     last = { board = game.board, revealed = game.revealed, hit = hit }
     db.active = nil
-    if db.bet > ns.db.chips then
-        db.bet = math.floor(ns.db.chips / MIN_BET) * MIN_BET
-    end
+    db.bet = ns:FitBet(db.bet, MIN_BET)
 end
 
 local function CashOut(auto)
@@ -526,10 +524,7 @@ function Mines:OnHide()
 end
 
 function Mines:OnShow()
-    -- after a fresh stack the last bet may be 0: start again from 25
-    if db and not db.active and (db.bet < MIN_BET or db.bet > ns.db.chips) then
-        db.bet = math.min(25, math.floor(ns.db.chips / MIN_BET) * MIN_BET)
-    end
+    if db and not db.active then db.bet = ns:FreshBet(db.bet, MIN_BET) end
     if ui.status then
         if not db.active and not last then SetStatus(StatsText()) end
         Refresh()
