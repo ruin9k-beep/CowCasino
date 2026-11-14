@@ -44,6 +44,7 @@ ns.db.blackjack.bet = 25
 local tried, splitOk, hitOk, standOk, rounds = 0, true, true, true, 0
 local detail = ""
 for round = 1, 600 do
+  if ns.db.chips < 1000 then ns.db.chips = 5000; ns.games.blackjack:OnShow() end   -- (600 rounds can run you dry)
   Press("Deal 25"); Press("No thanks")
   if Find("Split") then
     tried = tried + 1
