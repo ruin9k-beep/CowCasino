@@ -1,11 +1,8 @@
 -- Game sound effects: solo Blackjack, solo Hold'em, and the Options screens.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-62s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -181,5 +178,4 @@ Press("Sounds")
 Check("hold'em: Options has its own Sounds screen", Find("Defaults") ~= nil)
 Press("Done"); Press("Done")
 
-io.write(ok and "SOUNDS PASS\n" or "SOUNDS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("SOUNDS")

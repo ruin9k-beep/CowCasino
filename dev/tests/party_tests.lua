@@ -1,127 +1,22 @@
 -- Party Hold'em simulation: three isolated 1.12 clients (Host, Bob, Cid)
 -- talking over a simulated party channel. Each client loads the real addon
 -- into its own environment on top of the strict 1.12 mock.
-local ADDON = arg[1]
 local base = _G
-local BLOCKED = { select = true, print = true }
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-58s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. extra) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 
-local CLOCK = 0
-local group = {}          -- names in the party, in join order
-local wire = {}           -- messages in flight
-local stats = { sent = 0, longest = 0, chars = 0 }
-local clients, byName = {}, {}
-
-local function InGroup(name)
-  for _, n in ipairs(group) do if n == name then return true end end
-  return false
-end
-local function Others(name)
-  local out = {}
-  for _, n in ipairs(group) do if n ~= name then table.insert(out, n) end end
-  return out
-end
-
-local function NewClient(name)
-  local env = setmetatable({}, { __index = function(t, k) if BLOCKED[k] then return nil end return base[k] end })
-  env.arg = { ADDON }
-  env.PLAYER_NAME = name
-  env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.GetTime = function() return CLOCK end
-  env.UnitName = function(u)
-    if u == "player" then return name end
-    local _, _, n = string.find(u, "^party(%d)$")
-    if n and InGroup(name) then return Others(name)[tonumber(n)] end
-    return nil
-  end
-  env.GetNumPartyMembers = function() if InGroup(name) and table.getn(group) > 1 then return table.getn(group) - 1 end return 0 end
-  env.GetNumRaidMembers = function() return 0 end
-  env.SendAddonMessage = function(prefix, text, chan)
-    assert(type(text) == "string" and chan == "PARTY", "bad addon message")
-    local len = string.len(prefix) + string.len(text)
-    assert(len <= 254, "addon message too long (" .. len .. "): " .. text)
-    stats.sent = stats.sent + 1
-    stats.chars = stats.chars + len
-    if len > stats.longest then stats.longest = len end
-    table.insert(wire, { from = name, prefix = prefix, text = text, chan = chan })
-    -- messages may be packed together, joined by "~" (chat always goes alone)
-    local parts = {}
-    if string.sub(text, 1, 3) == "CH;" then parts = { text } else
-      local start = 1
-      while true do
-        local i = string.find(text, "~", start, true)
-        if not i then table.insert(parts, string.sub(text, start)) break end
-        table.insert(parts, string.sub(text, start, i - 1)); start = i + 1
-      end
-    end
-    stats.parts = (stats.parts or 0) + table.getn(parts)
-    for _, part in ipairs(parts) do
-      if string.sub(part, 1, 5) == "HE;K;" then LAST_KICK = part end
-      if string.sub(part, 1, 5) == "HE;P;" and name == "Host" then LAST_P = part end
-    end
-  end
-  for _, o in ipairs(env.all) do
-    if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end
-  end
-  local ns = env.CowCasino.ns
-  ns.db.chips = 5000
-  env.CowCasinoFrame:Show()
-  ns:OpenGame("holdem")
-  local c = { name = name, env = env, ns = ns, P = ns.games.holdem }
-  c.T = c.P.T
-  c.updaters = {}
-  for _, o in ipairs(env.all) do
-    if not o.parent and o.scripts.OnUpdate then table.insert(c.updaters, o) end
-  end
-  if ns.Dealer.UI() then table.insert(c.updaters, ns.Dealer.UI()) end   -- the dealer's messages
-  table.insert(clients, c)
-  byName[name] = c
-  return c
-end
-
-local function Deliver()
-  while wire[1] do
-    local m = table.remove(wire, 1)
-    if InGroup(m.from) then
-      for _, c in ipairs(clients) do
-        if InGroup(c.name) and c.env.PrefixHeard(m.prefix) then   -- the modern client only delivers registered prefixes
-          for _, o in ipairs(c.env.all) do
-            if rawget(o, "events") and o.events.CHAT_MSG_ADDON then
-              c.env.Fire(o, "OnEvent", m.prefix, "CHAT_MSG_ADDON", m.text, m.chan, m.from .. c.env.REALM_SUFFIX)
-            end
-          end
-        end
-      end
-    end
-  end
-end
-
-local function GroupChanged()
-  for _, c in ipairs(clients) do
-    for _, o in ipairs(c.env.all) do
-      if rawget(o, "events") and o.events[c.env.ROSTER_EVENT] then c.env.Fire(o, "OnEvent", nil, c.env.ROSTER_EVENT) end
-    end
-  end
-end
-
-local onTick
-local function Tick(dt)
-  dt = dt or 0.1
-  CLOCK = CLOCK + dt
-  for _, c in ipairs(clients) do
-    for _, o in ipairs(c.updaters) do
-      if o.shown and o.scripts.OnUpdate then c.env.Fire(o, "OnUpdate", dt) end
-    end
-  end
-  Deliver()
-  if onTick then onTick() end
-end
-local function Run(seconds) for _ = 1, math.floor(seconds * 10 + 0.5) do Tick(0.1) end end
+local party = H.Party({
+  game = "holdem",
+  object = function(ns) return ns.games.holdem end,
+  dealer = true,
+  onPart = function(name, part)
+    if string.sub(part, 1, 5) == "HE;K;" then LAST_KICK = part end
+    if string.sub(part, 1, 5) == "HE;P;" and name == "Host" then LAST_P = part end
+  end,
+})
+local wire, stats, clients, byName = party.wire, party.stats, party.clients, party.byName
+local InGroup, Others, NewClient, Deliver = party.InGroup, party.Others, party.NewClient, party.Deliver
+local GroupChanged, Tick, Run = party.GroupChanged, party.Tick, party.Run
 
 -- Buttons inside a client's poker window
 local function InPoker(c, o)
@@ -179,11 +74,11 @@ local function Heard(c, name)
 end
 local dan = NewClient("Dan")      -- not in the party
 host.P.SetSims(20)
-group = { "Host", "Bob", "Cid" }
+party.group = { "Host", "Bob", "Cid" }
 GroupChanged()
 Run(1)
 
--- /casino net: a report, and a ping every CowCasino in the group answers
+-- /casino net: a report, and a ping every CowCasino in the party.group answers
 local printed = {}
 host.env.DEFAULT_CHAT_FRAME.AddMessage = function(_, m) table.insert(printed, m) end
 host.env.SlashCmdList.COWCASINO("net")
@@ -276,7 +171,7 @@ Check("host: 2 remote players + 1 computer player", table.concat(kinds, ",") == 
 -- Dan isn't in the party: he sees nothing and can't host.
 Press(dan, "Play with your party")
 Run(1)
-Check("dan (not in group): no tables, can't host", Find(dan, "Join") == nil and not Enabled(dan, "Host a table"))
+Check("dan (not in party.group): no tables, can't host", Find(dan, "Join") == nil and not Enabled(dan, "Host a table"))
 dan.env.Fire(Find(dan, "Close"), "OnClick", "LeftButton")
 
 ---------------------------------------------------------------------------
@@ -305,7 +200,7 @@ local function RandomAct(c)
 end
 
 local actingClients = { host, bob, cid }
-onTick = function()
+party.onTick = function()
   local H = host.T
   -- chip conservation per hand, on the host
   if H.street ~= "idle" and H.hand ~= startHand then
@@ -351,8 +246,8 @@ end
 
 -- what the dealer says at each seat
 local dealerSaid = { Host = {}, Bob = {} }
-local prevTick = onTick
-onTick = function()
+local prevTick = party.onTick
+party.onTick = function()
   prevTick()
   for who, set in pairs(dealerSaid) do
     local u = byName[who].ns.Dealer.UI()
@@ -406,7 +301,7 @@ Check("clients always match the host's table", consistent > 100 and table.getn(p
 Check("your own hole cards arrive correctly", holeOk)
 Check("nobody sees other players' cards before the reveal", privacyOk)
 Check("every message fits the 1.12 limit (254)", stats.longest <= 254, "longest " .. stats.longest .. ", " .. stats.sent .. " sent")
-Check("traffic stays low", stats.chars / CLOCK < 300, string.format("%.0f chars/s average", stats.chars / CLOCK))
+Check("traffic stays low", stats.chars / party.clock < 300, string.format("%.0f chars/s average", stats.chars / party.clock))
 
 -- Finish the current hand with everyone acting, then stop Bob from acting.
 local function UntilIdle(maxSeconds)
@@ -428,7 +323,7 @@ local function EnsureSeated(c)
   Run(1)
   if not Find(c, "Join") then
     io.write("  dbg ", c.name, " can't see a table: host mode=", host.T.mode, " queued=", host.ns.Net:Queued(), " offers:")
-    for n, o in pairs(c.T.offers) do io.write(" ", n, "@", string.format("%.0f", CLOCK - o.heard), "s open=", o.open) end
+    for n, o in pairs(c.T.offers) do io.write(" ", n, "@", string.format("%.0f", party.clock - o.heard), "s open=", o.open) end
     io.write(" joining=", tostring(c.T.joining and c.T.joining.host), " mode=", c.T.mode, "\n")
     for i = 1, 4 do local p = host.T.seats[i]; io.write(string.format("  dbg host seat %d %s %s stack=%d leaving=%s\n", i, p.kind, tostring(p.name), p.stack, tostring(p.leaving))) end
   end
@@ -501,7 +396,7 @@ while not (host.T.street ~= "idle" and host.T.pot + host.T.seats[bob.T.mySeat].b
 local bobSeatNow = bob.T.mySeat
 local bobStart = bob.T.seats[bob.T.mySeat].stack + bob.T.seats[bob.T.mySeat].total
 local bobWallet = bob.ns.db.chips
-group = { "Bob", "Cid" }     -- the host leaves the party
+party.group = { "Bob", "Cid" }     -- the host leaves the party
 GroupChanged()
 Run(1)
 Check("host leaves mid-hand: clients back in the lobby, wallets untouched", bob.T.mode == "solo" and bob.ns.db.chips == bobWallet,
@@ -512,7 +407,7 @@ UntilIdle(120)
 Check("...and frees the seat after the hand", host.T.seats[bobSeatNow].kind ~= "remote")
 
 -- Host comes back and closes; a joined player is paid out.
-group = { "Host", "Bob", "Cid" }
+party.group = { "Host", "Bob", "Cid" }
 GroupChanged()
 UntilIdle(120)
 actingClients = { host }
@@ -618,4 +513,4 @@ Check("top up: Bob is back to 1,000 (now or before the next hand), wallet untouc
   (host.T.seats[cs].stack >= 1000 or host.T.seats[cs].topUp) and bob.ns.db.chips == cw,
   host.T.seats[cs].stack .. " " .. tostring(host.T.seats[cs].topUp))
 
-io.write(ok and "PARTY PASS\n" or "PARTY FAIL\n")
+H.Done("PARTY")

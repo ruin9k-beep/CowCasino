@@ -2,35 +2,9 @@
 -- cards stay, the rest are drawn, bets and chips add up, and a dealt hand
 -- survives a reload.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible, Find, Press = H.Check, H.Start, H.Visible, H.Find, H.Press
 local env, ns = Start(nil)
-local PANEL
-local function Visible(o)
-  local inPanel = PANEL == nil
-  while o do if not o.shown then return false end; if o == PANEL then inPanel = true end; o = o.parent end
-  return inPanel
-end
-local function Find(text, prefix)
-  for _, o in ipairs(env.all) do
-    if o.kind == "Button" and Visible(o) and type(o.text) == "string"
-      and (o.text == text or (prefix and string.sub(o.text, 1, string.len(text)) == text)) then return o end
-  end
-end
-local function Press(text, prefix) local b = assert(Find(text, prefix), "no " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
 local function C(code)   -- "As", "Th", "7c"...
   local r = string.find("A23456789TJQK", string.sub(code, 1, 1), 1, true)
   local s = string.find("shdc", string.sub(code, 2, 2), 1, true)
@@ -41,7 +15,7 @@ local function Hand(str) local t = {} for code in string.gfind(str, "%S+") do ta
 ns.db.chips = 1000
 ns:OpenGame("videopoker")
 local V = ns.games.videopoker
-PANEL = V.panel
+H.panel = V.panel
 Check("Video Poker is in the game list", V ~= nil and V.name == "Video Poker")
 
 -- Naming the hands
@@ -132,8 +106,9 @@ Check("a dealt hand counts as chips in play", V:ChipsInPlay())
 local env2, ns2 = Start(env.CowCasinoDB)
 ns2:OpenGame("videopoker")
 env, ns = env2, ns2
+H.Use(env)
 V = ns.games.videopoker
-PANEL = V.panel
+H.panel = V.panel
 Check("after a reload the hand is still there, holds and all", ns.db.videopoker.hand ~= nil and V.ui.cards[1].card.rank == 12
   and V.ui.held[1].shown ~= false and V.ui.held[3].shown == false and ns.db.chips == chipsDealt)
 Press("Draw")
@@ -158,5 +133,4 @@ ns.db.chips = 20
 V:OnShow()
 Check("Deal is off when the bet is more than your chips", not Find("Deal 25").enabled)
 
-io.write(ok and "VIDEO POKER PASS\n" or "VIDEO POKER FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("VIDEO POKER")

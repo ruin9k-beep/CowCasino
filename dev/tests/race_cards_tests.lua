@@ -1,11 +1,8 @@
 -- Orc & Troll deck and Human back: every card, every size, real files, selectable.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -122,5 +119,4 @@ for _, pick in ipairs({ { "orc", "Orc & Troll", "OrcCard" }, { "human", "Human",
 end
 env.Fire(Find("Done"), "OnClick", "LeftButton")
 Check("the choice is saved", ns.db.cardArt == "human")
-io.write(ok and "RACE CARDS PASS\n" or "RACE CARDS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("RACE CARDS")

@@ -1,11 +1,8 @@
 -- Blackjack and Party Blackjack as one game.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-62s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local function Start(saved, prep)
   local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
   env.arg = { ADDON }; env.SELECT_SAVED = select
@@ -105,5 +102,4 @@ end)
 ns2:OpenGame("blackjack")
 Check("reload while seated: the seat is cleared when Blackjack opens, chips untouched", ns2.db.chips == 1000 and ns2.db.partybj.seat == nil, ns2.db.chips)
 
-io.write(ok and "MERGE PASS\n" or "MERGE FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("MERGE")

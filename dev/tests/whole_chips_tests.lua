@@ -1,20 +1,7 @@
 -- Chips are always whole: Blackjack's odd amounts round, old half chips round on load.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-62s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible = H.Check, H.Start, H.Visible
 local env, ns = Start(nil)
 Check("blackjack on 25 pays 63 back (25 + 37.5 rounded up)", ns.BlackjackPay(25) == 63)
 Check("blackjack on 10 pays 25 back (exact 3:2)", ns.BlackjackPay(10) == 25)
@@ -32,7 +19,6 @@ Check("a saved party blackjack stack of 312.5 becomes 313", ns2.db.partybj.seat.
 Check("a saved hold'em stack of 412.5 becomes 413", ns2.db.holdem.seat.stacks[1] == 413)
 -- Play many Blackjack rounds at an odd bet: the wallet never goes fractional
 local env3, ns3 = Start(nil)
-local function Visible(o) while o do if not o.shown then return false end; o = o.parent end; return true end
 local function Find(text) for _, o in ipairs(env3.all) do if o.kind == "Button" and o.text and string.find(o.text, text, 1, true) == 1 and Visible(o) and o.enabled then return o end end end
 local function Tick(sec) for _ = 1, math.floor(sec * 10 + 0.5) do env3.CLOCK = env3.CLOCK + 0.1; for _, o in ipairs(env3.all) do if o.shown and o.scripts.OnUpdate and not o.parent then env3.Fire(o, "OnUpdate", 0.1) end end end end
 ns3:OpenGame("blackjack")
@@ -52,5 +38,4 @@ for _ = 1, 400 do
   if ns3.db.chips ~= math.floor(ns3.db.chips) then whole = false end
 end
 Check("400 rounds of Blackjack at 25 (with insurance and surrenders): always whole", whole and rounds > 100, rounds .. " rounds, " .. insured .. " insured")
-io.write(ok and "WHOLE CHIPS PASS\n" or "WHOLE CHIPS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("WHOLE CHIPS")

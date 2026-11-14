@@ -1,11 +1,8 @@
 -- Out of chips: back to the menu to pick 1,000 / 10,000 / 50,000, in every game.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local function Start(saved, prep)
   local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
   env.arg = { ADDON }; env.SELECT_SAVED = select
@@ -213,5 +210,4 @@ Check("...but an empty stack between hands holds nothing (no lock at 0 chips)", 
 me.stack, T7.street = saveStack, saveStreet
 Check("a computer table can be given up from Start over", P7:CanAbandon())
 
-io.write(ok and "REBUY PASS\n" or "REBUY FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("REBUY")

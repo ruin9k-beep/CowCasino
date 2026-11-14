@@ -1,11 +1,8 @@
 -- Blackjack splits, under real Lua 5.0 table sizes: the cards you see are the cards you have.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -65,7 +62,7 @@ for round = 1, 600 do
     end
     -- play it out: every hand must finish and the round must settle
     for _ = 1, 20 do if not Press("Stand") then break end end
-    Tick(4)
+    for _ = 1, 15 do Tick(1); if Find("Deal 25") then break end end   -- a long dealer draw takes a while
     if not Find("Deal 25") then standOk = false; detail = "round never settled after a split" end
     if tried >= 25 then break end
   else
@@ -77,5 +74,4 @@ Check("found pairs to split", tried >= 10, tried)
 Check("splitting spreads the pair over two hands, cards on screen", splitOk, detail)
 Check("hitting a split hand shows the new card", hitOk, detail)
 Check("every split round finishes and settles", standOk, detail)
-io.write(ok and "SPLIT PASS\n" or "SPLIT FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("SPLIT")

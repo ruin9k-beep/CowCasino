@@ -1,29 +1,8 @@
 -- Plinko and Crash: fair payout tables, every chip accounted for, refunds after a reload.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible, Find, Press, Tick = H.Check, H.Start, H.Visible, H.Find, H.Press, H.Tick
 local env, ns = Start(nil)
-local function Visible(o) while o do if not o.shown then return false end; o = o.parent end; return true end
-local function Find(text, prefix)
-  for _, o in ipairs(env.all) do
-    if o.kind == "Button" and Visible(o) and o.text and (o.text == text or (prefix and string.sub(o.text, 1, string.len(text)) == text)) then return o end
-  end
-end
-local function Press(text, prefix) local b = Find(text, prefix); assert(b, "no button " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
-local function Tick(sec) for _ = 1, math.floor(sec * 10 + 0.5) do env.CLOCK = env.CLOCK + 0.1; for _, o in ipairs(env.all) do if o.scripts.OnUpdate and Visible(o) then env.Fire(o, "OnUpdate", 0.1) end end end end
 local function Pay(bet, m) return math.floor(bet * m + 0.5) end
 
 ---------------------------------------------------------------------------
@@ -136,6 +115,7 @@ Check("one 8-row ball pays from the 8-row table", ns.db.chips == before - 50 + P
 local heard = {}
 local realPlay = env.PlaySound
 env.PlaySound = function(n) table.insert(heard, env.SoundName(n)); realPlay(n) end
+H.Use(env)
 local realRandom = math.random
 local function Rigged(step)
   math.random = function(a, b) if a == 0 and b == 1 then return step end
@@ -159,6 +139,7 @@ Check("a middle ball", P.balls[1].slot ~= 1 and P.balls[1].slot ~= pdb.rows + 1,
 Tick(2)
 Check("...doesn't", not HeardAny("LEVELUPSOUND"), table.concat(heard, ","))
 env.PlaySound = realPlay
+H.Use(env)
 Press("Options"); Press("Sounds")
 local edgeRow = false
 for _, f in ipairs(env.all) do
@@ -258,6 +239,7 @@ before = ns.db.chips
 table.insert(CRASH, 1.20)
 Press("Bet", true)
 env.CLOCK = env.CLOCK + C.SecondsFor(1.2) + 0.5
+H.Use(env)
 Press("Cash out", true)
 Check("cashing out after the crash time pays nothing", ns.db.chips == before - 100 and not C.Run().cashed)
 Tick(0.2)
@@ -282,5 +264,4 @@ Check("a run still going at a reload is refunded", ns3.db.chips == before and ns
 ns:RebuyChips(1000)
 Check("a fresh stack starts Plinko and Crash stats over", pdb.stats.balls == 0 and cdb.stats.runs == 0)
 
-io.write(ok and "PLINKO CRASH PASS\n" or "PLINKO CRASH FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("PLINKO CRASH")

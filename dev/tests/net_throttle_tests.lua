@@ -1,11 +1,8 @@
 -- WoW Forever: addon messages within the modern client's per-prefix limit.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local CLOCK = 0
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
@@ -106,5 +103,4 @@ for _, m in ipairs(printed) do if string.find(m, "won't send party play messages
 Check("refused outright: one warning, messages not retried forever", warns == 1 and calls == 1 and Net:Queued() == 0,
   calls .. " call (5 messages packed), " .. warns .. " warning")
 env.C_ChatInfo.SendAddonMessage = real
-io.write(ok and "NET THROTTLE PASS\n" or "NET THROTTLE FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("NET THROTTLE")

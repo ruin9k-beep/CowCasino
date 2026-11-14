@@ -2,11 +2,8 @@
 -- game on screen, with messages, pictures, player portraits and sounds.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -346,5 +343,4 @@ env.CowCasinoFrame:Hide()
 ns:OpenGame("blackjack")
 Check("closing the window takes it along", not Visible(ui))
 
-io.write(ok and "DEALER PASS\n" or "DEALER FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("DEALER")

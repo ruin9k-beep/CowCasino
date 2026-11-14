@@ -1,29 +1,9 @@
 -- Hi-Lo: fair odds less 1% on every guess, stacking multipliers, cash out,
 -- bust, skip, and a game that survives a reload.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local Test = dofile("harness.lua")
+local Check, Start, Visible, Find, Press = Test.Check, Test.Start, Test.Visible, Test.Find, Test.Press
 local env, ns = Start(nil)
-local function Visible(o) while o do if not o.shown then return false end; o = o.parent end; return true end
-local function Find(text, prefix)
-  for _, o in ipairs(env.all) do
-    if o.kind == "Button" and Visible(o) and o.text and (o.text == text or (prefix and string.sub(o.text, 1, string.len(text)) == text)) then return o end
-  end
-end
-local function Press(text, prefix) local b = assert(Find(text, prefix), "no " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
 
 ns.db.chips = 1000
 ns:OpenGame("hilo")
@@ -141,5 +121,4 @@ ns:RebuyChips(1000)
 Check("a fresh stack starts the Hi-Lo stats over", db.stats.games == 0 and db.stats.net == 0)
 Check("...and clears the last games line", table.getn(ns.games.hilo.recent) == 0)
 
-io.write(ok and "HILO PASS\n" or "HILO FAIL\n")
-os.exit(ok and 0 or 1)
+Test.Done("HILO")

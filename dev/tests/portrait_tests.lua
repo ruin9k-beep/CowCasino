@@ -1,11 +1,8 @@
 -- 3D portraits close up on the face, even when the model loads late.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -81,5 +78,4 @@ if MODERN then Check("on the modern client that's portrait zoom (camera 0 leaves
 p:Hide(); Slow(p); p:Show()
 Tick(1)
 Check("hidden and shown again: back on the face", p.shownCamera == "face", tostring(p.shownCamera))
-io.write(ok and "PORTRAITS PASS\n" or "PORTRAITS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("PORTRAITS")

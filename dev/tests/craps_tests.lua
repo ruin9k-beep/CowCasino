@@ -1,25 +1,8 @@
 -- Craps (solo): the rules against an independent copy, the table, saving bets.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible, Find, Press, Tick = H.Check, H.Start, H.Visible, H.Find, H.Press, H.Tick
 local env, ns = Start(nil)
-local function Visible(o) while o do if not o.shown then return false end; o = o.parent end; return true end
-local function Find(text) for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == text and Visible(o) then return o end end end
-local function Press(text) local b = Find(text); assert(b, "no button " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
-local function Tick(sec) for _ = 1, math.floor(sec * 10 + 0.5) do env.CLOCK = env.CLOCK + 0.1; for _, o in ipairs(env.all) do if o.scripts.OnUpdate and Visible(o) then env.Fire(o, "OnUpdate", 0.1) end end end end
 
 local Rules = ns.CrapsRules
 
@@ -177,5 +160,4 @@ ns:RebuyChips(1000)
 Check("a fresh stack starts the craps stats over", db.stats.rolls == 0 and db.stats.net == 0)
 Check("stats line shows Net", string.find(G.ui.stats.text or "", "Net", 1, true) ~= nil, G.ui.stats.text)
 
-io.write(ok and "CRAPS PASS\n" or "CRAPS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("CRAPS")

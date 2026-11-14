@@ -1,23 +1,8 @@
 -- CowCasino options: window size and game order.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-62s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible, Find = H.Check, H.Start, H.Visible, H.Find
 local env, ns = Start(nil)
-local function Visible(o) while o do if not o.shown then return false end; o = o.parent end; return true end
-local function Find(text) for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == text and Visible(o) then return o end end end
 local function All(text) local t = {} for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == text and Visible(o) then table.insert(t, o) end end return t end
 local function Press(b) assert(b, "missing button"); assert(b.enabled, "disabled " .. tostring(b.text)); env.Fire(b, "OnClick", "LeftButton") end
 -- menu position of each game, top to bottom
@@ -205,5 +190,4 @@ do
   for _, f in ipairs(env.all) do if f.kind == "FontString" and f.text and string.find(f.text, "Supports Multiplayer", 1, true) then shownOnMenu = true end end
   Check("...and the menu rows show it", shownOnMenu)
 end
-io.write(ok and "OPTIONS PASS\n" or "OPTIONS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("OPTIONS")

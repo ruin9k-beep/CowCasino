@@ -1,11 +1,8 @@
 -- Slots paytable: winning line shapes, on pages.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-62s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -58,5 +55,4 @@ Check("Prev goes back to the pays", o.page == 1 and Shown("in a row"))
 Press("Next >"); Press("Done")
 Press("Paytable")
 Check("reopening starts on the pays page again", o.page == 1)
-io.write(ok and "SLOTS LINES PASS\n" or "SLOTS LINES FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("SLOTS LINES")

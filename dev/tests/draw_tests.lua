@@ -2,37 +2,11 @@
 -- draw (up to three cards, four with an Ace), a second round and a showdown;
 -- chips are never made or lost, and a seat survives a reload.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible, Find, Press = H.Check, H.Start, H.Visible, H.Find, H.Press
 math.randomseed(11)
 local env, ns = Start(nil)
-local PANEL
-local function Visible(o)
-  local inPanel = PANEL == nil
-  while o do if not o.shown then return false end; if o == PANEL then inPanel = true end; o = o.parent end
-  return inPanel
-end
-local function Find(text, prefix)
-  for _, o in ipairs(env.all) do
-    if o.kind == "Button" and Visible(o) and type(o.text) == "string"
-      and (o.text == text or (prefix and string.sub(o.text, 1, string.len(text)) == text)) then return o end
-  end
-end
 local function Enabled(text, prefix) local b = Find(text, prefix); return b ~= nil and b.enabled ~= nil end
-local function Press(text, prefix) local b = assert(Find(text, prefix), "no " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
 local function Tick(sec) for _ = 1, math.floor(sec * 10 + 0.5) do env.CLOCK = env.CLOCK + 0.1; for _, o in ipairs(env.all) do if o.scripts.OnUpdate and not o.parent and o.shown then env.Fire(o, "OnUpdate", 0.1) end end end end
 local function C(rank, suit) return { rank = rank, suit = suit or 1 } end
 
@@ -40,7 +14,7 @@ ns.db.chips = 5000
 ns:OpenGame("draw")
 local P = ns.games.draw
 local T = P.T
-PANEL = P.panel
+H.panel = P.panel
 P.SetSims(30)
 Check("Five-Card Draw is in the game list", P ~= nil and P.name == "Five-Card Draw")
 
@@ -192,5 +166,4 @@ local same = table.getn(T2.seats) == 5
 for i = 1, 5 do if not T2.seats[i] or T2.seats[i].stack ~= stacksBefore[i] then same = false end end
 Check("a reload mid-hand cancels it: same five seats, stacks as before the hand", same and T2.street == "idle")
 
-io.write(ok and "DRAW PASS\n" or "DRAW FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("DRAW")

@@ -1,11 +1,8 @@
 -- Tauren card art: every card, every size, real files, and it's selectable.
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -117,5 +114,4 @@ local tauren = 0
 for _, o in ipairs(env.all) do if o.kind == "Texture" and Visible(o) and o.tex and type(o.tex) == "string" and string.find(o.tex, "TaurenCard", 1, true) then tauren = tauren + 1 end end
 Check("dealt cards use the Tauren art", tauren >= 3, tauren)
 Check("the choice is saved for every game", ns.db.cardArt == "tauren")
-io.write(ok and "TAUREN CARDS PASS\n" or "TAUREN CARDS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("TAUREN CARDS")

@@ -5,12 +5,9 @@
 -- leaving the group and a reload calling a duel off.
 local ADDON = arg[1]
 local base = _G
+local H = dofile("harness.lua")
+local Check = H.Check
 local BLOCKED = { select = true, print = true }
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
 
 local CLOCK = 0
 local group = {}
@@ -361,5 +358,4 @@ Run(1)
 Check("calling it off ends it for both, chips untouched", host.S.duel == nil and cid.S.duel == nil and host.ns.db.chips == 1000
   and cid.ns.db.chips == 1000)
 
-io.write(ok and "DEATHROLL PASS\n" or "DEATHROLL FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("DEATHROLL")

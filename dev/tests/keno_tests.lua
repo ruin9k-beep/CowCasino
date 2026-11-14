@@ -2,35 +2,9 @@
 -- 10 numbers, the draw comes out one number at a time and pays the right
 -- amount, Quick pick and Auto work, and a draw cut off by a reload pays out.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible, Find, Press = H.Check, H.Start, H.Visible, H.Find, H.Press
 local env, ns = Start(nil)
-local PANEL
-local function Visible(o)
-  local inPanel = PANEL == nil
-  while o do if not o.shown then return false end; if o == PANEL then inPanel = true end; o = o.parent end
-  return inPanel
-end
-local function Find(text, prefix)
-  for _, o in ipairs(env.all) do
-    if o.kind == "Button" and Visible(o) and type(o.text) == "string"
-      and (o.text == text or (prefix and string.sub(o.text, 1, string.len(text)) == text)) then return o end
-  end
-end
-local function Press(text, prefix) local b = assert(Find(text, prefix), "no " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
 local function Tick(sec)
   for _ = 1, math.floor(sec * 20 + 0.5) do
     env.CLOCK = env.CLOCK + 0.05
@@ -41,7 +15,7 @@ end
 ns.db.chips = 1000
 ns:OpenGame("keno")
 local K = ns.games.keno
-PANEL = K.panel
+H.panel = K.panel
 local kdb = ns.db.keno
 Check("Keno is in the game list", K ~= nil and K.name == "Keno")
 
@@ -130,7 +104,8 @@ Check("a draw in progress counts as chips in play", ns2:ChipsInPlay())
 ns2:OpenGame("keno")
 Check("after a reload the cut-off draw pays out (3 of 4: 60)", ns2.db.keno.game == nil and ns2.db.chips == chips + 60, ns2.db.chips - chips)
 env, ns, K = env2, ns2, ns2.games.keno
-PANEL = K.panel
+H.Use(env)
+H.panel = K.panel
 
 -- Leaving finishes a draw at once
 K.SetDraw(realDraw)
@@ -144,5 +119,4 @@ ns.db.chips = 5
 K:OnShow()
 Check("Play is off when the bet is more than your chips", not Find("Play").enabled)
 
-io.write(ok and "KENO PASS\n" or "KENO FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("KENO")

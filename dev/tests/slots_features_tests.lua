@@ -1,30 +1,9 @@
 -- Slots' modern features: wilds with multipliers, scatters, free spins with
 -- a rising multiplier, big win banners, Auto, and the overall return.
 local ADDON = arg[1]
-local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
-local function Start(saved, prep)
-  local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
-  env.arg = { ADDON }; env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.CowCasinoDB = saved
-  for _, o in ipairs(env.all) do if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end end
-  if prep then prep(env.CowCasino.ns) end
-  env.CowCasinoFrame:Show()
-  return env, env.CowCasino.ns
-end
+local H = dofile("harness.lua")
+local Check, Start, Visible, Find, Press = H.Check, H.Start, H.Visible, H.Find, H.Press
 local env, ns = Start(nil)
-local function Visible(o) while o do if not o.shown then return false end; o = o.parent end; return true end
-local function Find(text, prefix)
-  for _, o in ipairs(env.all) do
-    if o.kind == "Button" and Visible(o) and o.text and (o.text == text or (prefix and string.sub(o.text, 1, string.len(text)) == text)) then return o end
-  end
-end
-local function Press(text, prefix) local b = assert(Find(text, prefix), "no " .. text); assert(b.enabled, "disabled " .. text); env.Fire(b, "OnClick", "LeftButton") end
 local function Shown(text) for _, f in ipairs(env.all) do if f.kind == "FontString" and Visible(f) and f.text and string.find(f.text, text, 1, true) then return f end end end
 local function Tick(sec)
   for _ = 1, math.floor(sec * 20 + 0.5) do
@@ -321,5 +300,4 @@ for _, id in ipairs({ "3x3", "5x4", "5x5" }) do
   Check(id .. ": 100,000 spins land near 95%, free spins included", rtp > 0.88 and rtp < 1.06, string.format("%.1f%%", rtp * 100))
 end
 
-io.write(ok and "SLOTS FEATURES PASS\n" or "SLOTS FEATURES FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("SLOTS FEATURES")

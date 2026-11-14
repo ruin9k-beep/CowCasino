@@ -3,136 +3,31 @@
 -- into its own environment on top of the strict 1.12 mock.
 local ADDON = arg[1]
 local base = _G
+local H = dofile("harness.lua")
+local Check = H.Check
 local BLOCKED = { select = true, print = true }
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-58s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. extra) or ""))
-  ok = ok and cond and true or false
-end
 
-local CLOCK = 0
-local group = {}          -- names in the party, in join order
-local wire = {}           -- messages in flight
-local stats = { sent = 0, longest = 0, chars = 0 }
-local clients, byName = {}, {}
-
-local function InGroup(name)
-  for _, n in ipairs(group) do if n == name then return true end end
-  return false
-end
-local function Others(name)
-  local out = {}
-  for _, n in ipairs(group) do if n ~= name then table.insert(out, n) end end
-  return out
-end
-
-local function NewClient(name)
-  local env = setmetatable({}, { __index = function(t, k) if BLOCKED[k] then return nil end return base[k] end })
-  env.arg = { ADDON }
-  env.PLAYER_NAME = name
-  env.SELECT_SAVED = select
-  assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
-  env.GetTime = function() return CLOCK end
-  env.UnitName = function(u)
-    if u == "player" then return name end
-    local _, _, n = string.find(u, "^party(%d)$")
-    if n and InGroup(name) then return Others(name)[tonumber(n)] end
-    return nil
-  end
-  env.GetNumPartyMembers = function() if InGroup(name) and table.getn(group) > 1 then return table.getn(group) - 1 end return 0 end
-  env.GetNumRaidMembers = function() return 0 end
-  env.SendAddonMessage = function(prefix, text, chan)
-    assert(type(text) == "string" and chan == "PARTY", "bad addon message")
-    local len = string.len(prefix) + string.len(text)
-    assert(len <= 254, "addon message too long (" .. len .. "): " .. text)
-    stats.sent = stats.sent + 1
-    stats.chars = stats.chars + len
-    if len > stats.longest then stats.longest = len end
-    table.insert(wire, { from = name, prefix = prefix, text = text, chan = chan })
-    -- messages may be packed together, joined by "~" (chat always goes alone)
-    local parts = {}
-    if string.sub(text, 1, 3) == "CH;" then parts = { text } else
-      local start = 1
-      while true do
-        local i = string.find(text, "~", start, true)
-        if not i then table.insert(parts, string.sub(text, start)) break end
-        table.insert(parts, string.sub(text, start, i - 1)); start = i + 1
-      end
-    end
-    stats.parts = (stats.parts or 0) + table.getn(parts)
-    for _, part in ipairs(parts) do
-                end
-    if HOOK then for _, part in ipairs(parts) do HOOK(name, part) end end
-  end
-  for _, o in ipairs(env.all) do
-    if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end
-  end
-  local ns = env.CowCasino.ns
-  ns.db.chips = 5000
-  env.CowCasinoFrame:Show()
-  if PREP then PREP(ns) end
-  ns:OpenGame("craps")
-  -- Party play lives inside Craps: press its "Party play" button.
-  for _, o in ipairs(env.all) do
-    if o.kind == "Button" and o.text == "Party play" then env.Fire(o, "OnClick", "LeftButton") end
-  end
-  local c = { name = name, env = env, ns = ns, P = ns.PartyCraps }
-  c.T = c.P.T
-  c.updaters = {}
-  for _, o in ipairs(env.all) do
-    if not o.parent and o.scripts.OnUpdate then table.insert(c.updaters, o) end
-  end
-  if ns.Dealer.UI() then table.insert(c.updaters, ns.Dealer.UI()) end   -- the dealer's messages
-  table.insert(clients, c)
-  byName[name] = c
-  return c
-end
-
-local function Deliver()
-  while wire[1] do
-    local m = table.remove(wire, 1)
-    if InGroup(m.from) then
-      for _, c in ipairs(clients) do
-        if InGroup(c.name) and c.env.PrefixHeard(m.prefix) then   -- the modern client only delivers registered prefixes
-          for _, o in ipairs(c.env.all) do
-            if rawget(o, "events") and o.events.CHAT_MSG_ADDON then
-              c.env.Fire(o, "OnEvent", m.prefix, "CHAT_MSG_ADDON", m.text, m.chan, m.from .. c.env.REALM_SUFFIX)
-            end
-          end
-        end
-      end
-    end
-  end
-end
-
-local function GroupChanged()
-  for _, c in ipairs(clients) do
-    for _, o in ipairs(c.env.all) do
-      if rawget(o, "events") and o.events[c.env.ROSTER_EVENT] then c.env.Fire(o, "OnEvent", nil, c.env.ROSTER_EVENT) end
-    end
-  end
-end
-
-
-
----------------------------------------------------------------------------
--- Party Craps tests (body; appended to party_craps_head.lua)
----------------------------------------------------------------------------
-local function Tick(dt)
-  dt = dt or 0.1
-  CLOCK = CLOCK + dt
-  for _, c in ipairs(clients) do
-    for _, o in ipairs(c.updaters) do
-      if o.shown and o.scripts.OnUpdate then c.env.Fire(o, "OnUpdate", dt) end
-    end
-  end
-  Deliver()
+local party = H.Party({
+  game = "craps",
+  object = function(ns) return ns.PartyCraps end,
+  button = "Party play",
+  dealer = true,
+  prep = function(ns)
+    if PREP then PREP(ns) end
+  end,
+  onPart = function(name, part)
+    if HOOK then HOOK(name, part) end
+  end,
+})
+local wire, stats, clients, byName = party.wire, party.stats, party.clients, party.byName
+local InGroup, Others, NewClient, Deliver = party.InGroup, party.Others, party.NewClient, party.Deliver
+local GroupChanged, Tick, Run = party.GroupChanged, party.Tick, party.Run
+party.onTick = function()
   for _, c in ipairs(clients) do
     local u = c.ns.Dealer.UI()
     if u and u.text.text then c.dealerSaid = c.dealerSaid or {}; c.dealerSaid[u.text.text] = true end
   end
 end
-local function Run(seconds) for _ = 1, math.floor(seconds * 10 + 0.5) do Tick(0.1) end end
 local function RunUntil(cond, limit)
   local t = 0
   while not cond() and t < (limit or 60) do Tick(0.1); t = t + 0.1 end
@@ -195,16 +90,16 @@ local function Wealth(c)
   return total
 end
 
-table.insert(group, "Host"); table.insert(group, "Bob"); table.insert(group, "Cid")
+table.insert(party.group, "Host"); table.insert(party.group, "Bob"); table.insert(party.group, "Cid")
 GroupChanged()
-Check("lobby: hosting needs a group", Find(dan, "Host a table") ~= nil and not Find(dan, "Host a table").enabled)
+Check("lobby: hosting needs a party.group", Find(dan, "Host a table") ~= nil and not Find(dan, "Host a table").enabled)
 Press(host, "Host a table")
 Check("host sits down free with a 500 stack", host.T.mode == "host" and host.ns.db.chips == 5000 and host.T.seats[1].stack == 500)
 Run(1)
 Press(bob, "Refresh")
 Run(1)
 Check("Bob sees the table", bob.P.T.offers.Host ~= nil)
-Check("Dan, outside the group, doesn't", dan.P.T.offers.Host == nil)
+Check("Dan, outside the party.group, doesn't", dan.P.T.offers.Host == nil)
 local function JoinButton(c) for _, o in ipairs(c.env.all) do if o.kind == "Button" and o.text == "Join" and InPanel(c, o) and o.enabled then return o end end end
 c_join = JoinButton(bob)
 bob.env.Fire(c_join, "OnClick", "LeftButton")
@@ -311,7 +206,7 @@ Press(cid, "Leave table")
 Run(1)
 Check("Cid leaves; his wallet is untouched", cid.T.mode == "lobby" and cid.ns.db.chips == cidBefore and host.T.seats[3].kind == "empty")
 
--- Bob drops from the group: he gets his chips back, the host frees the seat
+-- Bob drops from the party.group: he gets his chips back, the host frees the seat
 local bobBefore = bob.ns.db.chips
 do
   local G = host.ns.dealers.goblin.lines
@@ -333,10 +228,10 @@ do
     Check("Fizzlecog calls the rolls at " .. c.name .. "'s seat", table.getn(list) >= 2, table.concat(list, ","))
   end
 end
-table.remove(group, 2)
+table.remove(party.group, 2)
 GroupChanged()
 Run(1)
-Check("Bob left the group: back in the lobby, wallet untouched, seat freed", bob.T.mode == "lobby" and bob.ns.db.chips == bobBefore and host.T.seats[2].kind == "empty")
+Check("Bob left the party.group: back in the lobby, wallet untouched, seat freed", bob.T.mode == "lobby" and bob.ns.db.chips == bobBefore and host.T.seats[2].kind == "empty")
 Check("the dice move on if the shooter leaves", host.T.shooter == 1, host.T.shooter)
 
 -- the host closes the table
@@ -345,7 +240,7 @@ Press(host, "Close table")
 Check("closing the table leaves the host's wallet untouched", host.T.mode == "lobby" and host.ns.db.chips == hostBefore)
 
 -- a reload while seated pays back the safe stack
-table.insert(group, "Bob"); GroupChanged()
+table.insert(party.group, "Bob"); GroupChanged()
 Press(host, "Host a table"); Run(1)
 Press(bob, "Refresh"); Run(1)
 bob.env.Fire(JoinButton(bob), "OnClick", "LeftButton"); Run(2)
@@ -361,5 +256,4 @@ env2.CowCasino.ns:OpenGame("craps")
 Check("a reload at a craps table leaves the wallet untouched", env2.CowCasino.ns.db.chips == bobWealth, env2.CowCasino.ns.db.chips .. " vs " .. bobWealth)
 
 io.write(string.format("addon messages: %d sent, %d parts, longest %d\n", stats.sent, stats.parts or 0, stats.longest))
-io.write(ok and "PARTY CRAPS PASS\n" or "PARTY CRAPS FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("PARTY CRAPS")

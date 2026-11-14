@@ -1,11 +1,8 @@
 -- Blackjack: net chips stat, bigger player cards centered under the dealer
 local ADDON = arg[1]
 local base = _G
-local ok = true
-local function Check(name, cond, extra)
-  io.write(string.format("%-66s %s%s\n", name, cond and "PASS" or "FAIL", extra and ("  " .. tostring(extra)) or ""))
-  ok = ok and cond and true or false
-end
+local H = dofile("harness.lua")
+local Check = H.Check
 local env = setmetatable({}, { __index = function(t, k) if k == "select" or k == "print" then return nil end return base[k] end })
 env.arg = { ADDON }; env.SELECT_SAVED = select
 assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
@@ -85,5 +82,4 @@ Check("two split hands sit centered under the dealer", splitCentered and splits 
 Check("stats line shows the signed net", string.find(stats.text, "Net ", 1, true) ~= nil and string.find(stats.text, ns:FormatChips(math.abs(bj.stats.net)) .. "|r$") ~= nil, stats.text)
 ns.games.blackjack:ResetStats()
 Check("a fresh stack starts net at 0", bj.stats.net == 0 and string.find(stats.text, "Net |cffcccccc0", 1, true) ~= nil)
-io.write(ok and "BJ LAYOUT PASS\n" or "BJ LAYOUT FAIL\n")
-os.exit(ok and 0 or 1)
+H.Done("BJ LAYOUT")
