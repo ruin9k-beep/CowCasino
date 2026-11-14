@@ -7,8 +7,8 @@ on the game list) under **Dealer**; the choice is saved and used by every game.
 
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
-- **Goblin** (the default): Fizzlecog, a grinning goblin croupier in a tuxedo and red bow tie (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em, Five-Card Draw and Craps.
-- **Human**: Harold, a human croupier (`Art\DealerHuman`)
+- **Goblin** (the default): Fizzlecog, a grinning goblin croupier in a tuxedo and red bow tie (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em, Five-Card Draw, Craps and Deathroll (`Art\DealerGoblin.lua`).
+- **Human**: Harold, a human croupier (`Art\DealerHuman`, `Art\DealerHuman.lua`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,
 say), that replaces the picture until the game puts it back.
@@ -134,7 +134,7 @@ Deathroll (against the dealer, and party duels):
 | `deathrollClose` | a roll drops into single digits (skipped if busy) | `{name}` (who rolled), `{value}` |
 | `deathrollWin` / `deathrollLose` | the duel ends | `{name}` (the other player or dealer), `{amount}` (the stake) |
 
-`Dealer.lua` has Fizzlecog's lines as an example.
+`Art\DealerGoblin.lua` has Fizzlecog's lines as an example.
 
 Registering an `id` again replaces that dealer. A dealer without an `id` or an
 `image` is refused with an error.
@@ -161,8 +161,8 @@ back to the goblin.
 
 ## Inside CowCasino
 
-Put the image in `Art\` and add a `ns:RegisterDealer(...)` call at the bottom of
-`Dealer.lua`, next to the goblin and the human.
+Put the image in `Art\`, add a file next to `Art\DealerGoblin.lua` with its
+`ns:RegisterDealer(...)` call, and list it in `CowCasino.toc` after `Dealer.lua`.
 
 ## For game authors
 
