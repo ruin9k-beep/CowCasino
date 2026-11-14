@@ -267,17 +267,12 @@ local function BuildOptions(panel)
 end
 
 function Crash:Build(panel)
-    ns.db.crash = ns.db.crash or {}
-    db = ns.db.crash
-    if db.bet == nil then db.bet = 25 end
-    db.auto = db.auto or 0
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.05, 0.07, 0.12, 0.94)
+    db = ns:SetupGame(panel, "crash", {
+        defaults = { bet = 25, auto = 0 },
+        stats = DEFAULT_STATS,
+        sounds = true,
+        felt = { 0.05, 0.07, 0.12, 0.94 },
+    })
 
 
     -- the graph: axes, a curve of dots and the multiplier

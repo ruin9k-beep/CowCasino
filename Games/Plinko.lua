@@ -401,23 +401,15 @@ local function BuildOptions(panel)
 end
 
 function Plinko:Build(panel)
-    ns.db.plinko = ns.db.plinko or {}
-    db = ns.db.plinko
-    if db.bet == nil then db.bet = 25 end
-    db.rows = db.rows or 16
+    db = ns:SetupGame(panel, "plinko", {
+        defaults = { bet = 25, rows = 16, risk = "Medium", speed = "normal", count = 1 },
+        stats = DEFAULT_STATS,
+        sounds = EXTRA_SOUNDS,
+        felt = { 0.07, 0.06, 0.16, 0.94 },
+    })
     if not PAYOUTS[db.rows] then db.rows = 16 end
-    db.risk = db.risk or "Medium"
     if not PAYOUTS[db.rows][db.risk] then db.risk = "Medium" end
-    db.speed = db.speed or "normal"
-    db.count = math.max(1, math.min(MAX_PER_DROP, db.count or 1))
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db, EXTRA_SOUNDS)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.07, 0.06, 0.16, 0.94)
-
+    db.count = math.max(1, math.min(MAX_PER_DROP, db.count))
 
     ui.board = ns.CreateFrame("Frame", nil, panel)
     ui.board:SetWidth(BOARD_W); ui.board:SetHeight(BOARD_H + 40)

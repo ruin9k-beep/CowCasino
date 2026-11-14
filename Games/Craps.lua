@@ -593,18 +593,12 @@ local function BuildParty(panel)
 end
 
 function Craps:Build(panel)
-    ns.db.craps = ns.db.craps or {}
-    db = ns.db.craps
-    db.bets = db.bets or {}
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    db.chip = db.chip or 25
-    db.oddsMax = db.oddsMax or 3
-    ns:InitSounds(db)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.05, 0.30, 0.12, 0.92)
+    db = ns:SetupGame(panel, "craps", {
+        defaults = { bets = {}, chip = 25, oddsMax = 3 },
+        stats = DEFAULT_STATS,
+        sounds = true,
+        felt = { 0.05, 0.30, 0.12, 0.92 },
+    })
 
     local solo = ns.CreateFrame("Frame", nil, panel)
     solo:SetAllPoints(panel)

@@ -417,19 +417,12 @@ local function BuildOptions(panel)
 end
 
 function Keno:Build(panel)
-    ns.db.keno = ns.db.keno or {}
-    db = ns.db.keno
-    db.bet = db.bet or 10
-    db.picks = db.picks or {}
-    db.autoCount = db.autoCount or 10
-    db.quickSpots = db.quickSpots or 6
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.12, 0.08, 0.2, 0.94)
+    db = ns:SetupGame(panel, "keno", {
+        defaults = { bet = 10, picks = {}, autoCount = 10, quickSpots = 6 },
+        stats = DEFAULT_STATS,
+        sounds = true,
+        felt = { 0.12, 0.08, 0.2, 0.94 },
+    })
 
 
     -- The board: 80 numbers, ten to a row

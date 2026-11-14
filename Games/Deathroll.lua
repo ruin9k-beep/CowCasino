@@ -589,18 +589,12 @@ local function BuildOptions(panel)
 end
 
 function Deathroll:Build(panel)
-    ns.db.deathroll = ns.db.deathroll or {}
-    db = ns.db.deathroll
-    db.mode = db.mode or "solo"
-    db.stake = db.stake or 100
-    db.start = db.start or 1000
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.18, 0.04, 0.04, 0.94)
+    db = ns:SetupGame(panel, "deathroll", {
+        defaults = { mode = "solo", stake = 100, start = 1000 },
+        stats = DEFAULT_STATS,
+        sounds = true,
+        felt = { 0.18, 0.04, 0.04, 0.94 },
+    })
 
 
     ui.soloTab = MakeButton(panel, "Vs the dealer", 150, function() SetMode("solo") end)

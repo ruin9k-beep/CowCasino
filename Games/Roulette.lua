@@ -670,19 +670,13 @@ local function BuildBoard(panel)
 end
 
 function Game:Build(panel)
-    ns.db.roulette = ns.db.roulette or {}
-    db = ns.db.roulette
-    db.stats = db.stats or {}
-    for k, v in pairs(DEFAULT_STATS) do
-        if db.stats[k] == nil then db.stats[k] = v end
-    end
+    db = ns:SetupGame(panel, "roulette", {
+        defaults = { history = {} },
+        stats = DEFAULT_STATS,
+        felt = { 0.05, 0.30, 0.12, 0.90 },
+    })
     db.stats.counts = db.stats.counts or {}
-    db.history = db.history or {}
     if db.chip then S.chip = db.chip end
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.05, 0.30, 0.12, 0.90)
 
     -- Wheel strip
     local strip = ns.CreateFrame("Frame", nil, panel)

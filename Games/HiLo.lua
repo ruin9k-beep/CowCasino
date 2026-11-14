@@ -279,16 +279,12 @@ local function BuildOptions(panel)
 end
 
 function HiLo:Build(panel)
-    ns.db.hilo = ns.db.hilo or {}
-    db = ns.db.hilo
-    if db.bet == nil then db.bet = 25 end
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.06, 0.20, 0.26, 0.92)
+    db = ns:SetupGame(panel, "hilo", {
+        defaults = { bet = 25 },
+        stats = DEFAULT_STATS,
+        sounds = true,
+        felt = { 0.06, 0.20, 0.26, 0.92 },
+    })
 
 
     ui.info = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")

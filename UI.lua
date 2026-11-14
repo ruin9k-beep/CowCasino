@@ -234,3 +234,31 @@ function ns:GameOptions(game, panel, spec)
     return o
 end
 
+---------------------------------------------------------------------------
+-- The start of every game's Build: its saved table, with any missing
+-- settings and stats filled in, its sounds, and the felt behind it.
+--   db = ns:SetupGame(panel, "keno", {
+--       defaults = { bet = 10 },        -- settings, filled in where missing
+--       stats = DEFAULT_STATS,          -- db.stats, filled in where missing
+--       sounds = true,                  -- or a list of the game's extra sounds
+--       felt = { r, g, b, a },          -- the table color behind everything
+--   })
+---------------------------------------------------------------------------
+function ns:SetupGame(panel, key, spec)
+    ns.db[key] = ns.db[key] or {}
+    local db = ns.db[key]
+    if spec.defaults then UI.Fill(db, spec.defaults) end
+    if spec.stats then
+        db.stats = db.stats or {}
+        UI.Fill(db.stats, spec.stats)
+    end
+    if spec.sounds then ns:InitSounds(db, spec.sounds ~= true and spec.sounds or nil) end
+    if spec.felt then
+        local c = spec.felt
+        local felt = panel:CreateTexture(nil, "BACKGROUND")
+        felt:SetAllPoints(panel)
+        felt:SetTexture(c[1], c[2], c[3], c[4] or 1)
+    end
+    return db
+end
+

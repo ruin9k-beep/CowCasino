@@ -341,17 +341,12 @@ local function CardRow(panel, top)
 end
 
 function TCP:Build(panel)
-    ns.db.threecard = ns.db.threecard or {}
-    db = ns.db.threecard
-    db.ante = db.ante or 25
-    db.pp = db.pp or 0
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.05, 0.25, 0.12, 0.94)
+    db = ns:SetupGame(panel, "threecard", {
+        defaults = { ante = 25, pp = 0 },
+        stats = DEFAULT_STATS,
+        sounds = true,
+        felt = { 0.05, 0.25, 0.12, 0.94 },
+    })
 
 
     -- the dealer's cards on top, yours below

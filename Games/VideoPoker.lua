@@ -286,17 +286,12 @@ local function BuildOptions(panel)
 end
 
 function VideoPoker:Build(panel)
-    ns.db.videopoker = ns.db.videopoker or {}
-    db = ns.db.videopoker
-    db.coins = db.coins or MAX_COINS
-    db.coin = db.coin or 5
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
-    ns:InitSounds(db)
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.04, 0.06, 0.22, 0.94)
+    db = ns:SetupGame(panel, "videopoker", {
+        defaults = { coins = MAX_COINS, coin = 5 },
+        stats = DEFAULT_STATS,
+        sounds = true,
+        felt = { 0.04, 0.06, 0.22, 0.94 },
+    })
 
 
     -- The pay table: hand names, then a column per number of coins
