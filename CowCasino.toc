@@ -31,6 +31,7 @@ Games\PokerTable.lua
 Games\Poker.lua
 Games\Draw.lua
 Games\Roulette.lua
+Games\PartyKit.lua
 Games\PartyBlackjack.lua
 Games\Craps.lua
 Games\PartyCraps.lua
