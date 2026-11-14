@@ -151,7 +151,7 @@ for _, f in ipairs(env.all) do
   end
 end
 Check("...as its own row", edgeRow)
-Press("Done"); Press("Done")
+Press("Done")
 
 -- not enough chips for every ball of a drop
 local keep = ns.db.chips

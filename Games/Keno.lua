@@ -356,7 +356,7 @@ local MakeButton = ns.UI.Button
 local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Keno, panel, {
-        rulesTop = 40,
+        settings = true,
         rules = "How it plays: click 1 to 10 numbers on the board (or Quick pick), set your bet and Play. "
             .. "Twenty of the eighty numbers are drawn. Gold squares are your catches. The table under the board "
             .. "shows what each catch pays for the number of spots you picked, as times your bet. Ten spots pay "
@@ -368,16 +368,17 @@ local function BuildOptions(panel)
             Refresh()
         end,
         db = function() return db end,
-        onRefresh = function() o:RefreshExtras() end,
+        refresh = function() o:RefreshExtras() end,
     })
+    local s = o.settings      -- this game's controls go on the Settings tab
 
-    local autoLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    autoLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -170)
+    local autoLabel = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    autoLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -52)
     autoLabel:SetText("Auto games")
     local autoBtns = {}
     for i, n in ipairs(AUTO_COUNTS) do
         local n = n
-        local b = MakeButton(o, tostring(n), 44, function()
+        local b = MakeButton(s, tostring(n), 44, function()
             db.autoCount = n
             ns:Sound("IG_MAINMENU_OPTION")
             o:Refresh()
@@ -386,17 +387,17 @@ local function BuildOptions(panel)
         b:SetPoint("LEFT", autoLabel, "RIGHT", 10 + (i - 1) * 48, 0)
         autoBtns[i] = b
     end
-    local quickLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    quickLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -200)
+    local quickLabel = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    quickLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -86)
     quickLabel:SetText("Quick pick, with nothing picked:")
-    local qDown = MakeButton(o, "<", 24, function()
+    local qDown = MakeButton(s, "<", 24, function()
         db.quickSpots = math.max(1, db.quickSpots - 1); o:Refresh()
     end)
     qDown:SetPoint("LEFT", quickLabel, "RIGHT", 8, 0)
-    local qText = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local qText = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     qText:SetPoint("LEFT", qDown, "RIGHT", 4, 0)
     qText:SetWidth(24)
-    local qUp = MakeButton(o, ">", 24, function()
+    local qUp = MakeButton(s, ">", 24, function()
         db.quickSpots = math.min(MAX_SPOTS, db.quickSpots + 1); o:Refresh()
     end)
     qUp:SetPoint("LEFT", qText, "RIGHT", 4, 0)
@@ -491,7 +492,6 @@ function Keno:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
 
     if db.game then
         -- a game cut off by a reload: its numbers were already drawn, so show them
@@ -511,7 +511,6 @@ end
 
 function Keno:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
     -- leaving finishes the draw at once (and stops Auto)
     S.autoLeft = 0
     S.wait = nil

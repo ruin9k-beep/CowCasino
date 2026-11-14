@@ -109,7 +109,6 @@ do
   Check("options: all " .. n .. " sounds play, and no two are the same", n >= 25 and table.getn(dupes) == 0, table.concat(dupes, "; "))
 end
 Press("Done")
-Press("Done")
 -- a losing round is now silent, and a win plays the fanfare
 local silentOk, fanfareOk = true, true
 for r = 1, 40 do
@@ -128,7 +127,7 @@ end
 Check("blackjack: chosen sounds are used (lose off, win fanfare)", silentOk and fanfareOk)
 Press("Options"); Press("Sounds"); Press("Defaults")
 Check("options: Defaults restores the defaults", bdb.sounds.win == "coins" and bdb.sounds.lose == "questDrop")
-Press("Done"); Press("Done")
+Press("Done")
 
 ---------------------------------------------------------------------------
 -- Solo Hold'em
@@ -176,6 +175,6 @@ Check("hold'em: new hand / win / lose sounds every hand", hands >= 20 and handsO
 Press("Options")
 Press("Sounds")
 Check("hold'em: Options has its own Sounds screen", Find("Defaults") ~= nil)
-Press("Done"); Press("Done")
+Press("Done")
 
 H.Done("SOUNDS")

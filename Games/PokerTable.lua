@@ -2634,36 +2634,38 @@ end
 local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Poker, panel, {
+        settings = true,
         note = "Card art is in the CowCasino Options, shared by every card game.",
         db = function() return db end,
         refresh = function() o:RefreshExtras() end,
     })
+    local s = o.settings      -- this game's controls go on the Settings tab
 
     -- Blinds for the next table you sit at or host
-    local blindsLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local blindsLabel = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     blindsLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -60)
     blindsLabel:SetText("Blinds")
-    local blindsValue = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local blindsValue = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     local function StepBlinds(dir)
         db.blinds = math.max(1, math.min(ns.getn(BLIND_LEVELS), (db.blinds or DEFAULT_BLINDS) + dir))
         if not T.seats[1] then SB, BB = ChosenBlinds() end
         Refresh()
         o:Refresh()
     end
-    local blindsUp = MakeButton(o, ">", 26, function() StepBlinds(1) end)
+    local blindsUp = MakeButton(s, ">", 26, function() StepBlinds(1) end)
     blindsUp:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -56)
     blindsValue:SetPoint("RIGHT", blindsUp, "LEFT", -6, 0)
     blindsValue:SetWidth(110)
     blindsValue:SetJustifyH("CENTER")
-    local blindsDown = MakeButton(o, "<", 26, function() StepBlinds(-1) end)
+    local blindsDown = MakeButton(s, "<", 26, function() StepBlinds(-1) end)
     blindsDown:SetPoint("RIGHT", blindsValue, "LEFT", -6, 0)
-    local blindsNote = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local blindsNote = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     blindsNote:SetPoint("TOPLEFT", blindsLabel, "BOTTOMLEFT", 0, -6)
     blindsNote:SetWidth(AREA_W - 32)
     blindsNote:SetJustifyH("LEFT")
 
     -- Hosts can close their table from here at any time.
-    local closeTable = MakeButton(o, "Close table", 140, function()
+    local closeTable = MakeButton(s, "Close table", 140, function()
         Leave()
         o:Refresh()
     end, 24)
@@ -2888,7 +2890,6 @@ function Poker:Build(panel)
     BuildTable(panel)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
     ui.party = BuildParty(panel)
 
     ResetToLobby()
@@ -2930,7 +2931,6 @@ end
 
 function Poker:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
     if ui.party then ui.party:Hide() end
 end
 

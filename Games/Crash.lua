@@ -252,7 +252,6 @@ local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
     return ns:GameOptions(Crash, panel, {
-        rulesTop = 50,
         rules = "How it plays: press Bet and the multiplier starts climbing from 1.00x. Press Cash out "
             .. "before it crashes to win your bet times the multiplier; if it crashes first, the bet is lost. "
             .. "A run reaches 2x about half the time and 10x about one time in ten. Set an auto cash-out on the "
@@ -367,7 +366,6 @@ function Crash:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 6)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
 
     if db.live and db.live > 0 then
         ns:AddChips(db.live)
@@ -387,7 +385,6 @@ end
 
 function Crash:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 -- For the out-of-chips check: a run with your bet still in it.

@@ -84,17 +84,66 @@ function UI.History(parent, list)
 end
 
 ---------------------------------------------------------------------------
--- The Options overlay. spec:
+-- Tabs along the bottom of a page, the way WoW's own windows have them.
+-- names: the tab labels, in order. Returns tabs with:
+--   tabs.frames[i]   tab i's content (it fills the page; anchor to the page)
+--   tabs.buttons[i]  its button
+--   tabs:Select(i)   shows tab i (onSelect(i) runs after)
+-- The first tab starts selected. A single tab draws no buttons.
+---------------------------------------------------------------------------
+local TAB_W, TAB_GAP = 84, 4
+
+function UI.Tabs(page, names, y, onSelect)
+    local tabs = { frames = {}, buttons = {}, marks = {}, current = 1 }
+    local n = ns.getn(names)
+    local bar = ns.CreateFrame("Frame", nil, page)
+    bar:SetWidth(n * TAB_W + (n - 1) * TAB_GAP); bar:SetHeight(24)
+    bar:SetPoint("BOTTOM", page, "BOTTOM", 0, y or 8)
+    ns.SetShown(bar, n > 1)
+    tabs.bar = bar
+    function tabs:Select(i)
+        self.current = i
+        for k = 1, n do
+            ns.SetShown(self.frames[k], k == i)
+            ns.SetShown(self.marks[k], k == i)
+        end
+        if onSelect then onSelect(i) end
+    end
+    for i = 1, n do
+        local i = i   -- own copy for closures (Lua 5.0)
+        local f = ns.CreateFrame("Frame", nil, page)
+        f:SetAllPoints(page)
+        tabs.frames[i] = f
+        local b = UI.Button(bar, names[i], TAB_W, function()
+            if tabs.current ~= i then ns:Sound("igCharacterInfoTab") end
+            tabs:Select(i)
+        end)
+        b:SetPoint("LEFT", bar, "LEFT", (i - 1) * (TAB_W + TAB_GAP), 0)
+        tabs.buttons[i] = b
+        -- the selected tab's gold underline
+        local mark = bar:CreateTexture(nil, "OVERLAY")
+        mark:SetHeight(2); mark:SetWidth(TAB_W - 12)
+        mark:SetPoint("TOP", b, "BOTTOM", 0, 1)
+        mark:SetTexture(1, 0.82, 0, 0.9)
+        tabs.marks[i] = mark
+    end
+    tabs:Select(1)
+    return tabs
+end
+
+---------------------------------------------------------------------------
+-- The Options overlay, in tabs. spec:
 --   title      "Keno Options"
---   rules      how the game plays (shown at the top)
---   rulesTop   where the rules start (default 40 from the top)
+--   note       a small line under the title, on every tab (optional)
+--   settings   true for a Settings tab (o.settings): the game's own controls
+--   rules      how the game plays: a Rules tab
+--   sounds     true for a Sounds tab (o.soundsTab)
 --   onReset    resets the stats (after a second click within 3 seconds)
---   sounds     function returning the game's sound options frame
---   note       a small line under the title (optional)
 --   onRefresh  called whenever the overlay is shown (for extra settings)
 --   canReset   function -> false while Reset stats can't be used (optional)
--- Returns the overlay; o.body is where extra settings can go, and o:Refresh()
--- updates it. Reset stats asks "Sure?" first.
+-- Every tab fills the page, so controls anchor to the page itself (o) and
+-- are parented to their tab. Reset stats and Done sit above the tabs.
+-- o:Refresh() updates the page; Reset stats asks "Sure?" first.
 -- Games don't call this directly: ns:GameOptions (below) builds their
 -- Options and hooks it up to the window's Options button.
 ---------------------------------------------------------------------------
@@ -111,16 +160,27 @@ function UI.Options(panel, spec)
     title:SetPoint("TOP", o, "TOP", 0, -10)
     title:SetText(spec.title or "Options")
     o.title = title
-    o.body = o
     if spec.note then
         local note = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         note:SetPoint("TOP", title, "BOTTOM", 0, -2)
         note:SetText(spec.note)
     end
 
+    local names, keys = {}, {}
+    if spec.settings then table.insert(names, "Settings"); table.insert(keys, "settings") end
+    if spec.rules then table.insert(names, "Rules"); table.insert(keys, "rulesTab") end
+    if spec.sounds then table.insert(names, "Sounds"); table.insert(keys, "soundsTab") end
+    if ns.getn(names) > 0 then
+        o.tabs = UI.Tabs(o, names, 8, function(i)
+            local f = o.tabs and o.tabs.frames[i]
+            if f and rawget(f, "Refresh") then f:Refresh() end
+        end)
+        for i, key in ipairs(keys) do o[key] = o.tabs.frames[i] end
+    end
+
     if spec.rules then
-        local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -(spec.rulesTop or 40))
+        local rules = o.rulesTab:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -(spec.note and 52 or 40))
         rules:SetWidth(320)
         rules:SetJustifyH("LEFT")
         rules:SetText(spec.rules)
@@ -140,10 +200,6 @@ function UI.Options(panel, spec)
     end)
     reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
     o.reset = reset
-    if spec.sounds then
-        local sounds = UI.Button(o, "Sounds", 80, function() spec.sounds():Show() end)
-        sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    end
     local done = UI.Button(o, "Done", 90, function() o:Hide() end)
     done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
 
@@ -154,6 +210,8 @@ function UI.Options(panel, spec)
         end
         if spec.canReset then ns.SetEnabled(reset, spec.canReset()) end
         if spec.onRefresh then spec.onRefresh(self) end
+        local tab = self.tabs and self.tabs.frames[self.tabs.current]
+        if tab and rawget(tab, "Refresh") then tab:Refresh() end
     end
     o:SetScript("OnShow", function() this:Refresh() end)
     return o
@@ -207,28 +265,29 @@ end
 -- A game's Options. The window owns the one Options button (next to the
 -- title, top right); each game fills in its own page by calling this from
 -- its Build, and the button opens whichever game is showing. spec:
---   rules, rulesTop, note   as for UI.Options
---   build(o)       adds the game's own settings to the page (placed on o)
+--   rules, note    as for UI.Options
+--   settings       true when the game adds its own controls: they go on the
+--                  Settings tab, o.settings (anchored to o)
+--   build(o)       adds them (or the game adds them after this returns)
 --   refresh(o)     updates them whenever the page is shown
---   db()           the game's saved table: gives the page a Sounds button
+--   db()           the game's saved table: gives the page a Sounds tab
 --   sounds         extra sounds for that page (see ns:CreateSoundOptions)
 --   onReset        what Reset stats does (default: the game's ResetStats)
 --   canReset()     false while Reset stats can't be used
--- Returns the page; page.sounds is the game's sound options.
--- A game that doesn't call this still gets a plain page (Reset stats, Done).
+-- Returns the page. A game that doesn't call this still gets a plain page
+-- (Reset stats, Done).
 ---------------------------------------------------------------------------
 function ns:GameOptions(game, panel, spec)
     spec = spec or {}
     local title = (game.name or "Game") .. " Options"
-    local o
-    o = UI.Options(panel, {
-        title = title, note = spec.note, rules = spec.rules, rulesTop = spec.rulesTop,
+    local o = UI.Options(panel, {
+        title = title, note = spec.note, rules = spec.rules,
+        settings = spec.settings, sounds = spec.db ~= nil,
         onReset = spec.onReset or function() if game.ResetStats then game:ResetStats() end end,
         canReset = spec.canReset,
-        sounds = spec.db and function() return o.sounds end,
         onRefresh = spec.refresh,
     })
-    if spec.db then o.sounds = ns:CreateSoundOptions(panel, title, spec.db, spec.sounds) end
+    if spec.db then ns:CreateSoundOptions(o.soundsTab, spec.db, spec.sounds) end
     if spec.build then spec.build(o) end
     game.options = o
     return o

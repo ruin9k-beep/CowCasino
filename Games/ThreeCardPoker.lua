@@ -309,7 +309,6 @@ local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
     return ns:GameOptions(TCP, panel, {
-        rulesTop = 40,
         rules = "How it plays: bet the Ante (and Pair Plus if you like) and Deal. Look at your three cards, then "
             .. "Play (bet the Ante again) or Fold (lose the Ante).\n\n"
             .. "The dealer needs Queen high or better. If not, your Ante pays 1 to 1 and the Play bet comes back. "
@@ -398,7 +397,6 @@ function TCP:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
 
     if db.hand then
         SetStatus("Welcome back - your hand is still dealt. Play or Fold?")
@@ -414,7 +412,6 @@ end
 
 function TCP:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 -- A dealt hand waiting for Play or Fold (saved across reloads).

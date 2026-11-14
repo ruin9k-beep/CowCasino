@@ -520,14 +520,20 @@ local MakeButton = ns.UI.Button
 local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Craps, panel, {
+        settings = true,
+        rules = "How it plays: the come-out roll wins the Pass Line on 7 or 11 and loses it on 2, 3 or 12. "
+            .. "Any other total is the point: keep rolling until the point comes again (Pass wins) or a 7 shows "
+            .. "(seven out). Don't Pass is the other side. Odds go behind Pass once there's a point and pay true odds. "
+            .. "Field, Any Seven and Any Craps are decided by the next roll. Hover a spot for its details.",
         db = function() return db end,
         refresh = function() o:RefreshExtras() end,
     })
+    local s = o.settings      -- this game's controls go on the Settings tab
 
-    local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local label = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -50)
     label:SetText("Most odds behind a Pass bet")
-    local value = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local value = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     local function Step(dir)
         local idx = 1
         for i, v in ipairs(ODDS_CHOICES) do if v == db.oddsMax then idx = i end end
@@ -535,22 +541,14 @@ local function BuildOptions(panel)
         db.oddsMax = ODDS_CHOICES[idx]
         o:Refresh()
     end
-    local nextB = MakeButton(o, ">", 26, function() Step(1) end)
+    local nextB = MakeButton(s, ">", 26, function() Step(1) end)
     nextB:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -46)
     value:SetPoint("RIGHT", nextB, "LEFT", -6, 0)
     value:SetWidth(60)
     value:SetJustifyH("CENTER")
-    local prevB = MakeButton(o, "<", 26, function() Step(-1) end)
+    local prevB = MakeButton(s, "<", 26, function() Step(-1) end)
     prevB:SetPoint("RIGHT", value, "LEFT", -6, 0)
 
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -84)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: the come-out roll wins the Pass Line on 7 or 11 and loses it on 2, 3 or 12. "
-        .. "Any other total is the point: keep rolling until the point comes again (Pass wins) or a 7 shows "
-        .. "(seven out). Don't Pass is the other side. Odds go behind Pass once there's a point and pay true odds. "
-        .. "Field, Any Seven and Any Craps are decided by the next roll. Hover a spot for its details.")
 
 
     function o:RefreshExtras()
@@ -659,7 +657,6 @@ function Craps:Build(panel)
     ui.stats:SetPoint("BOTTOM", solo, "BOTTOM", 0, 12)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
     BuildParty(panel)
 
     if Rules.Total(db.bets) > 0 then
@@ -685,7 +682,6 @@ end
 
 function Craps:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 -- For the out-of-chips check: bets on the table or dice in the air.

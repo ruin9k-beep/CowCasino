@@ -169,6 +169,7 @@ host.ns:ShowMenu()
 Run(1)
 local function FindAll(c, text) local o2 for _, o in ipairs(c.env.all) do if o.kind == "Button" and o.text == text and Vis(o) then o2 = o end end return o2 end
 host.env.Fire(FindAll(host, "Options"), "OnClick", "LeftButton")
+host.env.Fire(FindAll(host, "Chat"), "OnClick", "LeftButton")
 local found = false
 for _, f in ipairs(host.env.all) do if f.kind == "FontString" and Vis(f) and f.text == "Right side" then found = true end end
 Check("Options shows the chat settings", found)

@@ -363,22 +363,24 @@ end
 local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Mines, panel, {
+        settings = true,
         refresh = function() o:RefreshExtras() end,
     })
+    local s = o.settings      -- this game's controls go on the Settings tab
 
     local pickers = {}
     local function Picker(kind, label, y)
-        local text = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        local text = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("TOPLEFT", o, "TOPLEFT", 16, y)
         text:SetText(label)
 
         -- A preview tile, drawn like the board.
-        local tile = MakeTile(o, 0)
+        local tile = MakeTile(s, 0)
         tile:SetPoint("TOPLEFT", tile:GetParent(), "TOPLEFT", 16, y - 20)
         tile:EnableMouse(false)
         tile:SetScript("OnClick", nil)
 
-        local name = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        local name = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         name:SetPoint("LEFT", tile, "RIGHT", 44, 0)
         name:SetWidth(150)
         name:SetJustifyH("CENTER")
@@ -390,12 +392,12 @@ local function BuildOptions(panel)
             o:Refresh()
             Refresh()
         end
-        local prev = MakeButton(o, "<", 26, function() Step(-1) end)
+        local prev = MakeButton(s, "<", 26, function() Step(-1) end)
         prev:SetPoint("RIGHT", name, "LEFT", -6, 0)
-        local nextB = MakeButton(o, ">", 26, function() Step(1) end)
+        local nextB = MakeButton(s, ">", 26, function() Step(1) end)
         nextB:SetPoint("LEFT", name, "RIGHT", 6, 0)
 
-        local count = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        local count = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         count:SetPoint("TOP", name, "BOTTOM", 0, -4)
 
         pickers[ns.getn(pickers) + 1] = function()
@@ -409,7 +411,7 @@ local function BuildOptions(panel)
     Picker("gem", "Gem icon", -48)
     Picker("mine", "Mine icon", -132)
 
-    local hint = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local hint = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     hint:SetPoint("TOP", o, "TOP", 0, -226)
     hint:SetWidth(AREA_W - 32)
     hint:SetText("Changes show on the board straight away, even mid-game. The icons are for looks only.")

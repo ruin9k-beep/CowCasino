@@ -18,6 +18,7 @@ end
 local default = table.concat(ns.gameOrder, ",")
 Check("menu starts in the default order", MenuOrder(env, ns) == default, MenuOrder(env, ns))
 Press(Find("Options"))
+Press(Find("Games"))
 Check("Options opens the CowCasino options", ns.optionsPage:IsShown() and Find("Default order") ~= nil)
 local ups, downs = All("Up"), All("Down")
 Check("one row per game", table.getn(ups) == table.getn(ns.gameOrder) and table.getn(downs) == table.getn(ns.gameOrder))
@@ -52,6 +53,7 @@ Press(Find("Default order"))
 Check("Default order puts it back", MenuOrder(env, ns) == default and ns.db.order == nil)
 
 -- Window size
+Press(Find("Display"))
 local slider
 for _, f in ipairs(env.all) do if f.kind == "Slider" then slider = f end end
 Check("the size slider starts at 100%", slider and slider.value == 1)
@@ -189,5 +191,42 @@ do
   local shownOnMenu = false
   for _, f in ipairs(env.all) do if f.kind == "FontString" and f.text and string.find(f.text, "Supports Multiplayer", 1, true) then shownOnMenu = true end end
   Check("...and the menu rows show it", shownOnMenu)
+end
+-- Tabs: each page splits into Settings / Rules / Sounds, only the ones it has
+do
+  local function Tabs(id)
+    ns:OpenGame(id)
+    local o = ns.games[id].options
+    o:Show()
+    local names = {}
+    if o.tabs and o.tabs.bar.shown then for _, b in ipairs(o.tabs.buttons) do table.insert(names, b.text) end end
+    return o, table.concat(names, ",")
+  end
+  local o, names = Tabs("keno")
+  Check("Keno's options: Settings, Rules and Sounds tabs", names == "Settings,Rules,Sounds", names)
+  Check("...Settings first, the rules out of sight", Visible(o.settings) and not Visible(o.rules) and Find("Defaults") == nil)
+  Press(Find("Rules"))
+  Check("Rules shows the rules and hides the settings", Visible(o.rules) and not Visible(o.settings))
+  Press(Find("Sounds"))
+  Check("Sounds shows the sound choices", Find("Defaults") ~= nil and not Visible(o.rules))
+  Check("Reset stats and Done are on every tab", Find("Reset stats") ~= nil and Find("Done") ~= nil)
+  Press(Find("Done"))
+  o:Show()
+  Check("the page reopens on the tab you left it on", Find("Defaults") ~= nil)
+  o:Hide()
+  local _, mines = Tabs("mines")
+  Check("Mines (no rules, no sounds) draws no tabs", mines == "", mines)
+  local _, hilo = Tabs("hilo")
+  Check("Hi-Lo: Rules and Sounds", hilo == "Rules,Sounds", hilo)
+  local _, roulette = Tabs("roulette")
+  Check("Roulette's plain page has no tabs", roulette == "", roulette)
+  ns:ShowMenu()
+  ns.optionsPage:Show()
+  local t = {}
+  for _, b in ipairs(ns.optionsPage.tabs.buttons) do table.insert(t, b.text) end
+  Check("CowCasino options: Display, Games, Chat and Chips tabs", table.concat(t, ",") == "Display,Games,Chat,Chips", table.concat(t, ","))
+  Press(Find("Chips"))
+  Check("Chips has Start over, and the game order is out of sight", Find("Start over") ~= nil and Find("Default order") == nil)
+  ns.optionsPage:Hide()
 end
 H.Done("OPTIONS")

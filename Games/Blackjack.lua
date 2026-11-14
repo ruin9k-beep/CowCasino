@@ -677,17 +677,19 @@ end
 local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Blackjack, panel, {
+        settings = true,
         note = "Sounds apply to solo and party play. Card art is in the CowCasino Options.",
         db = function() return db end,
         refresh = function() o:RefreshExtras() end,
         onReset = function() ResetAll() end,
         canReset = function() return S.phase == "betting" end,   -- not mid-hand
     })
+    local s = o.settings      -- this game's controls go on the Settings tab
 
     local refreshers = {}
 
     -- Shoe size (applies from the next deal)
-    refreshers[ns.getn(refreshers) + 1] = MakeCycler(o, -48, "Decks in the shoe",
+    refreshers[ns.getn(refreshers) + 1] = MakeCycler(s, -48, "Decks in the shoe",
         function()
             local d = db.settings.decks
             return d .. (d == 1 and " deck" or " decks")
@@ -699,12 +701,12 @@ local function BuildOptions(panel)
             o:Refresh()
         end)
 
-    refreshers[ns.getn(refreshers) + 1] = MakeCheck(o, -84, "Dealer hits soft 17", "hitSoft17")
-    refreshers[ns.getn(refreshers) + 1] = MakeCheck(o, -110, "Allow surrender", "surrender")
-    refreshers[ns.getn(refreshers) + 1] = MakeCheck(o, -136, "Allow double after split", "doubleAfterSplit")
+    refreshers[ns.getn(refreshers) + 1] = MakeCheck(s, -84, "Dealer hits soft 17", "hitSoft17")
+    refreshers[ns.getn(refreshers) + 1] = MakeCheck(s, -110, "Allow surrender", "surrender")
+    refreshers[ns.getn(refreshers) + 1] = MakeCheck(s, -136, "Allow double after split", "doubleAfterSplit")
 
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    rules:SetPoint("BOTTOM", o, "BOTTOM", 0, 14)
+    local rules = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    rules:SetPoint("BOTTOM", o, "BOTTOM", 0, 72)
     rules:SetText("Rules above are for your solo table; party tables use the standard rules.")
 
     function o:RefreshExtras()
@@ -761,7 +763,6 @@ end
 -- Options, sounds and party play: the screens that open over the table.
 local function BuildOverlays(panel)
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
     BuildParty(panel)
 end
 
@@ -895,7 +896,6 @@ end
 
 function Blackjack:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 -- For the out-of-chips check: a round is in progress.

@@ -183,8 +183,8 @@ function ns:MenuPage(dir)
 end
 
 ---------------------------------------------------------------------------
--- CowCasino options: window scale, the order of the games, card art, the
--- dealer, table chat and starting over.
+-- CowCasino options, in tabs: Display (window size, card art, the dealer),
+-- Games (their order), Chat (table chat) and Chips (starting over).
 ---------------------------------------------------------------------------
 function ns:BuildOptionsPage(frame)
     local o = ns.CreateFrame("Frame", nil, frame)
@@ -201,12 +201,17 @@ function ns:BuildOptionsPage(frame)
     head:SetPoint("TOP", o, "TOP", 0, -8)
     head:SetText("CowCasino Options")
 
+    -- Tabs along the bottom; Done sits above them
+    local tabs = ns.UI.Tabs(o, { "Display", "Games", "Chat", "Chips" }, 4)
+    local disp, games, chat, chips = tabs.frames[1], tabs.frames[2], tabs.frames[3], tabs.frames[4]
+    o.tabs = tabs
+
     -- Window scale, on one line: label, slider, value, 100%
-    local scaleLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local scaleLabel = disp:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     scaleLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -42)
     scaleLabel:SetText("Window size")
     local sliderName = ns:NewName() or "CowCasinoScaleSlider"
-    local slider = ns.CreateFrame("Slider", sliderName, o, "OptionsSliderTemplate")
+    local slider = ns.CreateFrame("Slider", sliderName, disp, "OptionsSliderTemplate")
     slider:SetWidth(130); slider:SetHeight(16)
     slider:SetPoint("TOPLEFT", o, "TOPLEFT", 100, -40)
     slider:SetMinMaxValues(ns.MIN_SCALE, ns.MAX_SCALE)
@@ -215,7 +220,7 @@ function ns:BuildOptionsPage(frame)
     low:SetText("")        -- the value beside it says the size
     high:SetText("")
     label:SetText("")
-    local scaleValue = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local scaleValue = disp:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     scaleValue:SetPoint("LEFT", slider, "RIGHT", 14, 0)
     -- The slider is inside the window it resizes, so resizing while you drag
     -- would move the slider under the mouse. Show the size while dragging and
@@ -233,7 +238,7 @@ function ns:BuildOptionsPage(frame)
     end)
     slider:SetScript("OnMouseUp", ApplyPending)
     o:SetScript("OnHide", ApplyPending)
-    local resetScale = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local resetScale = ns.CreateFrame("Button", ns:NewName(), disp, "UIPanelButtonTemplate")
     resetScale:SetWidth(50); resetScale:SetHeight(20)
     resetScale:SetPoint("LEFT", scaleValue, "RIGHT", 10, 0)
     resetScale:SetText("100%")
@@ -244,9 +249,9 @@ function ns:BuildOptionsPage(frame)
     end)
 
     -- Game order
-    local orderLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    local ROWS_Y = -88
-    orderLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -68)
+    local orderLabel = games:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local ROWS_Y = -62
+    orderLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -42)
     orderLabel:SetText("Order of the games")
     -- two columns, read down the left one first
     local slots = {}
@@ -256,16 +261,16 @@ function ns:BuildOptionsPage(frame)
         local col = (i > perColumn) and 1 or 0
         local x = 8 + col * 166
         local y = ROWS_Y - (i - 1 - col * perColumn) * 21
-        local text = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        local text = games:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         text:SetPoint("TOPLEFT", o, "TOPLEFT", x, y - 5)
         text:SetWidth(90)
         text:SetJustifyH("LEFT")
-        local up = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+        local up = ns.CreateFrame("Button", ns:NewName(), games, "UIPanelButtonTemplate")
         up:SetWidth(30); up:SetHeight(20)
         up:SetPoint("TOPLEFT", o, "TOPLEFT", x + 92, y)
         up:SetText("Up")
         up:SetScript("OnClick", function() ns:MoveGame(i, -1) end)
-        local down = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+        local down = ns.CreateFrame("Button", ns:NewName(), games, "UIPanelButtonTemplate")
         down:SetWidth(40); down:SetHeight(20)
         down:SetPoint("LEFT", up, "RIGHT", 1, 0)
         down:SetText("Down")
@@ -274,12 +279,12 @@ function ns:BuildOptionsPage(frame)
     end
 
     -- Card art, shared by every card game (Cards.lua), with a small preview
-    local artY = ROWS_Y - perColumn * 21 - 4
-    local artLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local artY = -82
+    local artLabel = disp:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     artLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, artY)
     artLabel:SetText("Card art")
-    local artName = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    local artBy = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local artName = disp:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local artBy = disp:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     local function StepArt(dir)
         local order = ns.cardArtOrder
         local current = ns:GetCardArt()
@@ -291,7 +296,7 @@ function ns:BuildOptionsPage(frame)
         ns:Sound("IG_MAINMENU_OPTION")
         o:Refresh()
     end
-    local artPrev = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local artPrev = ns.CreateFrame("Button", ns:NewName(), disp, "UIPanelButtonTemplate")
     artPrev:SetWidth(26); artPrev:SetHeight(22)
     artPrev:SetPoint("TOPLEFT", o, "TOPLEFT", 12, artY - 18)
     artPrev:SetText("<")
@@ -299,7 +304,7 @@ function ns:BuildOptionsPage(frame)
     artName:SetPoint("LEFT", artPrev, "RIGHT", 4, 0)
     artName:SetWidth(90)
     artName:SetJustifyH("CENTER")
-    local artNext = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local artNext = ns.CreateFrame("Button", ns:NewName(), disp, "UIPanelButtonTemplate")
     artNext:SetWidth(26); artNext:SetHeight(22)
     artNext:SetPoint("LEFT", artName, "RIGHT", 4, 0)
     artNext:SetText(">")
@@ -309,18 +314,18 @@ function ns:BuildOptionsPage(frame)
     local previews = {}
     local cards = { { 1, 1, true }, { 12, 2, true }, { 1, 1, false } }
     for i, c in ipairs(cards) do
-        local w = ns:CreateCardWidget(o, 26, 36)
+        local w = ns:CreateCardWidget(disp, 26, 36)
         w:SetPoint("TOPLEFT", o, "TOPLEFT", 196 + (i - 1) * 32, artY - 2)
         previews[i] = { widget = w, rank = c[1], suit = c[2], up = c[3] }
     end
 
     -- The dealer on top of the window (Dealer.lua), with its picture
     local dealerY = artY - 48
-    local dealerLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local dealerLabel = disp:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     dealerLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, dealerY)
     dealerLabel:SetText("Dealer")
-    local dealerName = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    local dealerBy = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local dealerName = disp:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local dealerBy = disp:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     local function StepDealer(dir)
         local order = ns.dealerOrder
         local current = ns:GetDealer()
@@ -332,7 +337,7 @@ function ns:BuildOptionsPage(frame)
         ns:Sound("IG_MAINMENU_OPTION")
         o:Refresh()
     end
-    local dealerPrev = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local dealerPrev = ns.CreateFrame("Button", ns:NewName(), disp, "UIPanelButtonTemplate")
     dealerPrev:SetWidth(26); dealerPrev:SetHeight(22)
     dealerPrev:SetPoint("TOPLEFT", o, "TOPLEFT", 12, dealerY - 18)
     dealerPrev:SetText("<")
@@ -340,32 +345,32 @@ function ns:BuildOptionsPage(frame)
     dealerName:SetPoint("LEFT", dealerPrev, "RIGHT", 4, 0)
     dealerName:SetWidth(90)
     dealerName:SetJustifyH("CENTER")
-    local dealerNext = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local dealerNext = ns.CreateFrame("Button", ns:NewName(), disp, "UIPanelButtonTemplate")
     dealerNext:SetWidth(26); dealerNext:SetHeight(22)
     dealerNext:SetPoint("LEFT", dealerName, "RIGHT", 4, 0)
     dealerNext:SetText(">")
     dealerNext:SetScript("OnClick", function() StepDealer(1) end)
     dealerBy:SetPoint("TOPLEFT", dealerLabel, "TOPRIGHT", 8, -1)
-    local dealerBox = o:CreateTexture(nil, "BORDER")
+    local dealerBox = disp:CreateTexture(nil, "BORDER")
     dealerBox:SetWidth(38); dealerBox:SetHeight(38)
     dealerBox:SetPoint("TOPLEFT", o, "TOPLEFT", 196, dealerY - 1)
     dealerBox:SetTexture(0.8, 0.65, 0.2, 0.6)
-    local dealerPic = o:CreateTexture(nil, "ARTWORK")
+    local dealerPic = disp:CreateTexture(nil, "ARTWORK")
     dealerPic:SetWidth(36); dealerPic:SetHeight(36)
     dealerPic:SetPoint("CENTER", dealerBox, "CENTER", 0, 0)
     o.dealerPic = dealerPic
 
     -- Table chat (Chat.lua), for party tables
-    local chatY = dealerY - 42
-    local chatLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local chatY = -42
+    local chatLabel = chat:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     chatLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, chatY)
     chatLabel:SetText("Table chat at party tables")
     local function Check(text, x, y, onClick)
-        local c = ns.CreateFrame("CheckButton", ns:NewName(), o, "UICheckButtonTemplate")
+        local c = ns.CreateFrame("CheckButton", ns:NewName(), chat, "UICheckButtonTemplate")
         c:SetWidth(22); c:SetHeight(22)
         c:SetPoint("TOPLEFT", o, "TOPLEFT", x, y)
         c:SetScript("OnClick", onClick)
-        local t = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        local t = chat:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         t:SetPoint("LEFT", c, "RIGHT", 2, 1)
         t:SetText(text)
         return c
@@ -377,7 +382,7 @@ function ns:BuildOptionsPage(frame)
     local chatAuto = Check("Open it when someone talks", 14, chatY - 36, function()
         ns.Chat:Settings().autoOpen = this:GetChecked() and true or false
     end)
-    local sideValue = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local sideValue = chat:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     local function FlipSide()
         local s = ns.Chat:Settings()
         s.side = (s.side == "left") and "right" or "left"
@@ -385,10 +390,10 @@ function ns:BuildOptionsPage(frame)
         ns:Sound("IG_MAINMENU_OPTION")
         o:Refresh()
     end
-    local sidePrev = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local sidePrev = ns.CreateFrame("Button", ns:NewName(), chat, "UIPanelButtonTemplate")
     sidePrev:SetWidth(26); sidePrev:SetHeight(22)
     sidePrev:SetPoint("TOPLEFT", o, "TOPLEFT", 212, chatY - 20)
-    local sideLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local sideLabel = chat:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     sideLabel:SetPoint("BOTTOM", sideValue, "TOP", 0, 5)
     sideLabel:SetText("Chat window on the")
     sidePrev:SetText("<")
@@ -396,15 +401,15 @@ function ns:BuildOptionsPage(frame)
     sideValue:SetPoint("LEFT", sidePrev, "RIGHT", 4, 0)
     sideValue:SetWidth(62)
     sideValue:SetJustifyH("CENTER")
-    local sideNext = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local sideNext = ns.CreateFrame("Button", ns:NewName(), chat, "UIPanelButtonTemplate")
     sideNext:SetWidth(26); sideNext:SetHeight(22)
     sideNext:SetPoint("LEFT", sideValue, "RIGHT", 4, 0)
     sideNext:SetText(">")
     sideNext:SetScript("OnClick", FlipSide)
 
-    local default = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local default = ns.CreateFrame("Button", ns:NewName(), games, "UIPanelButtonTemplate")
     default:SetWidth(110); default:SetHeight(22)
-    default:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 6, 4)
+    default:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 6, 34)
     default:SetText("Default order")
     default:SetScript("OnClick", function()
         ns.db.order = nil
@@ -413,23 +418,29 @@ function ns:BuildOptionsPage(frame)
     end)
     local done = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
     done:SetWidth(90); done:SetHeight(22)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -6, 4)
+    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -6, 34)
     done:SetText("Done")
     done:SetScript("OnClick", function() o:Hide() end)
 
     -- Start over: as if you'd run out of chips. A second click within three
     -- seconds confirms, and gives up any game still holding chips (named in
     -- the note above the button). A party table has to be left first.
-    local startOver = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
+    local startOver = ns.CreateFrame("Button", ns:NewName(), chips, "UIPanelButtonTemplate")
     startOver:SetWidth(126); startOver:SetHeight(22)
-    startOver:SetPoint("BOTTOM", o, "BOTTOM", 2, 4)
+    local startText = chips:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    startText:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -42)
+    startText:SetWidth(328)
+    startText:SetJustifyH("LEFT")
+    startText:SetText("Start over empties your wallet and brings up the new-stack screen, just as running out "
+        .. "of chips does. A fresh stack starts the games' stats over. Your settings, art and game order stay.")
+    startOver:SetPoint("TOP", o, "TOP", 0, -130)
     startOver:SetText("Start over")
     local armedAt, blockedAt
     local function Restore()
         armedAt, blockedAt = nil, nil
         startOver:SetText("Start over")
     end
-    local inPlayNote = o:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local inPlayNote = chips:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     inPlayNote:SetPoint("BOTTOM", startOver, "TOP", 0, 4)
     inPlayNote:SetWidth(330)
     inPlayNote:SetTextColor(1, 0.6, 0.2)
@@ -799,7 +810,6 @@ function ns:ToggleOptions()
     if not o then return end
     if o:IsShown() then
         o:Hide()
-        if o.sounds then o.sounds:Hide() end
     else
         o:Show()
     end
@@ -818,7 +828,6 @@ function ns:ShowMenu()
     local game = self.currentGame and self.games[self.currentGame]
     if game then
         if game.options then game.options:Hide() end
-        if game.options and game.options.sounds then game.options.sounds:Hide() end
         if game.panel then game.panel:Hide() end
         if game.OnHide then game:OnHide() end
     end

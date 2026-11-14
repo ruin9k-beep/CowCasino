@@ -566,7 +566,6 @@ end
 
 local function BuildOptions(panel)
     return ns:GameOptions(Deathroll, panel, {
-        rulesTop = 40,
         rules = "How it plays: both players put up the stake. The first roll is 1 to the starting number; "
             .. "each roll after that is 1 to the last roll. Whoever rolls a 1 loses, and the other takes both "
             .. "stakes. It's an even game: neither side has the edge.\n\n"
@@ -661,7 +660,6 @@ function Deathroll:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
 
     if db.partyDuel then
         -- a party duel cut off by a reload: call it off, both stakes go back
@@ -692,7 +690,6 @@ end
 
 function Deathroll:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 function Deathroll:ChipsInPlay()

@@ -33,7 +33,7 @@ that stack between hands. Everyone at a table needs the same party version of Co
 a table from another version shows in the list but can't be joined.
 
 A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker and Deathroll).
-Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
+Pick another dealer in Options (the Display tab), or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
 explains how a game drives it, including showing a party member's 3D portrait.
 
 Also: swappable card art (Plain, Tauren, Orc & Troll, Human) and slot themes, 3D player

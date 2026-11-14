@@ -73,24 +73,14 @@ function ns:PlayGameSound(db, event)
     if c and c.sound then ns.PlaySound(c.sound) end
 end
 
--- A full-panel overlay: one row per event, each with < name > and Play.
+-- The Sounds tab of a game's Options (tab: the tab's frame, filling the
+-- page): one row per event, each with < name > and Play, and Defaults.
 -- getDb returns the game's saved table (with .sounds); extra adds a game's
 -- own moments (as for InitSounds).
-function ns:CreateSoundOptions(panel, title, getDb, extra)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 80)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.95)
-
-    local head = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    head:SetPoint("TOP", o, "TOP", 0, -10)
-    head:SetText(title)
+function ns:CreateSoundOptions(tab, getDb, extra)
+    local o = tab
     local sub = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    sub:SetPoint("TOP", head, "BOTTOM", 0, -4)
+    sub:SetPoint("TOP", o, "TOP", 0, -32)
     sub:SetText("Sound effects")
 
     local events = {}
@@ -99,7 +89,7 @@ function ns:CreateSoundOptions(panel, title, getDb, extra)
     local rows = {}
     for i, ev in ipairs(events) do
         local i, ev = i, ev   -- own copies for closures (Lua 5.0)
-        local y = -60 - (i - 1) * 56
+        local y = -54 - (i - 1) * 50
         local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         label:SetPoint("TOPLEFT", o, "TOPLEFT", 16, y)
         label:SetText(ev.label)
@@ -137,17 +127,12 @@ function ns:CreateSoundOptions(panel, title, getDb, extra)
     local reset = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
     reset:SetWidth(110); reset:SetHeight(22)
     reset:SetText("Defaults")
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 14)
+    reset:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)       -- between Reset stats and Done
     reset:SetScript("OnClick", function()
         getDb().sounds = nil
         ns:InitSounds(getDb(), extra)
         o:Refresh()
     end)
-    local done = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
-    done:SetWidth(90); done:SetHeight(22)
-    done:SetText("Done")
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 14)
-    done:SetScript("OnClick", function() o:Hide() end)
 
     function o:Refresh()
         local db = getDb()
@@ -157,6 +142,5 @@ function ns:CreateSoundOptions(panel, title, getDb, extra)
             ns.SetEnabled(r.play, c ~= nil and c.sound ~= nil)
         end
     end
-    o:SetScript("OnShow", function() this:Refresh() end)
     return o
 end

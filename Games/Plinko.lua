@@ -341,29 +341,34 @@ local MakeButton = ns.UI.Button
 local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Plinko, panel, {
+        settings = true,
+        rules = "How it plays: each ball bounces left or right at every row of pegs, so it usually lands near "
+            .. "the middle and only rarely at the edges. The slot's number multiplies your bet. More rows and higher "
+            .. "risk make the edges pay more and the middle less.",
         db = function() return db end,
         sounds = EXTRA_SOUNDS,
         refresh = function() o:RefreshExtras() end,
     })
+    local s = o.settings      -- this game's controls go on the Settings tab
 
     -- label, < value >
     local function Selector(text, y, onStep)
-        local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        local label = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         label:SetPoint("TOPLEFT", o, "TOPLEFT", 16, y)
         label:SetText(text)
-        local value = o:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        local value = s:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         local function Go(dir)
             onStep(dir)
             ns:Sound("IG_MAINMENU_OPTION")
             Refresh()
             o:Refresh()
         end
-        local nextB = MakeButton(o, ">", 26, function() Go(1) end)
+        local nextB = MakeButton(s, ">", 26, function() Go(1) end)
         nextB:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, y + 4)
         value:SetPoint("RIGHT", nextB, "LEFT", -6, 0)
         value:SetWidth(70)
         value:SetJustifyH("CENTER")
-        local prevB = MakeButton(o, "<", 26, function() Go(-1) end)
+        local prevB = MakeButton(s, "<", 26, function() Go(-1) end)
         prevB:SetPoint("RIGHT", value, "LEFT", -6, 0)
         return { value = value, prev = prevB, next = nextB }
     end
@@ -373,17 +378,10 @@ local function BuildOptions(panel)
         db.speed = (db.speed == "fast") and "normal" or "fast"
     end)
     o.risk, o.rows, o.speed = risk, rows, speed
-    local busy = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local busy = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     busy:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -132)
     busy:SetText("Risk and rows change once the balls in the air have landed.")
 
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -152)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: each ball bounces left or right at every row of pegs, so it usually lands near "
-        .. "the middle and only rarely at the edges. The slot's number multiplies your bet. More rows and higher "
-        .. "risk make the edges pay more and the middle less.")
 
 
     function o:RefreshExtras()
@@ -535,7 +533,6 @@ function Plinko:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 6)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
 
     -- Balls that were falling when the game closed are refunded.
     if db.inFlight and db.inFlight > 0 then
@@ -556,7 +553,6 @@ end
 
 function Plinko:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 -- For the out-of-chips check: balls still falling.

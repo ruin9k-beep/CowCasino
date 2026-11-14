@@ -264,7 +264,6 @@ end
 
 local function BuildOptions(panel)
     return ns:GameOptions(HiLo, panel, {
-        rulesTop = 48,
         rules = "How it plays: bet, and a card is dealt. Guess whether the next card is higher or the same, "
             .. "or lower or the same. Aces are low and kings high; suits don't matter. Each guess pays its fair odds "
             .. "less 1%, so the less likely guess pays more, and the multipliers stack from guess to guess. "
@@ -371,7 +370,6 @@ function HiLo:Build(panel)
     ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 84)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
 
     if db.active then
         SetStatus("Welcome back - your game is still going.")
@@ -388,7 +386,6 @@ end
 
 function HiLo:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 -- For the out-of-chips check: a game in progress (saved across reloads).

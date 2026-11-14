@@ -269,7 +269,6 @@ local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
     return ns:GameOptions(VideoPoker, panel, {
-        rulesTop = 48,
         rules = "How it plays: pick a coin size and bet one to five coins, then Deal. Click the cards you want "
             .. "to keep (they show HELD), then Draw to replace the rest. A pair of Jacks or better pays; the pay table "
             .. "shows what every hand pays for your coins. Bet five coins for the big Royal Flush: 800 per coin instead "
@@ -391,7 +390,6 @@ function VideoPoker:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 5)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ui.options.sounds
 
     if db.hand then
         SetStatus("Welcome back - your hand is still dealt. Hold and Draw.")
@@ -407,7 +405,6 @@ end
 
 function VideoPoker:OnHide()
     if ui.options then ui.options:Hide() end
-    if ui.sounds then ui.sounds:Hide() end
 end
 
 -- For the out-of-chips check: a dealt hand waiting for its draw (saved across reloads).

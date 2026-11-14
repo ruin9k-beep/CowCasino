@@ -161,6 +161,7 @@ local function Btn7(text) for _, o in ipairs(env7.all) do if o.kind == "Button" 
 local function Click7(b) env7.Fire(b, "OnClick", "LeftButton") end
 Tick7(1)
 Click7(Btn7("Options"))
+Click7(Btn7("Chips"))
 local so = ns7.optionsPage.startOver
 Check("Options has a Start over button", so and Vis7(so) and so.text == "Start over")
 Click7(so)

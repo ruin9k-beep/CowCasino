@@ -325,12 +325,13 @@ ns:ShowMenu()
 Check("the menu hides it again", not D:IsShown())
 local opts = ns.optionsPage or ns:BuildOptionsPage(env.CowCasinoFrame)
 opts:Show()
+opts.tabs:Select(1)
 local function DealerNameText() for _, o in ipairs(env.all) do if o.text == "Goblin" or o.text == "Human" or o.text == "Test Orc" then
   if Visible(o) and o.kind ~= "Button" then return o.text end end end end
 Check("Options shows the chosen dealer", DealerNameText() == "Goblin" and string.find(opts.dealerPic.tex, "DealerGoblin", 1, true) ~= nil)
 -- the dealer row's ">" is the second ">" from the top (card art first)
 local nexts = {}
-for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == ">" and Visible(o) and o.parent == opts then table.insert(nexts, o) end end
+for _, o in ipairs(env.all) do if o.kind == "Button" and o.text == ">" and Visible(o) and o.parent == opts.tabs.frames[1] then table.insert(nexts, o) end end
 local dealerNext = nexts[2]
 env.Fire(dealerNext, "OnClick", "LeftButton")
 Check("its > button picks the next dealer", ns.db.dealer == "human" and DealerNameText() == "Human"
