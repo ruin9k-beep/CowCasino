@@ -263,8 +263,7 @@ local function GuessButton(parent, key)
 end
 
 local function BuildOptions(panel)
-    return ns.UI.Options(panel, {
-        title = "Hi-Lo Options",
+    return ns:GameOptions(HiLo, panel, {
         rulesTop = 48,
         rules = "How it plays: bet, and a card is dealt. Guess whether the next card is higher or the same, "
             .. "or lower or the same. Aces are low and kings high; suits don't matter. Each guess pays its fair odds "
@@ -275,7 +274,7 @@ local function BuildOptions(panel)
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
         end,
-        sounds = function() return ui.sounds end,
+        db = function() return db end,
     })
 end
 
@@ -291,10 +290,6 @@ function HiLo:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.06, 0.20, 0.26, 0.92)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     ui.info = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.info:SetPoint("TOP", panel, "TOP", 0, -6)
@@ -380,7 +375,7 @@ function HiLo:Build(panel)
     ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 84)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Hi-Lo Options", function() return db end)
+    ui.sounds = ui.options.sounds
 
     if db.active then
         SetStatus("Welcome back - your game is still going.")

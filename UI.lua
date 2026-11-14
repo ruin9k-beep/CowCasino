@@ -90,9 +90,13 @@ end
 --   rulesTop   where the rules start (default 40 from the top)
 --   onReset    resets the stats (after a second click within 3 seconds)
 --   sounds     function returning the game's sound options frame
+--   note       a small line under the title (optional)
 --   onRefresh  called whenever the overlay is shown (for extra settings)
+--   canReset   function -> false while Reset stats can't be used (optional)
 -- Returns the overlay; o.body is where extra settings can go, and o:Refresh()
 -- updates it. Reset stats asks "Sure?" first.
+-- Games don't call this directly: ns:GameOptions (below) builds their
+-- Options and hooks it up to the window's Options button.
 ---------------------------------------------------------------------------
 function UI.Options(panel, spec)
     local o = ns.CreateFrame("Frame", nil, panel)
@@ -106,12 +110,18 @@ function UI.Options(panel, spec)
     local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", o, "TOP", 0, -10)
     title:SetText(spec.title or "Options")
+    o.title = title
     o.body = o
+    if spec.note then
+        local note = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        note:SetPoint("TOP", title, "BOTTOM", 0, -2)
+        note:SetText(spec.note)
+    end
 
     if spec.rules then
         local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -(spec.rulesTop or 40))
-        rules:SetPoint("RIGHT", o, "RIGHT", -16, 0)
+        rules:SetWidth(320)
         rules:SetJustifyH("LEFT")
         rules:SetText(spec.rules)
         o.rules = rules
@@ -142,6 +152,7 @@ function UI.Options(panel, spec)
             reset.armed = nil
             reset:SetText("Reset stats")
         end
+        if spec.canReset then ns.SetEnabled(reset, spec.canReset()) end
         if spec.onRefresh then spec.onRefresh(self) end
     end
     o:SetScript("OnShow", function() this:Refresh() end)
@@ -191,3 +202,35 @@ function UI.Stepper(parent, spec)
     end
     return f
 end
+
+---------------------------------------------------------------------------
+-- A game's Options. The window owns the one Options button (next to the
+-- title, top right); each game fills in its own page by calling this from
+-- its Build, and the button opens whichever game is showing. spec:
+--   rules, rulesTop, note   as for UI.Options
+--   build(o)       adds the game's own settings to the page (placed on o)
+--   refresh(o)     updates them whenever the page is shown
+--   db()           the game's saved table: gives the page a Sounds button
+--   sounds         extra sounds for that page (see ns:CreateSoundOptions)
+--   onReset        what Reset stats does (default: the game's ResetStats)
+--   canReset()     false while Reset stats can't be used
+-- Returns the page; page.sounds is the game's sound options.
+-- A game that doesn't call this still gets a plain page (Reset stats, Done).
+---------------------------------------------------------------------------
+function ns:GameOptions(game, panel, spec)
+    spec = spec or {}
+    local title = (game.name or "Game") .. " Options"
+    local o
+    o = UI.Options(panel, {
+        title = title, note = spec.note, rules = spec.rules, rulesTop = spec.rulesTop,
+        onReset = spec.onReset or function() if game.ResetStats then game:ResetStats() end end,
+        canReset = spec.canReset,
+        sounds = spec.db and function() return o.sounds end,
+        onRefresh = spec.refresh,
+    })
+    if spec.db then o.sounds = ns:CreateSoundOptions(panel, title, spec.db, spec.sounds) end
+    if spec.build then spec.build(o) end
+    game.options = o
+    return o
+end
+

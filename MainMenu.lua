@@ -642,14 +642,16 @@ function ns:BuildMainFrame()
     end)
     self:LayoutMenu()
 
+    -- The window's one Options button, top right across from the title row.
+    -- On the game list it opens the CowCasino options; in a game, that game's
+    -- own page (each game fills it in with ns:GameOptions). It moves onto
+    -- whichever page is showing so it draws over it.
     local optionsButton = ns.CreateFrame("Button", ns:NewName(), menu, "UIPanelButtonTemplate")
     optionsButton:SetWidth(70); optionsButton:SetHeight(22)
-    optionsButton:SetPoint("TOPRIGHT", menu, "TOPRIGHT", 0, -2)
+    optionsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -INSET, -38)
     optionsButton:SetText("Options")
-    optionsButton:SetScript("OnClick", function()
-        ns:Sound("IG_MAINMENU_OPTION")
-        ns.SetShown(ns.optionsPage, not ns.optionsPage:IsShown())
-    end)
+    optionsButton:SetScript("OnClick", function() ns:ToggleOptions() end)
+    frame.optionsButton = optionsButton
     self.optionsPage = self:BuildOptionsPage(frame)
 
     -- Page 2: open game ----------------------------------------------------
@@ -784,12 +786,43 @@ end
 ---------------------------------------------------------------------------
 -- Navigation
 ---------------------------------------------------------------------------
+-- Options for what's showing: the CowCasino options on the game list, the
+-- game's own page in a game.
+function ns:ToggleOptions()
+    ns:Sound("IG_MAINMENU_OPTION")
+    local game = self.currentGame and self.games[self.currentGame]
+    if not game then
+        ns.SetShown(self.optionsPage, not self.optionsPage:IsShown())
+        return
+    end
+    local o = game.options
+    if not o then return end
+    if o:IsShown() then
+        o:Hide()
+        if o.sounds then o.sounds:Hide() end
+    else
+        o:Show()
+    end
+end
+
+-- Put the Options button on the page that's showing (so it draws over it).
+local function PlaceOptionsButton(parent, shown)
+    local b = ns.frame and ns.frame.optionsButton
+    if not b then return end
+    b:SetParent(parent)
+    b:SetFrameLevel(parent:GetFrameLevel() + 60)
+    ns.SetShown(b, shown)
+end
+
 function ns:ShowMenu()
     local game = self.currentGame and self.games[self.currentGame]
     if game then
+        if game.options then game.options:Hide() end
+        if game.options and game.options.sounds then game.options.sounds:Hide() end
         if game.panel then game.panel:Hide() end
         if game.OnHide then game:OnHide() end
     end
+    PlaceOptionsButton(self.frame.menu, true)
     self.currentGame = nil
     if ns.Dealer then ns.Dealer:Attach(nil) end
 
@@ -814,7 +847,10 @@ function ns:OpenGame(id)
         game.panel = ns.CreateFrame("Frame", nil, self.frame.container)
         game.panel:SetAllPoints(self.frame.container)
         if game.Build then game:Build(game.panel) end
+        -- every game has an Options page; a plain one if it didn't make its own
+        if not game.options then ns:GameOptions(game, game.panel, {}) end
     end
+    PlaceOptionsButton(game.panel, true)
 
     self.currentGame = id
     self.frame.menu:Hide()

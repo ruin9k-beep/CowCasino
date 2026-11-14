@@ -82,6 +82,7 @@ function methods:GetHeight() return self.h end
 function methods:GetFrameLevel() return self.level end
 function methods:SetFrameLevel(l) assert(type(l) == "number"); self.level = l end
 function methods:GetParent() return self.parent end
+function methods:SetParent(p) assert(type(p) == "table", "SetParent needs a frame"); self.parent = p end
 function methods:GetName() return self.name end
 function methods:SetPoint(point, rel, relPoint, x, y)
   assert(type(point) == "string", "SetPoint needs a point")

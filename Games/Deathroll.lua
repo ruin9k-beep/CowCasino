@@ -569,8 +569,7 @@ local function SetMode(mode)
 end
 
 local function BuildOptions(panel)
-    return ns.UI.Options(panel, {
-        title = "Deathroll Options",
+    return ns:GameOptions(Deathroll, panel, {
         rulesTop = 40,
         rules = "How it plays: both players put up the stake. The first roll is 1 to the starting number; "
             .. "each roll after that is 1 to the last roll. Whoever rolls a 1 loses, and the other takes both "
@@ -585,7 +584,7 @@ local function BuildOptions(panel)
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
         end,
-        sounds = function() return ui.sounds end,
+        db = function() return db end,
     })
 end
 
@@ -603,10 +602,6 @@ function Deathroll:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.18, 0.04, 0.04, 0.94)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     ui.soloTab = MakeButton(panel, "Vs the dealer", 150, function() SetMode("solo") end)
     ui.soloTab:SetPoint("TOPRIGHT", panel, "TOP", -4, -6)
@@ -676,7 +671,7 @@ function Deathroll:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Deathroll Options", function() return db end)
+    ui.sounds = ui.options.sounds
 
     if db.partyDuel then
         -- a party duel cut off by a reload: call it off, both stakes go back

@@ -339,17 +339,12 @@ end)
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Plinko Options")
+    local o
+    o = ns:GameOptions(Plinko, panel, {
+        db = function() return db end,
+        sounds = EXTRA_SOUNDS,
+        refresh = function() o:RefreshExtras() end,
+    })
 
     -- label, < value >
     local function Selector(text, y, onStep)
@@ -390,26 +385,8 @@ local function BuildOptions(panel)
         .. "the middle and only rarely at the edges. The slot's number multiplies your bet. More rows and higher "
         .. "risk make the edges pay more and the middle less.")
 
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-            db.stats = {}
-            Fill(db.stats, DEFAULT_STATS)
-            Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
 
-    function o:Refresh()
+    function o:RefreshExtras()
         local flying = InFlight() > 0
         risk.value:SetText(db.risk)
         rows.value:SetText(tostring(db.rows))
@@ -419,12 +396,7 @@ local function BuildOptions(panel)
             ns.SetEnabled(sel.next, not flying)
         end
         ns.SetShown(busy, flying)
-        if not (reset.armed and GetTime() - reset.armed <= 3) then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-        end
     end
-    o:SetScript("OnShow", function() this:Refresh() end)
     return o
 end
 
@@ -446,10 +418,6 @@ function Plinko:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.07, 0.06, 0.16, 0.94)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     ui.board = ns.CreateFrame("Frame", nil, panel)
     ui.board:SetWidth(BOARD_W); ui.board:SetHeight(BOARD_H + 40)
@@ -575,7 +543,7 @@ function Plinko:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 6)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Plinko Options", function() return db end, EXTRA_SOUNDS)
+    ui.sounds = ui.options.sounds
 
     -- Balls that were falling when the game closed are refunded.
     if db.inFlight and db.inFlight > 0 then

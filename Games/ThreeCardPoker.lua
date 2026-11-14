@@ -308,8 +308,7 @@ end
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    return ns.UI.Options(panel, {
-        title = "Three Card Poker Options",
+    return ns:GameOptions(TCP, panel, {
         rulesTop = 40,
         rules = "How it plays: bet the Ante (and Pair Plus if you like) and Deal. Look at your three cards, then "
             .. "Play (bet the Ante again) or Fold (lose the Ante).\n\n"
@@ -325,7 +324,7 @@ local function BuildOptions(panel)
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
         end,
-        sounds = function() return ui.sounds end,
+        db = function() return db end,
     })
 end
 
@@ -354,10 +353,6 @@ function TCP:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.05, 0.25, 0.12, 0.94)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     -- the dealer's cards on top, yours below
     local dealerLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -408,7 +403,7 @@ function TCP:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Three Card Poker Options", function() return db end)
+    ui.sounds = ui.options.sounds
 
     if db.hand then
         SetStatus("Welcome back - your hand is still dealt. Play or Fold?")

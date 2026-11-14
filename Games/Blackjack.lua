@@ -723,22 +723,14 @@ local function IndexOf(list, value)
 end
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(o:GetParent())
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.92)
-
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Blackjack Options")
-    local shared = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    shared:SetPoint("TOP", title, "BOTTOM", 0, -2)
-    shared:SetText("Sounds apply to solo and party play. Card art is in the CowCasino Options.")
+    local o
+    o = ns:GameOptions(Blackjack, panel, {
+        note = "Sounds apply to solo and party play. Card art is in the CowCasino Options.",
+        db = function() return db end,
+        refresh = function() o:RefreshExtras() end,
+        onReset = function() ResetAll() end,
+        canReset = function() return S.phase == "betting" end,   -- not mid-hand
+    })
 
     local refreshers = {}
 
@@ -759,43 +751,14 @@ local function BuildOptions(panel)
     refreshers[ns.getn(refreshers) + 1] = MakeCheck(o, -110, "Allow surrender", "surrender")
     refreshers[ns.getn(refreshers) + 1] = MakeCheck(o, -136, "Allow double after split", "doubleAfterSplit")
 
-    -- Reset needs a second click within 3 seconds.
-    local reset
-    reset = MakeButton(o, "Reset stats", 150, function()
-        if reset.armed then
-            reset.armed = nil
-            ResetAll()
-            o:Refresh()
-        else
-            reset.armed = true
-            reset:SetText("Click again to reset")
-            ns:After(3, function()
-                if reset.armed then
-                    reset.armed = nil
-                    reset:SetText("Reset stats")
-                end
-            end)
-        end
-    end)
-    reset:SetPoint("BOTTOMLEFT", reset:GetParent(), "BOTTOMLEFT", 16, 40)
-
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", done:GetParent(), "BOTTOMRIGHT", -16, 40)
-
-    local sounds = MakeButton(o, "Sounds", 72, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", sounds:GetParent(), "BOTTOM", 30, 40)
-
     local rules = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     rules:SetPoint("BOTTOM", o, "BOTTOM", 0, 14)
     rules:SetText("Rules above are for your solo table; party tables use the standard rules.")
 
-    function o:Refresh()
+    function o:RefreshExtras()
         for _, r in ipairs(refreshers) do r() end
-        ns.SetEnabled(reset, S.phase == "betting")
-        if not reset.armed then reset:SetText("Reset stats") end
     end
 
-    o:SetScript("OnShow", function() local self = this self:Refresh() end)
     return o
 end
 
@@ -846,7 +809,7 @@ end
 -- Options, sounds and party play: the screens that open over the table.
 local function BuildOverlays(panel)
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Blackjack Options", function() return db end)
+    ui.sounds = ui.options.sounds
     BuildParty(panel)
 end
 
@@ -877,11 +840,6 @@ function Blackjack:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.05, 0.30, 0.12, 0.90)
 
-    -- Options sits in the top bar, opposite the "< Games" button.
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     -- Dealer
     ui.dealerLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")

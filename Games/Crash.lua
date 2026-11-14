@@ -251,8 +251,7 @@ end
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    return ns.UI.Options(panel, {
-        title = "Crash Options",
+    return ns:GameOptions(Crash, panel, {
         rulesTop = 50,
         rules = "How it plays: press Bet and the multiplier starts climbing from 1.00x. Press Cash out "
             .. "before it crashes to win your bet times the multiplier; if it crashes first, the bet is lost. "
@@ -263,7 +262,7 @@ local function BuildOptions(panel)
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
         end,
-        sounds = function() return ui.sounds end,
+        db = function() return db end,
     })
 end
 
@@ -280,10 +279,6 @@ function Crash:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.05, 0.07, 0.12, 0.94)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     -- the graph: axes, a curve of dots and the multiplier
     ui.graph = ns.CreateFrame("Frame", nil, panel)
@@ -377,7 +372,7 @@ function Crash:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 6)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Crash Options", function() return db end)
+    ui.sounds = ui.options.sounds
 
     if db.live and db.live > 0 then
         ns:AddChips(db.live)

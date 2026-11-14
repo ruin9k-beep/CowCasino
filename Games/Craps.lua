@@ -518,17 +518,11 @@ end
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Craps Options")
+    local o
+    o = ns:GameOptions(Craps, panel, {
+        db = function() return db end,
+        refresh = function() o:RefreshExtras() end,
+    })
 
     local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -50)
@@ -558,33 +552,10 @@ local function BuildOptions(panel)
         .. "(seven out). Don't Pass is the other side. Odds go behind Pass once there's a point and pay true odds. "
         .. "Field, Any Seven and Any Craps are decided by the next roll. Hover a spot for its details.")
 
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-            db.stats = {}
-            Fill(db.stats, DEFAULT_STATS)
-            Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
 
-    function o:Refresh()
+    function o:RefreshExtras()
         value:SetText(db.oddsMax .. "x")
-        if not (reset.armed and GetTime() - reset.armed <= 3) then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-        end
     end
-    o:SetScript("OnShow", function() this:Refresh() end)
     return o
 end
 
@@ -639,10 +610,6 @@ function Craps:Build(panel)
     solo:SetAllPoints(panel)
     ui.solo = solo
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     -- dice and the point
     ui.dice = ns:CreateDice(solo, 40)
@@ -698,7 +665,7 @@ function Craps:Build(panel)
     ui.stats:SetPoint("BOTTOM", solo, "BOTTOM", 0, 12)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Craps Options", function() return db end)
+    ui.sounds = ui.options.sounds
     BuildParty(panel)
 
     if Rules.Total(db.bets) > 0 then

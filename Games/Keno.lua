@@ -359,8 +359,7 @@ local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
     local o
-    o = ns.UI.Options(panel, {
-        title = "Keno Options",
+    o = ns:GameOptions(Keno, panel, {
         rulesTop = 40,
         rules = "How it plays: click 1 to 10 numbers on the board (or Quick pick), set your bet and Play. "
             .. "Twenty of the eighty numbers are drawn. Gold squares are your catches. The table under the board "
@@ -372,7 +371,7 @@ local function BuildOptions(panel)
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
         end,
-        sounds = function() return ui.sounds end,
+        db = function() return db end,
         onRefresh = function() o:RefreshExtras() end,
     })
 
@@ -432,10 +431,6 @@ function Keno:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.12, 0.08, 0.2, 0.94)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     -- The board: 80 numbers, ten to a row
     ui.cells = {}
@@ -507,7 +502,7 @@ function Keno:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Keno Options", function() return db end)
+    ui.sounds = ui.options.sounds
 
     if db.game then
         -- a game cut off by a reload: its numbers were already drawn, so show them

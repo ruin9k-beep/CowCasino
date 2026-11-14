@@ -363,19 +363,10 @@ end
 -- Options overlay: pick the gem and mine icons
 ---------------------------------------------------------------------------
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(o:GetParent())
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.92)
-
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Mines Options")
+    local o
+    o = ns:GameOptions(Mines, panel, {
+        refresh = function() o:RefreshExtras() end,
+    })
 
     local pickers = {}
     local function Picker(kind, label, y)
@@ -425,13 +416,10 @@ local function BuildOptions(panel)
     hint:SetWidth(AREA_W - 32)
     hint:SetText("Changes show on the board straight away, even mid-game. The icons are for looks only.")
 
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOM", done:GetParent(), "BOTTOM", 0, 12)
 
-    function o:Refresh()
+    function o:RefreshExtras()
         for _, p in ipairs(pickers) do p() end
     end
-    o:SetScript("OnShow", function() local self = this self:Refresh() end)
     return o
 end
 
@@ -448,12 +436,6 @@ function Mines:Build(panel)
     felt:SetAllPoints(panel)
     Color(felt, ART.felt)
 
-    -- Options sits in the top bar, opposite the "< Games" button.
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetHeight(22)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     ui.info = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.info:SetPoint("TOP", panel, "TOP", 0, -6)

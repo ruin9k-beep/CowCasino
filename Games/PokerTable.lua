@@ -2613,7 +2613,7 @@ end
 local BuildTable = HOLDEM and BuildTableHoldem or BuildTableDraw
 
 ---------------------------------------------------------------------------
--- Overlays: options (card art) and party tables
+-- Overlays: options (blinds; the page is the window's) and party tables
 ---------------------------------------------------------------------------
 
 local function Overlay(panel, titleText)
@@ -2632,18 +2632,12 @@ local function Overlay(panel, titleText)
 end
 
 local function BuildOptions(panel)
-    local o = Overlay(panel, V.name .. " Options")
-
-    local note = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    note:SetPoint("TOP", o, "TOP", 0, -32)
-    note:SetWidth(AREA_W - 32)
-    note:SetText("Card art is in the CowCasino Options, shared by every card game.")
-
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOM", o, "BOTTOM", 0, 12)
-
-    local sounds = MakeButton(o, "Sounds", 90, function() ui.sounds:Show() end, 24)
-    sounds:SetPoint("TOP", o, "TOP", 0, -140)
+    local o
+    o = ns:GameOptions(Poker, panel, {
+        note = "Card art is in the CowCasino Options, shared by every card game.",
+        db = function() return db end,
+        refresh = function() o:RefreshExtras() end,
+    })
 
     -- Blinds for the next table you sit at or host
     local blindsLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -2673,9 +2667,9 @@ local function BuildOptions(panel)
         Leave()
         o:Refresh()
     end, 24)
-    closeTable:SetPoint("BOTTOM", o, "BOTTOM", 0, 48)
+    closeTable:SetPoint("BOTTOM", o, "BOTTOM", 0, 74)
 
-    function o:Refresh()
+    function o:RefreshExtras()
         local sb, bb = ChosenBlinds()
         local level = db.blinds or DEFAULT_BLINDS
         blindsValue:SetText(Fmt(sb) .. " / " .. Fmt(bb))
@@ -2703,7 +2697,6 @@ local function BuildOptions(panel)
             closeTable:Hide()
         end
     end
-    o:SetScript("OnShow", function() this:Refresh() end)
     return o
 end
 
@@ -2894,12 +2887,8 @@ function Poker:Build(panel)
     BuildLobby(panel)
     BuildTable(panel)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, V.name .. " Options", function() return db end)
+    ui.sounds = ui.options.sounds
     ui.party = BuildParty(panel)
 
     ResetToLobby()

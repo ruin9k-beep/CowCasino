@@ -268,8 +268,7 @@ end
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    return ns.UI.Options(panel, {
-        title = "Video Poker Options",
+    return ns:GameOptions(VideoPoker, panel, {
         rulesTop = 48,
         rules = "How it plays: pick a coin size and bet one to five coins, then Deal. Click the cards you want "
             .. "to keep (they show HELD), then Draw to replace the rest. A pair of Jacks or better pays; the pay table "
@@ -282,7 +281,7 @@ local function BuildOptions(panel)
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
         end,
-        sounds = function() return ui.sounds end,
+        db = function() return db end,
     })
 end
 
@@ -299,10 +298,6 @@ function VideoPoker:Build(panel)
     felt:SetAllPoints(panel)
     felt:SetTexture(0.04, 0.06, 0.22, 0.94)
 
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     -- The pay table: hand names, then a column per number of coins
     local TOP, ROW_H = -4, 13
@@ -401,7 +396,7 @@ function VideoPoker:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 5)
 
     ui.options = BuildOptions(panel)
-    ui.sounds = ns:CreateSoundOptions(panel, "Video Poker Options", function() return db end)
+    ui.sounds = ui.options.sounds
 
     if db.hand then
         SetStatus("Welcome back - your hand is still dealt. Hold and Draw.")

@@ -981,18 +981,10 @@ end
 -- Options: which machine
 ---------------------------------------------------------------------------
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(o:GetParent())
-    o:SetFrameLevel(panel:GetFrameLevel() + 60)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.92)
-
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Slots Options")
+    local o
+    o = ns:GameOptions(Slots, panel, {
+        refresh = function() o:RefreshExtras() end,
+    })
 
     local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -52)
@@ -1044,10 +1036,9 @@ local function BuildOptions(panel)
     autoNote:SetText("Auto plays this many paid spins at your bet, plus any free spins they win. "
         .. "It stops when you press Stop, run short of chips or leave Slots.")
 
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOM", done:GetParent(), "BOTTOM", 0, 10)
 
-    function o:Refresh()
+    function o:RefreshExtras()
+        if ui.paytable then ui.paytable:Hide() end     -- Options and the paytable share the space
         local id, name, lines = Slots:GetMachine(), "?", 0
         for _, m in ipairs(MACHINES) do
             if m.id == id then name, lines = m.name, ns.getn(m.lines) end
@@ -1060,7 +1051,6 @@ local function BuildOptions(panel)
             or (lines .. " paylines. Every machine returns about 95% over time, free spins included."))
         autoValue:SetText(db.autoCount .. " spins")
     end
-    o:SetScript("OnShow", function() this:Refresh() end)
     return o
 end
 
@@ -1082,14 +1072,9 @@ function Slots:Build(panel)
     felt:SetTexture(0.25, 0.05, 0.08, 0.92)
     ui.felt = felt
 
-    -- Options sits in the top bar where the other games have theirs; the
-    -- Paytable button is down by Spin (on its left, mirroring Auto).
+    -- Options is the window's button, top right; the Paytable button is
+    -- down by Spin (on its left, mirroring Auto).
     ui.options = BuildOptions(panel)
-    local optionsButton = MakeButton(panel, "Options", 70, function()
-        if ui.paytable then ui.paytable:Hide() end
-        ns.SetShown(ui.options, not ui.options:IsShown())
-    end, 22)
-    optionsButton:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 6)
 
     ui.topPay = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.topPay:SetPoint("TOP", panel, "TOP", 0, -8)
