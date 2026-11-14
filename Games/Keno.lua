@@ -58,19 +58,7 @@ local Fill = ns.UI.Fill
 -- The last few games along a line, newest on the left: what each one won or
 -- lost after its bet.
 local recent = {}
-local function RecentText()
-    local parts = {}
-    for i = 1, math.min(6, ns.getn(recent)) do
-        local n = recent[i]
-        local text = (n > 0 and ("|cff40ff40+" .. Fmt(n))) or (n < 0 and ("|cffff7070-" .. Fmt(-n))) or "|cffaaaaaa0"
-        table.insert(parts, text .. "|r")
-    end
-    return table.concat(parts, "  ")
-end
-local function AddRecent(n)
-    table.insert(recent, 1, n)
-    if ns.getn(recent) > 12 then table.remove(recent) end
-end
+local function AddRecent(n) ns.UI.AddHistory(recent, n) end
 
 local function FmtMult(m)
     if m == math.floor(m) then return Fmt(m) end
@@ -181,11 +169,7 @@ local function Refresh()
     RefreshPays()
 
     local busy = db.game ~= nil or S.autoLeft > 0
-    local bi = 1
-    for i, v in ipairs(BETS) do if v == db.bet then bi = i end end
-    ns.SetEnabled(ui.betDown, not busy and bi > 1)
-    ns.SetEnabled(ui.betUp, not busy and bi < ns.getn(BETS))
-    ui.betText:SetText("Bet |cffffffff" .. Fmt(db.bet) .. "|r")
+    ui.bet:Refresh()
     ns.SetEnabled(ui.quick, not busy)
     ns.SetEnabled(ui.clear, not busy and Spots() > 0)
     local spots = Spots()
@@ -206,7 +190,7 @@ local function Refresh()
         ui.catch:SetText("")
     end
     ui.stats:SetText(StatsText())
-    ui.history:SetText(RecentText())
+    ui.history:Update()
 end
 
 ---------------------------------------------------------------------------
@@ -341,15 +325,6 @@ local function ToggleAuto()
     Play()
 end
 
-local function StepBet(dir)
-    if db.game or S.autoLeft > 0 then return end
-    local idx = 1
-    for i, v in ipairs(BETS) do if v == db.bet then idx = i end end
-    idx = math.max(1, math.min(ns.getn(BETS), idx + dir))
-    db.bet = BETS[idx]
-    ns:Sound("IG_MAINMENU_OPTION")
-    Refresh()
-end
 
 -- The draw, one number at a time; Auto's next game after a pause.
 local ticker = ns.CreateFrame("Frame")
@@ -383,27 +358,23 @@ end)
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Keno Options")
-
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -40)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: click 1 to 10 numbers on the board (or Quick pick), set your bet and Play. "
-        .. "Twenty of the eighty numbers are drawn. Gold squares are your catches. The table under the board "
-        .. "shows what each catch pays for the number of spots you picked, as times your bet. Ten spots pay "
-        .. "5x for catching none at all.\n\nYour numbers stay picked, so Play again repeats them. Auto plays "
-        .. "several games in a row and stops if you run short of chips.")
+    local o
+    o = ns.UI.Options(panel, {
+        title = "Keno Options",
+        rulesTop = 40,
+        rules = "How it plays: click 1 to 10 numbers on the board (or Quick pick), set your bet and Play. "
+            .. "Twenty of the eighty numbers are drawn. Gold squares are your catches. The table under the board "
+            .. "shows what each catch pays for the number of spots you picked, as times your bet. Ten spots pay "
+            .. "5x for catching none at all.\n\nYour numbers stay picked, so Play again repeats them. Auto plays "
+            .. "several games in a row and stops if you run short of chips.",
+        onReset = function()
+            db.stats = {}
+            Fill(db.stats, DEFAULT_STATS)
+            Refresh()
+        end,
+        sounds = function() return ui.sounds end,
+        onRefresh = function() o:RefreshExtras() end,
+    })
 
     local autoLabel = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     autoLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -170)
@@ -435,38 +406,14 @@ local function BuildOptions(panel)
     end)
     qUp:SetPoint("LEFT", qText, "RIGHT", 4, 0)
 
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-            db.stats = {}
-            Fill(db.stats, DEFAULT_STATS)
-            Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
-
-    function o:Refresh()
+    function o:RefreshExtras()
         for i, n in ipairs(AUTO_COUNTS) do
             autoBtns[i]:SetText(n == db.autoCount and ("|cffffff00" .. n .. "|r") or tostring(n))
         end
         qText:SetText(tostring(db.quickSpots))
         ns.SetEnabled(qDown, db.quickSpots > 1)
         ns.SetEnabled(qUp, db.quickSpots < MAX_SPOTS)
-        if not (reset.armed and GetTime() - reset.armed <= 3) then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-        end
     end
-    o:SetScript("OnShow", function() this:Refresh() end)
     return o
 end
 
@@ -533,13 +480,15 @@ function Keno:Build(panel)
     local row = ns.CreateFrame("Frame", nil, panel)
     row:SetWidth(AREA_W - 8); row:SetHeight(24)
     row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 48)
-    ui.betDown = MakeButton(row, "<", 24, function() StepBet(-1) end)
-    ui.betDown:SetPoint("LEFT", row, "LEFT", 6, 0)
-    ui.betText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.betText:SetPoint("LEFT", ui.betDown, "RIGHT", 2, 0)
-    ui.betText:SetWidth(90)
-    ui.betUp = MakeButton(row, ">", 24, function() StepBet(1) end)
-    ui.betUp:SetPoint("LEFT", ui.betText, "RIGHT", 2, 0)
+    ui.bet = ns.UI.Stepper(row, {
+        list = BETS, width = 90,
+        label = function(v) return "Bet |cffffffff" .. Fmt(v) .. "|r" end,
+        get = function() return db.bet end,
+        set = function(v) db.bet = v end,
+        locked = function() return db.game ~= nil or S.autoLeft > 0 end,
+        onChange = function() Refresh() end,
+    })
+    ui.bet:SetPoint("LEFT", row, "LEFT", 6, 0)
     ui.clear = MakeButton(row, "Clear", 60, Clear)
     ui.clear:SetPoint("RIGHT", row, "RIGHT", -6, 0)
     ui.quick = MakeButton(row, "Quick pick", 86, QuickPick)
@@ -551,7 +500,7 @@ function Keno:Build(panel)
     ui.auto:SetPoint("LEFT", ui.play, "RIGHT", 10, 0)
 
     -- the last few games, just above the bet
-    ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.history = ns.UI.History(panel, recent)
     ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 76)
 
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -614,7 +563,7 @@ function Keno:ResetStats()
     if not d then return end
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
-    for i = ns.getn(recent), 1, -1 do table.remove(recent, i) end
+    ns.UI.ClearHistory(recent)
     if ui.stats and db then Refresh() end
 end
 

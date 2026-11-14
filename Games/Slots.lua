@@ -331,18 +331,6 @@ local function SetLit(wins, scatters)
     for _, c in ipairs(scatters or {}) do ui.reels[c[1]].glows[c[2]]:Show() end
 end
 
--- The last few spins along a line, newest on the left: what each one won or
--- lost after its bet (a free spin costs nothing, so it shows its whole win).
-local RECENT_SHOWN = 6
-local function RecentText()
-    local parts = {}
-    for i = 1, math.min(RECENT_SHOWN, ns.getn(S.recent)) do
-        local n = S.recent[i]
-        local text = (n > 0 and ("|cff40ff40+" .. Fmt(n))) or (n < 0 and ("|cffff7070-" .. Fmt(-n))) or "|cffaaaaaa0"
-        table.insert(parts, text .. "|r")
-    end
-    return table.concat(parts, "  ")
-end
 
 local function Refresh()
     for r = 1, REELS do DrawReel(r) end
@@ -384,7 +372,7 @@ local function Refresh()
         ui.felt:SetTexture(0.25, 0.05, 0.08, 0.92)
     end
     ui.stats:SetText(BottomStats())
-    ui.history:SetText(RecentText())
+    ui.history:Update()
     ns:UpdateChipsDisplay()
     if ui.paytable and ui.paytable:IsShown() then ui.paytable:Refresh() end
 end
@@ -450,8 +438,7 @@ local function Settle(quiet)
         if win > s.biggestWin then s.biggestWin = win end
     end
     if jackpot then s.jackpots = s.jackpots + 1 end
-    table.insert(S.recent, 1, win - (pending.free and 0 or totalBet))
-    if ns.getn(S.recent) > 12 then table.remove(S.recent) end
+    ns.UI.AddHistory(S.recent, win - (pending.free and 0 or totalBet))   -- a free spin costs nothing
 
     -- free spins: count this one, raise the multiplier, add more on scatters
     local started, retriggered, finished
@@ -1140,7 +1127,7 @@ function Slots:Build(panel)
     paytableButton:SetPoint("RIGHT", ui.spin, "LEFT", -10, 0)
 
     -- the last few spins, just above the bet
-    ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.history = ns.UI.History(panel, S.recent)
     ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 76)
 
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1203,7 +1190,7 @@ function Slots:ResetStats()
     if not d then return end
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
-    for i = ns.getn(S.recent), 1, -1 do table.remove(S.recent, i) end
+    ns.UI.ClearHistory(S.recent)
     if ui.stats and db then Refresh() end
 end
 

@@ -44,14 +44,24 @@ end
 -- The last few games along one line, newest on the left: what each one won
 -- or lost after its bet. It lasts for the session (like Plinko's), and
 -- clears with the game's stats.
---   local h = UI.History(panel); h:SetPoint(...)
---   h:Add(net)   after each game;   h:Clear()   when the stats reset
+--   local h = UI.History(panel, list); h:SetPoint(...)
+--   UI.AddHistory(list, net)   after each game (works before the screen is built)
+--   h:Update()   to redraw it;   UI.ClearHistory(list)   when the stats reset
 ---------------------------------------------------------------------------
 local HISTORY_SHOWN, HISTORY_KEPT = 6, 12
 
-function UI.History(parent)
+function UI.AddHistory(list, n)
+    table.insert(list, 1, n)
+    if ns.getn(list) > HISTORY_KEPT then table.remove(list) end
+end
+
+function UI.ClearHistory(list)
+    for i = ns.getn(list), 1, -1 do table.remove(list, i) end
+end
+
+function UI.History(parent, list)
     local h = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    h.list = {}
+    h.list = list or {}
     function h:Text()
         local parts = {}
         for i = 1, math.min(HISTORY_SHOWN, ns.getn(self.list)) do
@@ -63,12 +73,11 @@ function UI.History(parent)
     end
     function h:Update() self:SetText(self:Text()) end
     function h:Add(n)
-        table.insert(self.list, 1, n)
-        if ns.getn(self.list) > HISTORY_KEPT then table.remove(self.list) end
+        UI.AddHistory(self.list, n)
         self:Update()
     end
     function h:Clear()
-        for i = ns.getn(self.list), 1, -1 do table.remove(self.list, i) end
+        UI.ClearHistory(self.list)
         self:Update()
     end
     return h

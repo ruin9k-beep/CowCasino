@@ -177,16 +177,9 @@ local function Refresh()
         ui.dealerHand:SetText("")
     end
 
-    ui.anteText:SetText("Ante |cffffffff" .. Fmt(db.ante) .. "|r")
-    ui.ppText:SetText("Pair Plus " .. (db.pp > 0 and ("|cffffffff" .. Fmt(db.pp) .. "|r") or "|cff999999off|r"))
+    ui.ante:Refresh()
+    ui.pairPlus:Refresh()
     local idle = h == nil
-    local ai, pi = 1, 1
-    for i, v in ipairs(ANTES) do if v == db.ante then ai = i end end
-    for i, v in ipairs(PAIR_PLUS) do if v == db.pp then pi = i end end
-    ns.SetEnabled(ui.anteDown, idle and ai > 1)
-    ns.SetEnabled(ui.anteUp, idle and ai < ns.getn(ANTES))
-    ns.SetEnabled(ui.ppDown, idle and pi > 1)
-    ns.SetEnabled(ui.ppUp, idle and pi < ns.getn(PAIR_PLUS))
     if idle then
         ui.deal:SetText("Deal " .. Fmt(db.ante + db.pp))
         ns.SetEnabled(ui.deal, ns.db.chips >= NeedFor(db.ante, db.pp))
@@ -298,14 +291,15 @@ local function Finish(play)
     Refresh()
 end
 
-local function Step(list, key, dir)
-    if db.hand then return end
-    local idx = 1
-    for i, v in ipairs(list) do if v == db[key] then idx = i end end
-    idx = math.max(1, math.min(ns.getn(list), idx + dir))
-    db[key] = list[idx]
-    ns:Sound("IG_MAINMENU_OPTION")
-    Refresh()
+-- A "< amount >" picker over one of the bet lists (locked while a hand is dealt).
+local function Picker(parent, list, key, label, width)
+    return ns.UI.Stepper(parent, {
+        list = list, width = width, label = label,
+        get = function() return db[key] end,
+        set = function(v) db[key] = v end,
+        locked = function() return db.hand ~= nil end,
+        onChange = function() Refresh() end,
+    })
 end
 
 ---------------------------------------------------------------------------
@@ -314,55 +308,25 @@ end
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Three Card Poker Options")
-
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -40)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: bet the Ante (and Pair Plus if you like) and Deal. Look at your three cards, then "
-        .. "Play (bet the Ante again) or Fold (lose the Ante).\n\n"
-        .. "The dealer needs Queen high or better. If not, your Ante pays 1 to 1 and the Play bet comes back. "
-        .. "If it does, the better hand wins Ante and Play at 1 to 1; a tie gives both back.\n\n"
-        .. "Ante bonus (when you Play, whatever the dealer has): straight 1, three of a kind 4, straight flush 5.\n"
-        .. "Pair Plus (on your cards alone, even if you fold): pair 1, flush 4, straight 6, three of a kind 30, "
-        .. "straight flush 40.\n\n"
-        .. "Hands, best first: straight flush, three of a kind, straight, flush, pair, high card. "
-        .. "A-2-3 is the lowest straight. Tip: Play with Queen-6-4 or better, and fold worse.")
-
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
+    return ns.UI.Options(panel, {
+        title = "Three Card Poker Options",
+        rulesTop = 40,
+        rules = "How it plays: bet the Ante (and Pair Plus if you like) and Deal. Look at your three cards, then "
+            .. "Play (bet the Ante again) or Fold (lose the Ante).\n\n"
+            .. "The dealer needs Queen high or better. If not, your Ante pays 1 to 1 and the Play bet comes back. "
+            .. "If it does, the better hand wins Ante and Play at 1 to 1; a tie gives both back.\n\n"
+            .. "Ante bonus (when you Play, whatever the dealer has): straight 1, three of a kind 4, straight flush 5.\n"
+            .. "Pair Plus (on your cards alone, even if you fold): pair 1, flush 4, straight 6, three of a kind 30, "
+            .. "straight flush 40.\n\n"
+            .. "Hands, best first: straight flush, three of a kind, straight, flush, pair, high card. "
+            .. "A-2-3 is the lowest straight. Tip: Play with Queen-6-4 or better, and fold worse.",
+        onReset = function()
             db.stats = {}
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
-    o:SetScript("OnShow", function()
-        reset.armed = nil
-        reset:SetText("Reset stats")
-    end)
-    return o
+        end,
+        sounds = function() return ui.sounds end,
+    })
 end
 
 local function CardRow(panel, top)
@@ -426,20 +390,12 @@ function TCP:Build(panel)
     local row = ns.CreateFrame("Frame", nil, panel)
     row:SetWidth(AREA_W - 8); row:SetHeight(24)
     row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 48)
-    ui.anteDown = MakeButton(row, "<", 24, function() Step(ANTES, "ante", -1) end)
-    ui.anteDown:SetPoint("LEFT", row, "LEFT", 6, 0)
-    ui.anteText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.anteText:SetPoint("LEFT", ui.anteDown, "RIGHT", 2, 0)
-    ui.anteText:SetWidth(96)
-    ui.anteUp = MakeButton(row, ">", 24, function() Step(ANTES, "ante", 1) end)
-    ui.anteUp:SetPoint("LEFT", ui.anteText, "RIGHT", 2, 0)
-    ui.ppUp = MakeButton(row, ">", 24, function() Step(PAIR_PLUS, "pp", 1) end)
-    ui.ppUp:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-    ui.ppText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.ppText:SetPoint("RIGHT", ui.ppUp, "LEFT", -2, 0)
-    ui.ppText:SetWidth(116)
-    ui.ppDown = MakeButton(row, "<", 24, function() Step(PAIR_PLUS, "pp", -1) end)
-    ui.ppDown:SetPoint("RIGHT", ui.ppText, "LEFT", -2, 0)
+    ui.ante = Picker(row, ANTES, "ante", function(v) return "Ante |cffffffff" .. Fmt(v) .. "|r" end, 96)
+    ui.ante:SetPoint("LEFT", row, "LEFT", 6, 0)
+    ui.pairPlus = Picker(row, PAIR_PLUS, "pp", function(v)
+        return "Pair Plus " .. (v > 0 and ("|cffffffff" .. Fmt(v) .. "|r") or "|cff999999off|r")
+    end, 116)
+    ui.pairPlus:SetPoint("RIGHT", row, "RIGHT", -6, 0)
 
     ui.deal = MakeButton(panel, "Deal", 180, function() Deal() end, 28)
     ui.deal:SetPoint("BOTTOM", panel, "BOTTOM", 0, 18)

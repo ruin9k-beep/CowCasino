@@ -188,16 +188,8 @@ local function Refresh()
     end
 
     -- stake and starting number
-    local idle = d == nil and not S.posted
-    local si, ti = 1, 1
-    for i, v in ipairs(STAKES) do if v == db.stake then si = i end end
-    for i, v in ipairs(STARTS) do if v == db.start then ti = i end end
-    ns.SetEnabled(ui.stakeDown, idle and si > 1)
-    ns.SetEnabled(ui.stakeUp, idle and si < ns.getn(STAKES))
-    ns.SetEnabled(ui.startDown, idle and ti > 1)
-    ns.SetEnabled(ui.startUp, idle and ti < ns.getn(STARTS))
-    ui.stakeText:SetText("Stake |cffffffff" .. Fmt(db.stake) .. "|r")
-    ui.startText:SetText("From |cffffffff" .. Fmt(db.start) .. "|r")
+    ui.stake:Refresh()
+    ui.start:Refresh()
 
     -- the main button
     ui.forfeit:Hide()
@@ -550,14 +542,16 @@ end)
 ---------------------------------------------------------------------------
 local MakeButton = ns.UI.Button
 
-local function Step(list, key, dir)
-    if S.duel or S.posted then return end
-    local idx = 1
-    for i, v in ipairs(list) do if v == db[key] then idx = i end end
-    idx = math.max(1, math.min(ns.getn(list), idx + dir))
-    db[key] = list[idx]
-    ns:Sound("IG_MAINMENU_OPTION")
-    Refresh()
+-- A "< amount >" picker (locked during a duel or an open challenge).
+local function Picker(parent, list, key, word)
+    return ns.UI.Stepper(parent, {
+        list = list, width = 104,
+        label = function(v) return word .. " |cffffffff" .. Fmt(v) .. "|r" end,
+        get = function() return db[key] end,
+        set = function(v) db[key] = v end,
+        locked = function() return S.duel ~= nil or S.posted ~= nil end,
+        onChange = function() Refresh() end,
+    })
 end
 
 local function SetMode(mode)
@@ -575,54 +569,24 @@ local function SetMode(mode)
 end
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Deathroll Options")
-
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -40)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: both players put up the stake. The first roll is 1 to the starting number; "
-        .. "each roll after that is 1 to the last roll. Whoever rolls a 1 loses, and the other takes both "
-        .. "stakes. It's an even game: neither side has the edge.\n\n"
-        .. "Vs the dealer: you roll first and the dealer answers.\n\n"
-        .. "Party duel: free to play, for bragging rights only (your chips are never touched). Challenge the "
-        .. "group, and the first player with CowCasino to accept is your opponent. The challenger rolls first. "
-        .. "Party rolls are real /rolls everyone can see. Forfeit gives up the duel; if the other player goes "
-        .. "quiet for a minute you can call it off instead. A reload calls a party duel off too.")
-
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
+    return ns.UI.Options(panel, {
+        title = "Deathroll Options",
+        rulesTop = 40,
+        rules = "How it plays: both players put up the stake. The first roll is 1 to the starting number; "
+            .. "each roll after that is 1 to the last roll. Whoever rolls a 1 loses, and the other takes both "
+            .. "stakes. It's an even game: neither side has the edge.\n\n"
+            .. "Vs the dealer: you roll first and the dealer answers.\n\n"
+            .. "Party duel: free to play, for bragging rights only (your chips are never touched). Challenge the "
+            .. "group, and the first player with CowCasino to accept is your opponent. The challenger rolls first. "
+            .. "Party rolls are real /rolls everyone can see. Forfeit gives up the duel; if the other player goes "
+            .. "quiet for a minute you can call it off instead. A reload calls a party duel off too.",
+        onReset = function()
             db.stats = {}
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
-    o:SetScript("OnShow", function()
-        reset.armed = nil
-        reset:SetText("Reset stats")
-    end)
-    return o
+        end,
+        sounds = function() return ui.sounds end,
+    })
 end
 
 function Deathroll:Build(panel)
@@ -692,20 +656,10 @@ function Deathroll:Build(panel)
     local row = ns.CreateFrame("Frame", nil, panel)
     row:SetWidth(AREA_W - 8); row:SetHeight(24)
     row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 52)
-    ui.stakeDown = MakeButton(row, "<", 24, function() Step(STAKES, "stake", -1) end)
-    ui.stakeDown:SetPoint("LEFT", row, "LEFT", 6, 0)
-    ui.stakeText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.stakeText:SetPoint("LEFT", ui.stakeDown, "RIGHT", 2, 0)
-    ui.stakeText:SetWidth(104)
-    ui.stakeUp = MakeButton(row, ">", 24, function() Step(STAKES, "stake", 1) end)
-    ui.stakeUp:SetPoint("LEFT", ui.stakeText, "RIGHT", 2, 0)
-    ui.startUp = MakeButton(row, ">", 24, function() Step(STARTS, "start", 1) end)
-    ui.startUp:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-    ui.startText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.startText:SetPoint("RIGHT", ui.startUp, "LEFT", -2, 0)
-    ui.startText:SetWidth(104)
-    ui.startDown = MakeButton(row, "<", 24, function() Step(STARTS, "start", -1) end)
-    ui.startDown:SetPoint("RIGHT", ui.startText, "LEFT", -2, 0)
+    ui.stake = Picker(row, STAKES, "stake", "Stake")
+    ui.stake:SetPoint("LEFT", row, "LEFT", 6, 0)
+    ui.start = Picker(row, STARTS, "start", "From")
+    ui.start:SetPoint("RIGHT", row, "RIGHT", -6, 0)
 
     ui.go = MakeButton(panel, "Duel", 170, function()
         if S.duel then Roll()

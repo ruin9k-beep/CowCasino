@@ -251,54 +251,20 @@ end
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Crash Options")
-
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -50)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: press Bet and the multiplier starts climbing from 1.00x. Press Cash out "
-        .. "before it crashes to win your bet times the multiplier; if it crashes first, the bet is lost. "
-        .. "A run reaches 2x about half the time and 10x about one time in ten. Set an auto cash-out on the "
-        .. "table to take the win at your target automatically.")
-
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
+    return ns.UI.Options(panel, {
+        title = "Crash Options",
+        rulesTop = 50,
+        rules = "How it plays: press Bet and the multiplier starts climbing from 1.00x. Press Cash out "
+            .. "before it crashes to win your bet times the multiplier; if it crashes first, the bet is lost. "
+            .. "A run reaches 2x about half the time and 10x about one time in ten. Set an auto cash-out on the "
+            .. "table to take the win at your target automatically.",
+        onReset = function()
             db.stats = {}
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
-
-    function o:Refresh()
-        if not (reset.armed and GetTime() - reset.armed <= 3) then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-        end
-    end
-    o:SetScript("OnShow", function() this:Refresh() end)
-    return o
+        end,
+        sounds = function() return ui.sounds end,
+    })
 end
 
 function Crash:Build(panel)

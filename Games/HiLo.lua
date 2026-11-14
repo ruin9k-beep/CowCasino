@@ -76,19 +76,7 @@ end
 -- The last few games along a line, newest on the left: what each one won or
 -- lost after its bet.
 local recent = {}
-local function RecentText()
-    local parts = {}
-    for i = 1, math.min(6, ns.getn(recent)) do
-        local n = recent[i]
-        local text = (n > 0 and ("|cff40ff40+" .. Fmt(n))) or (n < 0 and ("|cffff7070-" .. Fmt(-n))) or "|cffaaaaaa0"
-        table.insert(parts, text .. "|r")
-    end
-    return table.concat(parts, "  ")
-end
-local function AddRecent(n)
-    table.insert(recent, 1, n)
-    if ns.getn(recent) > 12 then table.remove(recent) end
-end
+local function AddRecent(n) ns.UI.AddHistory(recent, n) end
 
 local function StatsText()
     local s = db.stats
@@ -151,7 +139,7 @@ local function Refresh()
     for _, b in ipairs(ui.chipButtons) do ns.SetEnabled(b, g == nil) end
     ns.SetEnabled(ui.clear, g == nil and db.bet > 0)
     ui.stats:SetText(StatsText())
-    ui.history:SetText(RecentText())
+    ui.history:Update()
 end
 
 ---------------------------------------------------------------------------
@@ -275,54 +263,20 @@ local function GuessButton(parent, key)
 end
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Hi-Lo Options")
-
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -48)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: bet, and a card is dealt. Guess whether the next card is higher or the same, "
-        .. "or lower or the same. Aces are low and kings high; suits don't matter. Each guess pays its fair odds "
-        .. "less 1%, so the less likely guess pays more, and the multipliers stack from guess to guess. "
-        .. "Cash out any time after a right guess; a wrong one loses the bet. Skip swaps the card for free.")
-
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
+    return ns.UI.Options(panel, {
+        title = "Hi-Lo Options",
+        rulesTop = 48,
+        rules = "How it plays: bet, and a card is dealt. Guess whether the next card is higher or the same, "
+            .. "or lower or the same. Aces are low and kings high; suits don't matter. Each guess pays its fair odds "
+            .. "less 1%, so the less likely guess pays more, and the multipliers stack from guess to guess. "
+            .. "Cash out any time after a right guess; a wrong one loses the bet. Skip swaps the card for free.",
+        onReset = function()
             db.stats = {}
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
-
-    function o:Refresh()
-        if not (reset.armed and GetTime() - reset.armed <= 3) then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-        end
-    end
-    o:SetScript("OnShow", function() this:Refresh() end)
-    return o
+        end,
+        sounds = function() return ui.sounds end,
+    })
 end
 
 function HiLo:Build(panel)
@@ -422,7 +376,7 @@ function HiLo:Build(panel)
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 5)
 
     -- the last few games, just above the bet chips
-    ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.history = ns.UI.History(panel, recent)
     ui.history:SetPoint("BOTTOM", panel, "BOTTOM", 0, 84)
 
     ui.options = BuildOptions(panel)
@@ -466,7 +420,7 @@ function HiLo:ResetStats()
     if not d then return end
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
-    for i = ns.getn(recent), 1, -1 do table.remove(recent, i) end
+    ns.UI.ClearHistory(recent)
     if ui.stats and db then Refresh() end
 end
 

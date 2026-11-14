@@ -28,7 +28,9 @@ One addon folder runs on two clients:
 - **Deathroll**: the classic gold duel, against the dealer or with your party (real /rolls)
 
 Party tables and party duels are free to join: everyone plays with the stack the host
-picks, and nobody's own chips are touched.
+picks, and nobody's own chips are touched. Run short at a table and you can top back up to
+that stack between hands. Everyone at a table needs the same party version of CowCasino;
+a table from another version shows in the list but can't be joined.
 
 A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker and Deathroll).
 Pick another dealer in Options, or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`

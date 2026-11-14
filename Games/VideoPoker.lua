@@ -268,56 +268,22 @@ end
 local MakeButton = ns.UI.Button
 
 local function BuildOptions(panel)
-    local o = ns.CreateFrame("Frame", nil, panel)
-    o:SetAllPoints(panel)
-    o:SetFrameLevel(panel:GetFrameLevel() + 50)
-    o:EnableMouse(true)
-    o:Hide()
-    local bg = o:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(o)
-    bg:SetTexture(0, 0, 0, 0.94)
-    local title = o:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", o, "TOP", 0, -10)
-    title:SetText("Video Poker Options")
-
-    local rules = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rules:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -48)
-    rules:SetWidth(AREA_W - 32)
-    rules:SetJustifyH("LEFT")
-    rules:SetText("How it plays: pick a coin size and bet one to five coins, then Deal. Click the cards you want "
-        .. "to keep (they show HELD), then Draw to replace the rest. A pair of Jacks or better pays; the pay table "
-        .. "shows what every hand pays for your coins. Bet five coins for the big Royal Flush: 800 per coin instead "
-        .. "of 250.\n\nThis is the classic 9/6 Jacks or Better machine. Played perfectly it pays back about 99.5% "
-        .. "of what's bet. Tips: hold any paying hand, hold four to a flush or straight flush, hold pairs (even "
-        .. "low ones) over a single high card, and never hold a kicker with a pair.")
-
-    local reset
-    reset = MakeButton(o, "Reset stats", 110, function()
-        if reset.armed and GetTime() - reset.armed <= 3 then
-            reset.armed = nil
-            reset:SetText("Reset stats")
+    return ns.UI.Options(panel, {
+        title = "Video Poker Options",
+        rulesTop = 48,
+        rules = "How it plays: pick a coin size and bet one to five coins, then Deal. Click the cards you want "
+            .. "to keep (they show HELD), then Draw to replace the rest. A pair of Jacks or better pays; the pay table "
+            .. "shows what every hand pays for your coins. Bet five coins for the big Royal Flush: 800 per coin instead "
+            .. "of 250.\n\nThis is the classic 9/6 Jacks or Better machine. Played perfectly it pays back about 99.5% "
+            .. "of what's bet. Tips: hold any paying hand, hold four to a flush or straight flush, hold pairs (even "
+            .. "low ones) over a single high card, and never hold a kicker with a pair.",
+        onReset = function()
             db.stats = {}
             Fill(db.stats, DEFAULT_STATS)
             Refresh()
-            return
-        end
-        reset.armed = GetTime()
-        reset:SetText("Sure? Click again")
-    end)
-    reset:SetPoint("BOTTOMLEFT", o, "BOTTOMLEFT", 16, 40)
-    local sounds = MakeButton(o, "Sounds", 80, function() ui.sounds:Show() end)
-    sounds:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)
-    local done = MakeButton(o, "Done", 90, function() o:Hide() end)
-    done:SetPoint("BOTTOMRIGHT", o, "BOTTOMRIGHT", -16, 40)
-
-    function o:Refresh()
-        if not (reset.armed and GetTime() - reset.armed <= 3) then
-            reset.armed = nil
-            reset:SetText("Reset stats")
-        end
-    end
-    o:SetScript("OnShow", function() this:Refresh() end)
-    return o
+        end,
+        sounds = function() return ui.sounds end,
+    })
 end
 
 function VideoPoker:Build(panel)
