@@ -15,6 +15,7 @@
 --   light, dark, felt   colors of the squares and the table
 --   rulesText  the Rules tab
 --   noun       what a single game is called in messages ("game")
+--   taken      piece -> value: show the captured pieces beside the board
 --
 -- Party games are free (bragging rights): nobody's chips move. A game
 -- against the computer has a stake: a win pays double, a draw gives it back.
@@ -32,6 +33,7 @@ local SQ, BX, BY   = 26, 18, -34       -- square size; the board's top-left in t
 local SIDE_X       = BX + 8 * SQ + 10  -- the column to the right of the board
 local SIDE_W       = 352 - SIDE_X - 4
 local LOG_LINES    = 11
+local TAKEN_SIZE, TAKEN_PER_ROW = 13, 8   -- the captured-piece icons (def.taken)
 local ATLAS        = "Interface\\AddOns\\CowCasino\\Art\\BoardPieces"
 local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
 local THINK_PAUSE  = 0.6     -- seconds before the computer starts thinking
@@ -53,6 +55,17 @@ local function NewId() return tostring(math.random(100000, 999999)) end
 ---------------------------------------------------------------------------
 -- Positions from a list of moves
 ---------------------------------------------------------------------------
+-- The squares a move takes pieces from.
+local function Captures(m)
+    if not m then return nil end
+    if m.caps then
+        if ns.getn(m.caps) > 0 then return m.caps end
+        return nil
+    end
+    if m.cap then return { m.cap } end
+    return nil
+end
+Kit.Captures = Captures
 -- Finds the legal move a wire string stands for.
 function Kit:Decode(pos, text)
     local R = self.def.rules
@@ -66,6 +79,7 @@ end
 function Kit:Replay(g)
     local R = self.def.rules
     g.pos, g.keys, g.last, g.log = R.New(), {}, nil, {}
+    g.taken = { [R.sides[1]] = {}, [R.sides[2]] = {} }     -- pieces each side has taken
     if R.Key then g.keys[R.Key(g.pos)] = 1 end
     local list = g.moves
     g.moves = {}
@@ -89,6 +103,13 @@ function Kit:Advance(g, m)
         g.log[i] = g.log[i] .. "  " .. text
     end
     table.insert(g.moves, R.Encode(m))
+    local caps = Captures(m)
+    if caps then
+        for _, c in ipairs(caps) do
+            local piece = R.PieceAt(g.pos, c)
+            if piece then table.insert(g.taken[g.pos.turn], piece) end
+        end
+    end
     g.pos = R.Apply(g.pos, m)
     g.last = m
     if R.Key then
@@ -200,7 +221,7 @@ function Kit:Finish(winner, why)
         self:Say(self.id .. "Lose", { name = opp }, "That's the game. Better luck next time.")
     end
     if ns.Dealer and not solo then ns.Dealer:SetImage(self, nil) end
-    self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me }
+    self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me, taken = g.taken }
     self.db.stake = ns:FitList(STAKES, self.db.stake)
     self:SetStatus(text, r, gr, b)
     self:Refresh()
@@ -605,18 +626,6 @@ local PATH_STYLES = {
 local STOP_SIZE = 7      -- the dot on each square a move starts, stops or lands on
 local PATH_INSET = 9     -- the path starts this far from the moving piece's center
 
--- The squares a move takes pieces from.
-local function Captures(m)
-    if not m then return nil end
-    if m.caps then
-        if ns.getn(m.caps) > 0 then return m.caps end
-        return nil
-    end
-    if m.cap then return { m.cap } end
-    return nil
-end
-Kit.Captures = Captures
-
 function Kit:Dot(i)
     local ui = self.ui
     local t = ui.dots[i]
@@ -724,6 +733,38 @@ function Kit:DrawBoard(pos, me, last, sel, targets, show)
     end
 end
 
+-- The captured pieces, for a game (or the one just over).
+function Kit:DrawTaken(g)
+    local def, R = self.def, self.def.rules
+    local me = g and g.me or (self.db.side == "?" and R.sides[1] or self.db.side)
+    local them = R.Other(me)
+    local taken = g and g.taken or {}
+    local worth = {}
+    -- row 1: what they took (your pieces); row 2: what you took
+    for k, side in ipairs({ them, me }) do
+        local list = {}
+        for _, p in ipairs(taken[side] or {}) do table.insert(list, p) end
+        table.sort(list, function(a, b) return (def.taken[a] or 0) > (def.taken[b] or 0) end)
+        local row, sum = self.ui.taken[k], 0
+        for i, t in ipairs(row.icons) do
+            local p = list[i]
+            local cell = p and def.atlas[p]
+            if cell then
+                local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 4
+                t:SetTexCoord(u, u + 0.25, v, v + 0.25)
+                t:Show()
+            else
+                t:Hide()
+            end
+        end
+        for _, p in ipairs(list) do sum = sum + (def.taken[p] or 0) end
+        worth[k] = sum
+    end
+    local diff = worth[2] - worth[1]
+    self.ui.taken[1].lead:SetText(diff < 0 and ("|cffff7070+" .. -diff .. "|r") or "")
+    self.ui.taken[2].lead:SetText(diff > 0 and ("|cff66ff66+" .. diff .. "|r") or "")
+end
+
 function Kit:StatsText()
     local s = self.db.stats
     local text = string.format("Games %d  Won %d  Lost %d  Drawn %d", s.games, s.wins, s.losses, s.draws)
@@ -813,7 +854,9 @@ function Kit:Refresh()
     end
     local log = (g and g.log) or (S.over and S.over.log) or {}
     local n = ns.getn(log)
-    for i = 1, LOG_LINES do ui.log[i]:SetText(log[n - LOG_LINES + i] or "") end
+    local lines = self.logLines
+    for i = 1, lines do ui.log[i]:SetText(log[n - lines + i] or "") end
+    if ui.taken then self:DrawTaken(g or S.over) end
 
     -- the party lobby, over the board between games
     local lobby = not solo and not g
@@ -1028,14 +1071,37 @@ function Kit:BuildSide(panel)
     ui.against:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X, BY - 32)
     ui.against:SetWidth(SIDE_W)
     ui.against:SetJustifyH("LEFT")
+    -- the captured pieces: what the other side took on top, what you took
+    -- below (each row up to 8 icons, most valuable first), and who's ahead
+    local logTop, lines = BY - 64, LOG_LINES
+    if self.def.taken then
+        ui.taken = {}
+        for k, y in ipairs({ BY - 60, BY - 92 }) do
+            local row = { icons = {} }
+            for i = 1, 16 do
+                local t = panel:CreateTexture(nil, "ARTWORK")
+                t:SetWidth(TAKEN_SIZE); t:SetHeight(TAKEN_SIZE)
+                t:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X + ns.Mod(i - 1, TAKEN_PER_ROW) * TAKEN_SIZE,
+                    y - math.floor((i - 1) / TAKEN_PER_ROW) * TAKEN_SIZE)
+                t:SetTexture(ATLAS)
+                t:Hide()
+                row.icons[i] = t
+            end
+            row.lead = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            row.lead:SetPoint("TOPRIGHT", panel, "TOPLEFT", SIDE_X + SIDE_W, y - TAKEN_SIZE - 1)
+            ui.taken[k] = row
+        end
+        logTop, lines = BY - 124, 6
+    end
+    self.logLines = lines
     local logBg = panel:CreateTexture(nil, "BORDER")
-    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X - 2, BY - 64)
-    logBg:SetWidth(SIDE_W + 2); logBg:SetHeight(LOG_LINES * 13 + 6)
+    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X - 2, logTop)
+    logBg:SetWidth(SIDE_W + 2); logBg:SetHeight(lines * 13 + 6)
     logBg:SetTexture(0, 0, 0, 0.35)
     ui.log = {}
-    for i = 1, LOG_LINES do
+    for i = 1, lines do
         local t = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        t:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X + 2, BY - 67 - (i - 1) * 13)
+        t:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X + 2, logTop - 3 - (i - 1) * 13)
         t:SetWidth(SIDE_W - 4)
         t:SetJustifyH("LEFT")
         ui.log[i] = t

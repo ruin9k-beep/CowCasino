@@ -31,6 +31,7 @@ local function Dots()
   return n
 end
 
+Check("checkers shows no captured-pieces rows", G.ui.taken == nil)
 Check("Checkers is on the menu, with its icon", ns.games.checkers.icon ~= nil and ns.games.chess ~= nil)
 Check("it opens on Vs the computer, with stake, level and side pickers", G.ui.stake.shown and G.ui.level.shown
   and H.Find("Play for 50") ~= nil)
@@ -224,7 +225,14 @@ host.env.Fire(host.P.ui.squares[Sq("d5")], "OnClick", "LeftButton")
 Run(1)
 Check("after exd5, both boards show the capture as a dotted path", DotsShown(host) > 0 and DotsShown(guest) > 0
   and not host.P.ui.squares[Sq("d5")].threat.shown)
+local function Icons(c, k) local n = 0 for _, t in ipairs(c.P.ui.taken[k].icons) do if t.shown then n = n + 1 end end return n end
+Check("captured pieces: the pawn shows under what the taker took, with +1", Icons(host, 2) == 1 and Icons(host, 1) == 0
+  and string.find(host.P.ui.taken[2].lead.text, "+1", 1, true) ~= nil)
+Check("...and on the other board, as taken from them", Icons(guest, 1) == 1 and Icons(guest, 2) == 0
+  and string.find(guest.P.ui.taken[1].lead.text, "+1", 1, true) ~= nil)
 Move(guest, "d8", "d5")
+Check("taking back evens it: a pawn each, no lead", Icons(host, 1) == 1 and Icons(host, 2) == 1
+  and host.P.ui.taken[1].lead.text == "" and host.P.ui.taken[2].lead.text == "")
 host.env.Fire(host.P.ui.squares[Sq("b1")], "OnClick", "LeftButton")
 Check("a piece with no capture shows no path", DotsShown(host) == 0 and not host.P.ui.squares[Sq("c3")].threat.shown)
 PressIn(host, "Resign")

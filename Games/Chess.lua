@@ -13,6 +13,8 @@ local Chess = ns.BoardKit.New({
     tag = "CS",
     rules = R,
     atlas = { wK = 0, wQ = 1, wR = 2, wB = 3, wN = 4, wP = 5, bK = 6, bQ = 7, bR = 8, bB = 9, bN = 10, bP = 11 },
+    -- captured pieces show beside the board, with what each is worth
+    taken = { wQ = 9, wR = 5, wB = 3, wN = 3, wP = 1, bQ = 9, bR = 5, bB = 3, bN = 3, bP = 1 },
     light = { 0.91, 0.84, 0.69 },
     dark = { 0.55, 0.37, 0.22 },
     felt = { 0.10, 0.07, 0.05, 0.94 },
