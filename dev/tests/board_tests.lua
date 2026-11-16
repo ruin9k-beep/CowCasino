@@ -93,9 +93,33 @@ Check("the level picker shows Easy", string.find(G.ui.level.text.text, "Easy") ~
 G.db.level = 2
 
 ---------------------------------------------------------------------------
+-- Chess against the computer
+---------------------------------------------------------------------------
+ns:OpenGame("chess")
+local CH = ns.games.chess
+Check("Chess opens on Vs the computer too, with Easy, Medium and Hard", CH.ui.stake.shown
+  and string.find(CH.ui.level.text.text, "Medium", 1, true) ~= nil and H.Find("Play for 50") ~= nil)
+CH.db.level = 3
+CH.db.side = "b"
+CH:Refresh()
+before = ns.db.chips
+H.Press("Play for 50")
+local cg = CH.S.game
+Check("playing Black: the stake is paid and the computer moves first", cg ~= nil and cg.me == "b"
+  and ns.db.chips == before - 50 and string.find(CH.ui.files[1].text, "h", 1, true) ~= nil)
+H.Tick(5)
+Check("Hard answers within a few seconds of game time", table.getn(cg.moves) == 1, table.getn(cg.moves))
+env.Fire(CH.ui.squares[Sq("e7")], "OnClick", "LeftButton")
+env.Fire(CH.ui.squares[Sq("e5")], "OnClick", "LeftButton")
+H.Tick(5)
+Check("your move, then the computer's", table.getn(cg.moves) == 3, table.getn(cg.moves))
+H.Press("Resign")
+Check("Resign ends it as a loss", CH.S.game == nil and CH.db.stats.losses == 1 and ns.db.chips == before - 50)
+
+---------------------------------------------------------------------------
 -- Party chess
 ---------------------------------------------------------------------------
-local party = H.Party({ game = "chess", object = function(ns) return ns.games.chess end })
+local party = H.Party({ game = "chess", object = function(ns) return ns.games.chess end, button = "Party game" })
 local clients, byName = party.clients, party.byName
 local NewClient, GroupChanged, Tick, Run = party.NewClient, party.GroupChanged, party.Tick, party.Run
 
@@ -129,8 +153,8 @@ party.group = { "Host", "Guest" }
 local host = NewClient("Host")
 local guest = NewClient("Guest")
 GroupChanged()
-Check("Chess opens straight to the party lobby", host.P.ui.lobby.shown and FindIn(host, "Challenge the group") ~= nil
-  and host.P.ui.stake == nil)
+Check("Chess's Party game tab shows the lobby (no stake or level)", host.P.ui.lobby.shown
+  and FindIn(host, "Challenge the group") ~= nil and not host.P.ui.stake.shown)
 local hostChips = host.ns.db.chips
 PressIn(host, "Challenge the group")
 Run(1)

@@ -341,6 +341,10 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
         },
 
         -- Chess
+        chessStart = {
+            "Chess for {stake}! The machine's been readin' books. Well, one book. It's mostly pictures.",
+            "{stake} says you can outthink a box of gears. I'll hold the chips.",
+        },
         chessParty = {
             "Chess with {name}! Quiet please, the brains are workin'.",
             "{name} at the board! White moves first. No touchin' my pieces, they're rented.",

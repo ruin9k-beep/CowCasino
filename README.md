@@ -26,8 +26,9 @@ One addon folder runs on two clients:
 - **Three Card Poker**: Ante and Play against the dealer, with the Ante bonus and a Pair Plus side bet
 - **Keno**: pick 1 to 10 of 80 numbers, twenty are drawn; quick pick and auto play
 - **Deathroll**: the classic gold duel, against the dealer or with your party (real /rolls)
-- **Checkers**: American checkers against the computer (Easy, Normal or Hard) or anyone in your party
-- **Chess**: the full game against anyone in your party; a reload picks the game back up
+- **Checkers**: American checkers against the computer (Easy, Medium or Hard) or anyone in your party
+- **Chess**: the full game against the computer (Easy, Medium or Hard) or anyone in your party; a reload
+  picks the game back up
 
 Party tables, party duels and party board games are free to join: everyone plays with the stack the host
 picks, and nobody's own chips are touched. Run short at a table and you can top back up to

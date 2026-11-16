@@ -218,7 +218,7 @@ end
 
 -- The computer's move. level: 1 easy, 2 normal, 3 hard. With yield set,
 -- call it from a coroutine: it yields every few hundred positions.
-R.LEVELS = { { name = "Easy", depth = 1, slip = 0.35 }, { name = "Normal", depth = 4, slip = 0.05 }, { name = "Hard", depth = 6, slip = 0 } }
+R.LEVELS = { { name = "Easy", depth = 1, slip = 0.35 }, { name = "Medium", depth = 4, slip = 0.05 }, { name = "Hard", depth = 6, slip = 0 } }
 
 function R.ChooseMove(pos, level, yield)
     local L = R.LEVELS[level] or R.LEVELS[2]

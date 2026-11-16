@@ -168,4 +168,32 @@ while true do
 end
 Check("the computer thinks in slices (a coroutine) and still answers", m ~= nil and yields > 0, yields .. " slices")
 
+-- The chess computer -------------------------------------------------------
+n1 = C.SearchPerft(C.New(), 3)
+n2 = C.SearchPerft(kiwi, 2)
+n3 = C.SearchPerft(p5, 2)
+Check("the computer's own board finds exactly the legal moves", n1 == 8902 and n2 == 2039 and n3 == 1486,
+  n1 .. ", " .. n2 .. ", " .. n3)
+local mate1 = FEN("6k1/5ppp/8/8/8/8/5PPP/R5K1 w - -")
+local ok1 = true
+for lvl = 1, 3 do
+  local m = C.ChooseMove(mate1, lvl, false)
+  if C.Encode(m) ~= "a1a8" then ok1 = false end
+end
+Check("every level plays a back-rank mate in one (Ra8#)", ok1)
+local freeQ = FEN("4k3/8/8/3q4/8/8/8/3RK3 w - -")
+Check("Medium and Hard take a free queen", C.Encode(C.ChooseMove(freeQ, 2, false)) == "d1d5"
+  and C.Encode(C.ChooseMove(freeQ, 3, false)) == "d1d5")
+local guarded = FEN("4k3/3p4/2p5/8/8/8/2Q5/4K3 w - -")  -- c6 is guarded by d7: Qxc6+ loses the queen
+local m = C.ChooseMove(guarded, 3, false)
+Check("Hard won't swap its queen for a guarded pawn", C.Encode(m) ~= "c2c6", C.Encode(m))
+local co2 = coroutine.create(function() return C.ChooseMove(C.New(), 3, true) end)
+local slices = 0
+while true do
+  local _, mv = coroutine.resume(co2)
+  if coroutine.status(co2) == "dead" then m = mv break end
+  slices = slices + 1
+end
+Check("Hard thinks in slices and answers the opening", m ~= nil and slices > 0, slices .. " slices")
+
 H.Done("BOARD RULES")

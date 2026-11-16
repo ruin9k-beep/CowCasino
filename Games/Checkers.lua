@@ -24,7 +24,7 @@ local Checkers = ns.BoardKit.New({
         .. "You win when the other side can't move: no pieces left, or every piece blocked. Forty moves each with "
         .. "no jump and no man moved is a draw.\n\n"
         .. "To move, click a piece, then the square to go to (for a double jump, each landing square in turn).\n\n"
-        .. "Vs the computer: pick a stake, Easy, Normal or Hard, and your side. A win pays double, a draw gives "
+        .. "Vs the computer: pick a stake, Easy, Medium or Hard, and your side. A win pays double, a draw gives "
         .. "your stake back. Party game: free, for bragging rights. Offer a draw or resign at any time.",
 })
 
