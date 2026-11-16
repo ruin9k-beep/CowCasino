@@ -90,8 +90,8 @@ Check("the first hop of a double jump waits for the next", table.getn(g.moves) =
   and table.getn(G.S.sel) == 2 and Dots() == 1)
 Click(KSq(30))
 Check("the second hop finishes it, takes both pieces, and wins", G.S.game == nil and G.db.stats.wins == 1)
-Check("the capture just made stays as a dotted path", Shown(G.ui.dots) > 5 and not G.ui.squares[KSq(18)].threat.shown,
-  Shown(G.ui.dots))
+Check("the capture just made stays as a dotted path, with a dot on each of its three squares",
+  Shown(G.ui.dots) > 12 and not G.ui.squares[KSq(18)].threat.shown, Shown(G.ui.dots))
 Check("a win pays double the stake", ns.db.chips == before + 50, ns.db.chips - before)
 
 -- Hard, Easy: the level picker
@@ -197,6 +197,8 @@ end
 local function DotsShown(c) local n = 0 for _, t in ipairs(c.P.ui.dots) do if t.shown then n = n + 1 end end return n end
 hg, gg = NewGame()
 Move(host, "e2", "e4")
+Check("a plain move gets a dot where it started and where it ended (no line)", DotsShown(host) == 4 and DotsShown(guest) == 4,
+  DotsShown(guest))
 Move(guest, "d7", "d5")
 Check("chess: the pawn that can take is marked", host.P.ui.squares[Sq("e4")].can.shown
   and not host.P.ui.squares[Sq("d2")].can.shown)

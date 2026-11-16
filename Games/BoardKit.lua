@@ -557,8 +557,9 @@ end
 ---------------------------------------------------------------------------
 local PATH_STYLES = {
     dash = { step = 2.5, on = 4, off = 2, size = 3, color = { 1, 0.35, 0.15, 0.95 } },   -- a capture you can make
-    dot  = { step = 6,   on = 1, off = 0, size = 3, color = { 1, 0.85, 0.2, 0.9 } },     -- the capture just made
+    dot  = { step = 6,   on = 1, off = 0, size = 3, color = { 1, 0.85, 0.2, 0.9 } },     -- the move just made
 }
+local STOP_SIZE = 7      -- the dot on each square a move starts, stops or lands on
 local PATH_INSET = 9     -- the path starts this far from the moving piece's center
 
 -- The squares a move takes pieces from.
@@ -589,13 +590,26 @@ local function Center(s, flipped)
     return x * SQ + SQ / 2, y * SQ + SQ / 2
 end
 
--- Draws each path ({ squares, style }) as dots; returns how many were used.
+-- Draws each path ({ squares, style, line }): a dot on every square of the
+-- move (where it starts, each hop, where it ends), and the line between them
+-- unless line is false. Returns how many dots were used.
 function Kit:DrawPaths(paths, flipped)
     local used = 0
+    local board = self.ui.board
+    local function Put(x, y, size, r, g, b, a)
+        used = used + 1
+        local t = self:Dot(used)
+        t:SetWidth(size); t:SetHeight(size)
+        t:SetTexture(r, g, b, a)
+        t:ClearAllPoints()
+        t:SetPoint("CENTER", board, "TOPLEFT", x, -y)
+        t:Show()
+    end
     for _, p in ipairs(paths) do
         local st = PATH_STYLES[p.style]
+        local c = st.color
         local count = 0          -- dots along the whole path, for the dash pattern
-        for i = 1, ns.getn(p.squares) - 1 do
+        for i = 1, (p.line == false) and 0 or (ns.getn(p.squares) - 1) do
             local x1, y1 = Center(p.squares[i], flipped)
             local x2, y2 = Center(p.squares[i + 1], flipped)
             local dx, dy = x2 - x1, y2 - y1
@@ -605,17 +619,15 @@ function Kit:DrawPaths(paths, flipped)
             while d <= len do
                 local k = ns.Mod(count, st.on + st.off)
                 count = count + 1
-                if k < st.on then
-                    used = used + 1
-                    local t = self:Dot(used)
-                    t:SetWidth(st.size); t:SetHeight(st.size)
-                    t:SetTexture(st.color[1], st.color[2], st.color[3], st.color[4])
-                    t:ClearAllPoints()
-                    t:SetPoint("CENTER", self.ui.board, "TOPLEFT", x1 + dx * d / len, -(y1 + dy * d / len))
-                    t:Show()
-                end
+                if k < st.on then Put(x1 + dx * d / len, y1 + dy * d / len, st.size, c[1], c[2], c[3], c[4]) end
                 d = d + st.step
             end
+        end
+        -- the stops: a dark edge round a bright dot, so it shows on any square or piece
+        for _, sq in ipairs(p.squares) do
+            local x, y = Center(sq, flipped)
+            Put(x, y, STOP_SIZE + 2, 0, 0, 0, 0.7)
+            Put(x, y, STOP_SIZE, c[1], c[2], c[3], 1)
         end
     end
     for i = used + 1, ns.getn(self.ui.dots) do self.ui.dots[i]:Hide() end
@@ -713,14 +725,17 @@ function Kit:Refresh()
                 if Captures(m) then show.can[m.path[1]] = true end
             end
         end
-        -- the capture just made: a dotted path along its route
-        if Captures(g.last) and not S.sel then
-            table.insert(show.paths, { squares = g.last.path, style = "dot" })
+        -- the move just made: a dot where it started, where it ended (and each
+        -- hop between), joined by a dotted line when it was a capture
+        if g.last and not S.sel then
+            table.insert(show.paths, { squares = g.last.path, style = "dot", line = Captures(g.last) ~= nil })
         end
         self:DrawBoard(g.pos, g.me, g.last, S.sel, targets, show)
     elseif S.over then
         local show = { paths = {} }
-        if Captures(S.over.last) then table.insert(show.paths, { squares = S.over.last.path, style = "dot" }) end
+        if S.over.last then
+            table.insert(show.paths, { squares = S.over.last.path, style = "dot", line = Captures(S.over.last) ~= nil })
+        end
         self:DrawBoard(S.over.pos, S.over.me, S.over.last, nil, nil, show)
     else
         local side = db.side == "?" and R.sides[1] or db.side
