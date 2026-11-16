@@ -551,9 +551,82 @@ local function Place(s, flipped)
     return col, 7 - row
 end
 
-function Kit:DrawBoard(pos, me, last, sel, targets)
+---------------------------------------------------------------------------
+-- Capture paths: dashed for a capture you can make, dotted for the one just
+-- made. 1.12 can't draw lines, so they're rows of tiny squares.
+---------------------------------------------------------------------------
+local PATH_STYLES = {
+    dash = { step = 2.5, on = 4, off = 2, size = 3, color = { 1, 0.35, 0.15, 0.95 } },   -- a capture you can make
+    dot  = { step = 6,   on = 1, off = 0, size = 3, color = { 1, 0.85, 0.2, 0.9 } },     -- the capture just made
+}
+local PATH_INSET = 9     -- the path starts this far from the moving piece's center
+
+-- The squares a move takes pieces from.
+local function Captures(m)
+    if not m then return nil end
+    if m.caps then
+        if ns.getn(m.caps) > 0 then return m.caps end
+        return nil
+    end
+    if m.cap then return { m.cap } end
+    return nil
+end
+Kit.Captures = Captures
+
+function Kit:Dot(i)
+    local ui = self.ui
+    local t = ui.dots[i]
+    if not t then
+        t = ui.overlay:CreateTexture(nil, "OVERLAY")
+        ui.dots[i] = t
+    end
+    return t
+end
+
+-- Center of square s on the board, from its top-left (x right, y down).
+local function Center(s, flipped)
+    local x, y = Place(s, flipped)
+    return x * SQ + SQ / 2, y * SQ + SQ / 2
+end
+
+-- Draws each path ({ squares, style }) as dots; returns how many were used.
+function Kit:DrawPaths(paths, flipped)
+    local used = 0
+    for _, p in ipairs(paths) do
+        local st = PATH_STYLES[p.style]
+        local count = 0          -- dots along the whole path, for the dash pattern
+        for i = 1, ns.getn(p.squares) - 1 do
+            local x1, y1 = Center(p.squares[i], flipped)
+            local x2, y2 = Center(p.squares[i + 1], flipped)
+            local dx, dy = x2 - x1, y2 - y1
+            local len = math.sqrt(dx * dx + dy * dy)
+            local from = (i == 1) and PATH_INSET or 0
+            local d = from
+            while d <= len do
+                local k = ns.Mod(count, st.on + st.off)
+                count = count + 1
+                if k < st.on then
+                    used = used + 1
+                    local t = self:Dot(used)
+                    t:SetWidth(st.size); t:SetHeight(st.size)
+                    t:SetTexture(st.color[1], st.color[2], st.color[3], st.color[4])
+                    t:ClearAllPoints()
+                    t:SetPoint("CENTER", self.ui.board, "TOPLEFT", x1 + dx * d / len, -(y1 + dy * d / len))
+                    t:Show()
+                end
+                d = d + st.step
+            end
+        end
+    end
+    for i = used + 1, ns.getn(self.ui.dots) do self.ui.dots[i]:Hide() end
+    return used
+end
+
+-- show: { paths = {...}, threat = {sq = true}, can = {sq = true} }
+function Kit:DrawBoard(pos, me, last, sel, targets, show)
     local R, ui, def = self.def.rules, self.ui, self.def
     local flipped = me ~= R.sides[1]
+    show = show or {}
     local check = R.CheckSquare and pos and R.CheckSquare(pos)
     local inLast = {}
     if last then for _, s in ipairs(last.path) do inLast[s] = true end end
@@ -584,8 +657,11 @@ function Kit:DrawBoard(pos, me, last, sel, targets)
         else
             b.mark:Hide()
         end
-        ns.SetShown(b.dot, targets and targets[s])
+        ns.SetShown(b.dot, targets and targets[s] and not (show.threat and show.threat[s]))
+        ns.SetShown(b.threat, show.threat and show.threat[s])
+        ns.SetShown(b.can, show.can and show.can[s])
     end
+    self:DrawPaths(show.paths or {}, flipped)
     -- the edge labels follow the board's way round
     for i = 1, 8 do
         ui.files[i]:SetText(string.sub("abcdefgh", flipped and (9 - i) or i, flipped and (9 - i) or i))
@@ -616,14 +692,36 @@ function Kit:Refresh()
     -- the board: the game, the one just finished, or the starting position
     local targets
     if g then
-        if S.sel and self:Turn(g) == "me" and not S.choice then
+        local show = { paths = {}, threat = {}, can = {} }
+        local myTurn = self:Turn(g) == "me" and not S.choice
+        if S.sel and myTurn then
+            -- where the picked piece can go; captures get a dashed path and
+            -- the pieces they'd take are marked
             targets = {}
             local depth = ns.getn(S.sel) + 1
-            for _, m in ipairs(self:Matching(S.sel)) do if m.path[depth] then targets[m.path[depth]] = true end end
+            for _, m in ipairs(self:Matching(S.sel)) do
+                if m.path[depth] then targets[m.path[depth]] = true end
+                local caps = Captures(m)
+                if caps then
+                    table.insert(show.paths, { squares = m.path, style = "dash" })
+                    for _, c in ipairs(caps) do show.threat[c] = true end
+                end
+            end
+        elseif myTurn then
+            -- your turn: the pieces that can capture are marked
+            for _, m in ipairs(R.Moves(g.pos)) do
+                if Captures(m) then show.can[m.path[1]] = true end
+            end
         end
-        self:DrawBoard(g.pos, g.me, g.last, S.sel, targets)
+        -- the capture just made: a dotted path along its route
+        if Captures(g.last) and not S.sel then
+            table.insert(show.paths, { squares = g.last.path, style = "dot" })
+        end
+        self:DrawBoard(g.pos, g.me, g.last, S.sel, targets, show)
     elseif S.over then
-        self:DrawBoard(S.over.pos, S.over.me, S.over.last)
+        local show = { paths = {} }
+        if Captures(S.over.last) then table.insert(show.paths, { squares = S.over.last.path, style = "dot" }) end
+        self:DrawBoard(S.over.pos, S.over.me, S.over.last, nil, nil, show)
     else
         local side = db.side == "?" and R.sides[1] or db.side
         self:DrawBoard(R.New(), side)
@@ -775,12 +873,29 @@ function Kit:BuildBoard(panel)
         b.dot:SetPoint("CENTER", b, "CENTER", 0, 0)
         b.dot:SetTexture(0.2, 0.95, 0.3, 0.8)
         b.dot:Hide()
+        -- a piece a capture would take: a red wash under it
+        b.threat = b:CreateTexture(nil, "BORDER")
+        b.threat:SetAllPoints(b)
+        b.threat:SetTexture(0.95, 0.15, 0.1, 0.45)
+        b.threat:Hide()
+        -- a piece that can capture this turn: an orange corner
+        b.can = b:CreateTexture(nil, "OVERLAY")
+        b.can:SetWidth(7); b.can:SetHeight(7)
+        b.can:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+        b.can:SetTexture(1, 0.45, 0.1, 0.95)
+        b.can:Hide()
         local hl = b:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints(b)
         hl:SetTexture(1, 1, 1, 0.15)
         b:SetScript("OnClick", function() game:Click(s) end)
         ui.squares[s] = b
     end
+    -- capture paths draw over the pieces
+    ui.overlay = ns.CreateFrame("Frame", nil, frame)
+    ui.overlay:SetAllPoints(frame)
+    ui.overlay:SetFrameLevel(frame:GetFrameLevel() + 4)
+    ui.dots = {}
+
     ui.files, ui.ranks = {}, {}
     for i = 1, 8 do
         local f = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")

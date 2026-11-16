@@ -78,12 +78,20 @@ H.Press("Play for 50")
 g = G.S.game
 g.pos = Board({ [14] = "bM", [18] = "rM", [26] = "rM" }, "b")
 G:Refresh()
+local function Shown(list) local n = 0 for _, t in ipairs(list) do if t.shown then n = n + 1 end end return n end
+Check("on your turn, a piece that can capture is marked", G.ui.squares[KSq(14)].can.shown
+  and not G.ui.squares[KSq(18)].can.shown)
 Click(KSq(14))
+Check("picking it draws the capture as a dashed path...", Shown(G.ui.dots) > 20, Shown(G.ui.dots))
+Check("...and marks both pieces it would take", G.ui.squares[KSq(18)].threat.shown and G.ui.squares[KSq(26)].threat.shown
+  and not G.ui.squares[KSq(14)].threat.shown)
 Click(KSq(23))
 Check("the first hop of a double jump waits for the next", table.getn(g.moves) == 0 and G.S.sel ~= nil
   and table.getn(G.S.sel) == 2 and Dots() == 1)
 Click(KSq(30))
 Check("the second hop finishes it, takes both pieces, and wins", G.S.game == nil and G.db.stats.wins == 1)
+Check("the capture just made stays as a dotted path", Shown(G.ui.dots) > 5 and not G.ui.squares[KSq(18)].threat.shown,
+  Shown(G.ui.dots))
 Check("a win pays double the stake", ns.db.chips == before + 50, ns.db.chips - before)
 
 -- Hard, Easy: the level picker
@@ -178,7 +186,7 @@ Check("fool's mate: Black wins on both sides", host.P.S.game == nil and guest.P.
 Check("...and party games are free: no chips move", host.ns.db.chips == hostChips)
 Check("...the move list ends in Qh4#", string.find(guest.P.S.over.log[2], "Qh4#", 1, true) ~= nil, guest.P.S.over.log[2])
 
--- a draw offer
+-- capture paths in chess
 local function NewGame()
   PressIn(host, "Challenge the group")
   Run(1)
@@ -186,6 +194,26 @@ local function NewGame()
   Run(1)
   return host.P.S.game, guest.P.S.game
 end
+local function DotsShown(c) local n = 0 for _, t in ipairs(c.P.ui.dots) do if t.shown then n = n + 1 end end return n end
+hg, gg = NewGame()
+Move(host, "e2", "e4")
+Move(guest, "d7", "d5")
+Check("chess: the pawn that can take is marked", host.P.ui.squares[Sq("e4")].can.shown
+  and not host.P.ui.squares[Sq("d2")].can.shown)
+host.env.Fire(host.P.ui.squares[Sq("e4")], "OnClick", "LeftButton")
+Check("picking it shows a dashed path to the pawn it can take", DotsShown(host) > 0
+  and host.P.ui.squares[Sq("d5")].threat.shown, DotsShown(host))
+host.env.Fire(host.P.ui.squares[Sq("d5")], "OnClick", "LeftButton")
+Run(1)
+Check("after exd5, both boards show the capture as a dotted path", DotsShown(host) > 0 and DotsShown(guest) > 0
+  and not host.P.ui.squares[Sq("d5")].threat.shown)
+Move(guest, "d8", "d5")
+host.env.Fire(host.P.ui.squares[Sq("b1")], "OnClick", "LeftButton")
+Check("a piece with no capture shows no path", DotsShown(host) == 0 and not host.P.ui.squares[Sq("c3")].threat.shown)
+PressIn(host, "Resign")
+Run(1)
+
+-- a draw offer
 hg, gg = NewGame()
 PressIn(host, "Offer draw")
 Run(1)
@@ -257,7 +285,7 @@ Drop(guest)
 Run(95)
 Check("after a long silence, Resign becomes Call it off", FindIn(host, "Call it off") ~= nil)
 PressIn(host, "Call it off")
-Check("...which ends the game without a result (not counted)", host.P.S.game == nil and host.P.db.stats.games == 4,
+Check("...which ends the game without a result (not counted)", host.P.S.game == nil and host.P.db.stats.games == 5,
   host.P.db.stats.games)
 
 -- leaving the group calls a game off
