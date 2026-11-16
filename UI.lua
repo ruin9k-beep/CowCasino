@@ -115,7 +115,7 @@ function UI.Tabs(page, names, y, onSelect)
         f:SetAllPoints(page)
         tabs.frames[i] = f
         local b = UI.Button(bar, names[i], TAB_W, function()
-            if tabs.current ~= i then ns:Sound("igCharacterInfoTab") end
+            if tabs.current ~= i then ns:Sound("IG_MAINMENU_OPTION") end
             tabs:Select(i)
         end)
         b:SetPoint("LEFT", bar, "LEFT", (i - 1) * (TAB_W + TAB_GAP), 0)

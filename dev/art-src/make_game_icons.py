@@ -358,9 +358,67 @@ def hilo():
     return frame(img)
 
 
+# --- Checkers and Chess: pieces on a slice of board ---------------------------
+def board_backdrop(light, dark, n=4):
+    img = Image.new("RGBA", (S, S), dark)
+    d = ImageDraw.Draw(img)
+    step = S / n
+    for r in range(n):
+        for c in range(n):
+            if (r + c) % 2 == 0:
+                d.rectangle((c * step, r * step, (c + 1) * step, (r + 1) * step), fill=light)
+    # darken toward the corners so the pieces stand out
+    vig = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    vd = ImageDraw.Draw(vig)
+    for r in range(int(S * 0.75), int(S * 0.3), -4):
+        a = int(150 * (r - S * 0.3) / (S * 0.45))
+        vd.ellipse((S / 2 - r, S / 2 - r, S / 2 + r, S / 2 + r), outline=(0, 0, 0, a), width=6)
+    img.alpha_composite(vig.filter(ImageFilter.GaussianBlur(8)))
+    return img
+
+
+def checker(img, cx, cy, R, base, rim, crown=False):
+    shadow(img, lambda sd, o, c: sd.ellipse((cx - R + o[0], cy - R + o[1], cx + R + o[0], cy + R + o[1] + 22), fill=c))
+    d = ImageDraw.Draw(img)
+    d.ellipse((cx - R, cy - R + 22, cx + R, cy + R + 22), fill=rim)
+    d.ellipse((cx - R, cy - R, cx + R, cy + R), fill=base, outline=rim, width=8)
+    for rr in (R * 0.75, R * 0.52):
+        d.ellipse((cx - rr, cy - rr, cx + rr, cy + rr), outline=rim, width=7)
+    if crown:
+        k = R / 100
+        pts = [(cx - 50 * k, cy + 28 * k), (cx - 56 * k, cy - 30 * k), (cx - 24 * k, cy), (cx, cy - 46 * k),
+               (cx + 24 * k, cy), (cx + 56 * k, cy - 30 * k), (cx + 50 * k, cy + 28 * k)]
+        d.polygon(pts, fill=GOLD, outline=DARKGOLD, width=6)
+        d.rectangle((cx - 50 * k, cy + 24 * k, cx + 50 * k, cy + 40 * k), fill=GOLD, outline=DARKGOLD, width=6)
+
+
+def checkers():
+    img = board_backdrop((214, 196, 156, 255), (58, 88, 54, 255))
+    checker(img, 196, 300, 120, (40, 38, 36, 255), (12, 10, 10, 255))
+    checker(img, 318, 214, 120, (190, 30, 28, 255), (90, 10, 10, 255), crown=True)
+    return frame(img)
+
+
+def chess():
+    img = board_backdrop((230, 214, 176, 255), (140, 94, 56, 255))
+    f = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 330)
+    for glyph, x, y, fill, edge in (("\u265e", 30, 120, (38, 34, 32, 255), (205, 196, 178, 255)),
+                                    ("\u265a", 158, 70, (246, 240, 222, 255), (35, 28, 22, 255))):
+        layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        ld = ImageDraw.Draw(layer)
+        ld.text((x, y), glyph, font=f, fill=fill, stroke_width=12, stroke_fill=edge)
+        ld.text((x, y), glyph, font=f, fill=fill)
+        sh = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        sh.putalpha(layer.split()[3].point(lambda v: v * 150 // 255))
+        img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(12)), (14, 20))
+        img.alpha_composite(layer)
+    return frame(img)
+
+
 ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
          ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker),
-         ("ThreeCardIcon", threecard), ("KenoIcon", keno), ("DeathrollIcon", deathroll)]
+         ("ThreeCardIcon", threecard), ("KenoIcon", keno), ("DeathrollIcon", deathroll),
+         ("CheckersIcon", checkers), ("ChessIcon", chess)]
 
 if __name__ == "__main__":
     big = []

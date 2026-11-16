@@ -7,7 +7,7 @@ on the game list) under **Dealer**; the choice is saved and used by every game.
 
 CowCasino ships with two dealers, painted by `dev/art-src/make_dealer.py`:
 
-- **Goblin** (the default): Fizzlecog, a grinning goblin croupier in a tuxedo and red bow tie (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em, Five-Card Draw, Craps and Deathroll (`Art\DealerGoblin.lua`).
+- **Goblin** (the default): Fizzlecog, a grinning goblin croupier in a tuxedo and red bow tie (`Art\DealerGoblin`). He has his own lines for Blackjack, Hold'em, Five-Card Draw, Craps, Deathroll, Checkers and Chess (`Art\DealerGoblin.lua`).
 - **Human**: Harold, a human croupier (`Art\DealerHuman`, `Art\DealerHuman.lua`)
 
 When a game shows a player's 3D portrait in the strip (a party member dealing,
@@ -133,6 +133,15 @@ Deathroll (against the dealer, and party duels):
 | `deathrollParty` | a party duel starts | `{name}` (the other player), `{stake}`, `{start}` |
 | `deathrollClose` | a roll drops into single digits (skipped if busy) | `{name}` (who rolled), `{value}` |
 | `deathrollWin` / `deathrollLose` | the duel ends | `{name}` (the other player or dealer), `{amount}` (the stake) |
+
+Checkers and Chess (the board games; Chess is party only):
+
+| Moment | When | Fills in |
+|---|---|---|
+| `checkersStart` | a game against the computer starts | `{stake}` |
+| `checkersParty` / `chessParty` | a party game starts | `{name}` (the other player) |
+| `checkersWin` / `checkersLose` / `chessWin` / `chessLose` | a game ends | `{name}` (the other player, or "the computer") |
+| `checkersDraw` / `chessDraw` | a game is drawn | nothing |
 
 `Art\DealerGoblin.lua` has Fizzlecog's lines as an example.
 

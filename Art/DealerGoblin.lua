@@ -319,4 +319,41 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
             "A 1! Ouch. {name} takes it. Wanna go again? Double or nothin'?",
             "You rolled the big one... the little one. A 1! Gold's gone, friend.",
         },
+
+        -- Checkers
+        checkersStart = {
+            "Checkers for {stake}! The machine's never lost a piece it didn't mean to. Probably.",
+            "{stake} on the board. Black goes first. Jump when you can, kid - you have to anyway!",
+        },
+        checkersParty = {
+            "{name} wants a game of checkers! Friendly, free, and I'm still watching.",
+        },
+        checkersWin = {
+            "You cleaned the board! The house pays up. Grudgingly.",
+            "Crowned and conquered! Nice game, friend.",
+        },
+        checkersLose = {
+            "Out-jumped! Happens to the best of us. Mostly to you, though.",
+            "Not a piece left to move. Rack 'em up again?",
+        },
+        checkersDraw = {
+            "A draw! Nobody wins, nobody pays. My least favorite kind of game.",
+        },
+
+        -- Chess
+        chessParty = {
+            "Chess with {name}! Quiet please, the brains are workin'.",
+            "{name} at the board! White moves first. No touchin' my pieces, they're rented.",
+        },
+        chessWin = {
+            "Checkmate! A grandmaster in my casino. Should I start charging admission?",
+            "You beat {name}! Somebody write that down.",
+        },
+        chessLose = {
+            "{name} takes it. Tip over your king, nobody's lookin'. Everybody's lookin'.",
+            "That's the game. Chess is hard, friend. Try deathroll, it's mostly luck!",
+        },
+        chessDraw = {
+            "A draw! Very sportsmanlike. Very boring. Shake hands, you two.",
+        },
     } })

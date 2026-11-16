@@ -1,0 +1,1044 @@
+-- CowCasino: the board kit. Everything Chess and Checkers share: the 8x8
+-- board and its pieces, picking moves with the mouse, the move list, a
+-- computer opponent (for a game whose rules have one), and party games
+-- (challenges, moves over the network, draw offers, resigning, and picking
+-- a game back up after a reload).
+--
+-- A game is ns.BoardKit.New(def), registered like any other. def:
+--   id, name, description, icon, dealer   as for any game
+--   tag        the first field of its party messages ("CK")
+--   rules      the rules module: first, sides, names, New, Moves, Apply,
+--              Result, MoveText, Encode, Same, PieceAt, SideOf, Dark, and
+--              optionally Key (repeats), CheckSquare, ChoiceLabel, and
+--              LEVELS + ChooseMove (a computer opponent)
+--   atlas      piece -> cell (0-15) in Art\BoardPieces
+--   light, dark, felt   colors of the squares and the table
+--   rulesText  the Rules tab
+--   noun       what a single game is called in messages ("game")
+--
+-- Party games are free (bragging rights): nobody's chips move. A game
+-- against the computer has a stake: a win pays double, a draw gives it back.
+-- Rules modules work on squares 1..64 (row * 8 + col + 1, row 0 at the
+-- bottom for the side that moves first). A move has a path (the squares the
+-- piece visits); the player clicks them in turn.
+local ns = CowCasino.ns
+local Net = ns.Net
+
+local Kit = {}
+Kit.__index = Kit
+ns.BoardKit = Kit
+
+local SQ, BX, BY   = 26, 18, -34       -- square size; the board's top-left in the panel
+local SIDE_X       = BX + 8 * SQ + 10  -- the column to the right of the board
+local SIDE_W       = 352 - SIDE_X - 4
+local LOG_LINES    = 11
+local ATLAS        = "Interface\\AddOns\\CowCasino\\Art\\BoardPieces"
+local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
+local THINK_PAUSE  = 0.6     -- seconds before the computer starts thinking
+local THINK_STEPS  = 3       -- search slices per frame
+local OFFER_EVERY  = 20
+local OFFER_TIMEOUT = 60
+local PING_EVERY   = 30      -- a party game says "still here" this often
+local QUIET_LIMIT  = 90      -- nothing heard this long: the game can be called off
+local EXTRA_SOUNDS = { { key = "move", label = "The other side moves", default = "tick" } }
+local DEFAULT_STATS = { games = 0, wins = 0, losses = 0, draws = 0, partyGames = 0, wagered = 0, won = 0, biggestWin = 0 }
+
+local Fill = ns.UI.Fill
+local MakeButton = ns.UI.Button
+local function Fmt(n) return ns:FormatChips(n) end
+local function NewId() return tostring(math.random(100000, 999999)) end
+
+---------------------------------------------------------------------------
+-- Positions from a list of moves
+---------------------------------------------------------------------------
+-- Finds the legal move a wire string stands for.
+function Kit:Decode(pos, text)
+    local R = self.def.rules
+    for _, m in ipairs(R.Moves(pos)) do
+        if R.Encode(m) == text then return m end
+    end
+end
+
+-- Plays the game's moves from the start: g.pos, g.keys, g.last, g.log.
+-- Returns false if a move doesn't fit (the list is cut there).
+function Kit:Replay(g)
+    local R = self.def.rules
+    g.pos, g.keys, g.last, g.log = R.New(), {}, nil, {}
+    if R.Key then g.keys[R.Key(g.pos)] = 1 end
+    local list = g.moves
+    g.moves = {}
+    for i, text in ipairs(list) do
+        local m = self:Decode(g.pos, text)
+        if not m then return false end
+        self:Advance(g, m)
+    end
+    return true
+end
+
+-- One move on the board (no checks, no messages).
+function Kit:Advance(g, m)
+    local R = self.def.rules
+    local text = R.MoveText(g.pos, m)
+    local n = ns.getn(g.moves)
+    if ns.Mod(n, 2) == 0 then
+        table.insert(g.log, string.format("%d. %s", math.floor(n / 2) + 1, text))
+    else
+        local i = ns.getn(g.log)
+        g.log[i] = g.log[i] .. "  " .. text
+    end
+    table.insert(g.moves, R.Encode(m))
+    g.pos = R.Apply(g.pos, m)
+    g.last = m
+    if R.Key then
+        local k = R.Key(g.pos)
+        g.keys[k] = (g.keys[k] or 0) + 1
+    end
+end
+
+function Kit:Turn(g)
+    if g.pos.turn == g.me then return "me" end
+    return "them"
+end
+
+---------------------------------------------------------------------------
+-- Talking
+---------------------------------------------------------------------------
+function Kit:Msg(parts) return self.def.tag .. ";" .. table.concat(parts, ";") end
+
+function Kit:Say(event, vars, fallback, quiet)
+    if ns.Dealer then ns.Dealer:React(self, event, vars, nil, fallback, quiet) end
+end
+
+function Kit:SetStatus(text, r, g, b)
+    if not self.ui.status then return end
+    self.ui.status:SetText(text or "")
+    self.ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
+end
+
+function Kit:SideName(side) return self.def.rules.names[side] or "?" end
+
+function Kit:OppName(g)
+    if g.kind == "solo" then return "the computer" end
+    return g.opp or "?"
+end
+
+function Kit:Shown() return ns.currentGame == self.id and self.ui.board ~= nil end
+
+---------------------------------------------------------------------------
+-- Starting and ending a game
+---------------------------------------------------------------------------
+-- kind "solo" (stake already paid) or "party". me: our side.
+function Kit:Start(kind, me, opp, id, stake, level)
+    local g = { kind = kind, me = me, opp = opp, id = id, stake = stake, level = level, moves = {}, heard = GetTime(), pinged = GetTime() }
+    self:Replay(g)
+    self.S.game, self.S.over, self.S.sel = g, nil, nil
+    local db, s = self.db, self.db.stats
+    if kind == "solo" then
+        db.solo = { me = me, stake = stake, level = level, moves = g.moves }
+        s.wagered = s.wagered + stake
+    else
+        db.party = { id = id, opp = opp, me = me, moves = g.moves }
+        s.partyGames = s.partyGames + 1
+        if ns.Dealer then ns.Dealer:SetPlayer(self, opp) end
+    end
+    s.games = s.games + 1
+    ns:PlayGameSound(db, "newHand")
+    local first = self:Turn(g) == "me" and "You move first." or (kind == "solo" and "The computer moves first." or (opp .. " moves first."))
+    self:SetStatus("You play " .. self:SideName(me) .. ". " .. first)
+    if kind == "solo" then
+        self:Say(self.id .. "Start", { stake = Fmt(stake) }, "Good luck!")
+    else
+        self:Say(self.id .. "Party", { name = opp }, "A friendly game. Good luck to you both!")
+    end
+    if kind == "solo" and self:Turn(g) == "them" then g.thinkAt = GetTime() + THINK_PAUSE end
+    self:Refresh()
+end
+
+-- The game is over. winner: a side, "draw", or nil (called off).
+function Kit:Finish(winner, why)
+    local g = self.S.game
+    if not g then return end
+    self.S.game, self.S.sel, self.S.choice, self.S.think = nil, nil, nil, nil
+    self.db.solo, self.db.party = nil, nil
+    local s = self.db.stats
+    local solo = g.kind == "solo"
+    local opp = self:OppName(g)
+    local text, r, gr, b
+    if winner == nil then
+        s.games = s.games - 1
+        if solo then
+            ns:AddChips(g.stake)
+            s.wagered = s.wagered - g.stake
+        else
+            s.partyGames = s.partyGames - 1
+        end
+        text, r, gr, b = (why or "The game is called off.") .. (solo and (" Your " .. Fmt(g.stake) .. " is back.") or ""), 0.85, 0.85, 0.85
+    elseif winner == "draw" then
+        s.draws = s.draws + 1
+        if solo then
+            ns:AddChips(g.stake)
+            s.won = s.won + g.stake
+        end
+        text, r, gr, b = "A draw: " .. (why or "agreed") .. "." .. (solo and (" Your " .. Fmt(g.stake) .. " is back.") or ""), 0.85, 0.85, 0.85
+        self:Say(self.id .. "Draw", nil, "A draw. Well played, both of you.")
+    elseif winner == g.me then
+        s.wins = s.wins + 1
+        if solo then
+            ns:AddChips(g.stake * 2)
+            s.won = s.won + g.stake * 2
+            if g.stake > s.biggestWin then s.biggestWin = g.stake end
+        end
+        text, r, gr, b = "You win" .. (why and (": " .. why) or "") .. "!" .. (solo and (" You take " .. Fmt(g.stake * 2) .. ".") or ""), 0.25, 1, 0.25
+        ns:PlayGameSound(self.db, "win")
+        self:Say(self.id .. "Win", { name = opp }, "Victory! Nicely played.")
+    else
+        s.losses = s.losses + 1
+        text, r, gr, b = (solo and "The computer wins" or (opp .. " wins")) .. (why and (": " .. why) or "") .. ".", 1, 0.4, 0.4
+        ns:PlayGameSound(self.db, "lose")
+        self:Say(self.id .. "Lose", { name = opp }, "That's the game. Better luck next time.")
+    end
+    if ns.Dealer and not solo then ns.Dealer:SetImage(self, nil) end
+    self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me }
+    self.db.stake = ns:FitList(STAKES, self.db.stake)
+    self:SetStatus(text, r, gr, b)
+    self:Refresh()
+end
+
+-- After a move: is the game over?
+function Kit:CheckEnd()
+    local g = self.S.game
+    local winner, why = self.def.rules.Result(g.pos, nil, g.keys)
+    if winner then self:Finish(winner, why) return true end
+    return false
+end
+
+-- A move is made (by "me" or "them").
+function Kit:Play(m, who)
+    local g = self.S.game
+    if not g or self:Turn(g) ~= who then return end
+    self:Advance(g, m)
+    self.S.sel, self.S.choice = nil, nil
+    g.drawOffer = nil
+    if g.kind == "party" and who == "me" then
+        Net:Send(self:Msg({ "M", g.id, ns.getn(g.moves), self.def.rules.Encode(m) }))
+    end
+    if who == "them" then ns:PlayGameSound(self.db, "move") end
+    if self:CheckEnd() then return end
+    if self:Turn(g) == "me" then
+        self:SetStatus("Your move.")
+    else
+        self:SetStatus(g.kind == "solo" and "The computer is thinking..." or ("Waiting for " .. g.opp .. "'s move."))
+        if g.kind == "solo" then g.thinkAt = GetTime() + THINK_PAUSE end
+    end
+    self:Refresh()
+end
+
+---------------------------------------------------------------------------
+-- Picking a move with the mouse
+---------------------------------------------------------------------------
+-- The legal moves whose path starts with `prefix`.
+function Kit:Matching(prefix)
+    local g = self.S.game
+    local out = {}
+    for _, m in ipairs(g.moves and self.def.rules.Moves(g.pos) or {}) do
+        local ok = ns.getn(m.path) >= ns.getn(prefix)
+        for i, s in ipairs(prefix) do if m.path[i] ~= s then ok = false end end
+        if ok then table.insert(out, m) end
+    end
+    return out
+end
+
+function Kit:Click(s)
+    local g = self.S.game
+    if not g or self:Turn(g) ~= "me" or self.S.choice then return end
+    local R = self.def.rules
+    local sel = self.S.sel
+    local piece = R.PieceAt(g.pos, s)
+    local mine = piece and R.SideOf(piece) == g.me
+    if mine and (not sel or ns.getn(sel) == 1) then
+        if sel and sel[1] == s then self.S.sel = nil
+        elseif ns.getn(self:Matching({ s })) > 0 then self.S.sel = { s }; ns:Sound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+        else self.S.sel = nil end
+        self:Refresh()
+        return
+    end
+    if not sel then return end
+    local nextPath = {}
+    for i, v in ipairs(sel) do nextPath[i] = v end
+    table.insert(nextPath, s)
+    local list = self:Matching(nextPath)
+    if ns.getn(list) == 0 then
+        self.S.sel = nil
+    else
+        local done = {}
+        for _, m in ipairs(list) do if ns.getn(m.path) == ns.getn(nextPath) then table.insert(done, m) end end
+        if ns.getn(done) == 1 and ns.getn(list) == 1 then
+            self:Play(done[1], "me")
+            return
+        elseif ns.getn(done) > 1 then
+            self.S.choice = done                  -- a promotion: which piece?
+        else
+            self.S.sel = nextPath                 -- a jump that goes on
+        end
+    end
+    self:Refresh()
+end
+
+function Kit:Choose(i)
+    local list = self.S.choice
+    if not list or not list[i] then return end
+    self:Play(list[i], "me")
+end
+
+---------------------------------------------------------------------------
+-- The computer
+---------------------------------------------------------------------------
+function Kit:Think()
+    local g = self.S.game
+    if not g or g.kind ~= "solo" or self:Turn(g) ~= "them" then self.S.think = nil return end
+    if not self.S.think then
+        if GetTime() < (g.thinkAt or 0) then return end
+        local R, pos, level = self.def.rules, g.pos, g.level
+        if not coroutine then                     -- no coroutines here: think in one go
+            self:Play(R.ChooseMove(pos, level, false), "them")
+            return
+        end
+        self.S.think = coroutine.create(function() return R.ChooseMove(pos, level, true) end)
+        self.S.thinkFor = g
+    end
+    if self.S.thinkFor ~= g then self.S.think = nil return end
+    for _ = 1, THINK_STEPS do
+        local ok, m = coroutine.resume(self.S.think)
+        if not ok then
+            self.S.think = nil
+            error(m)
+        end
+        if coroutine.status(self.S.think) == "dead" then
+            self.S.think = nil
+            if m then self:Play(m, "them") end
+            return
+        end
+    end
+end
+
+---------------------------------------------------------------------------
+-- Against the computer
+---------------------------------------------------------------------------
+function Kit:PickSide(choice)
+    local sides = self.def.rules.sides
+    if choice == "?" then return sides[math.random(1, 2)] end
+    return choice
+end
+
+function Kit:PlaySolo()
+    if self.S.game then return end
+    local stake = self.db.stake
+    if not ns:SpendChips(stake) then
+        self:SetStatus(ns:LowChipsText(stake), 1, 0.35, 0.35)
+        return
+    end
+    self:Start("solo", self:PickSide(self.db.side), nil, nil, stake, self.db.level)
+end
+
+---------------------------------------------------------------------------
+-- Party games
+---------------------------------------------------------------------------
+function Kit:OpenOffers()
+    local list = {}
+    for name, o in pairs(self.S.offers) do
+        if GetTime() - o.heard < OFFER_TIMEOUT and Net:IsMember(name) then
+            table.insert(list, { host = name, id = o.id, side = o.side, ver = o.ver })
+        end
+    end
+    table.sort(list, function(a, b) return a.host < b.host end)
+    return list
+end
+
+function Kit:SendOffer()
+    local p = self.S.posted
+    if not p then return end
+    p.sentAt = GetTime()
+    Net:Send(self:Msg({ "O", p.id, p.side, Net.PARTY_VERSION }), self.def.tag .. "-O")
+end
+
+function Kit:Post()
+    if self.S.game or self.S.posted or not Net:InGroup() then return end
+    self.S.posted = { id = NewId(), side = self.db.side }
+    self:SendOffer()
+    self:SetStatus("Challenge sent. Waiting for someone in your group to take it...")
+    self:Refresh()
+end
+
+function Kit:Withdraw(quiet)
+    if not self.S.posted then return end
+    Net:Send(self:Msg({ "X", self.S.posted.id }), self.def.tag .. "-O")
+    self.S.posted = nil
+    if not quiet then self:SetStatus("Challenge withdrawn.") end
+    self:Refresh()
+end
+
+function Kit:Accept(offer)
+    if self.S.game or self.S.posted or self.S.accepting or not offer then return end
+    self.S.accepting = { host = offer.host, id = offer.id, at = GetTime() }
+    Net:Send(self:Msg({ "A", offer.id, Net.PARTY_VERSION }))
+    self:SetStatus("Taking " .. offer.host .. "'s challenge...")
+    self:Refresh()
+end
+
+function Kit:Quiet(g)
+    return g and g.kind == "party" and GetTime() - (g.heard or 0) > QUIET_LIMIT
+end
+
+-- Resign (or call off a game whose other player has gone quiet).
+function Kit:Resign()
+    local g = self.S.game
+    if not g then return end
+    if g.kind == "party" then
+        if self:Quiet(g) then
+            Net:Send(self:Msg({ "C", g.id }))
+            self:Finish(nil, g.opp .. " has gone quiet, so the game is called off.")
+            return
+        end
+        Net:Send(self:Msg({ "F", g.id }))
+    end
+    self:Finish(self.def.rules.Other(g.me), "you resigned")
+end
+
+-- Offer a draw, or take the one on the table.
+function Kit:Draw()
+    local g = self.S.game
+    if not g or g.kind ~= "party" then return end
+    local n = ns.getn(g.moves)
+    if g.drawOffer and g.drawOffer.by == "them" and g.drawOffer.n == n then
+        Net:Send(self:Msg({ "Z", g.id, n }))
+        self:Finish("draw", "agreed")
+        return
+    end
+    if g.drawOffer then return end
+    g.drawOffer = { by = "me", n = n }
+    Net:Send(self:Msg({ "D", g.id, n }))
+    self:SetStatus("You offer a draw.")
+    self:Refresh()
+end
+
+-- "I have n moves": sent now and then, and after a reload.
+function Kit:Ping(g)
+    g.pinged = GetTime()
+    Net:Send(self:Msg({ "Y", g.id, ns.getn(g.moves) }), self.def.tag .. "-Y")
+end
+
+function Kit:OnMessage(sender, f)
+    local kind, id = f[2], f[3]
+    local S = self.S
+    if kind == "Q" then self:SendOffer() return end
+    if kind == "O" then
+        S.offers[sender] = { id = id, side = f[4], ver = tonumber(f[5]), heard = GetTime() }
+        if self:Shown() then self:Refresh() end
+        return
+    elseif kind == "X" then
+        S.offers[sender] = nil
+        if S.accepting and S.accepting.host == sender then
+            S.accepting = nil
+            self:SetStatus(sender .. " withdrew that challenge.")
+        end
+        if self:Shown() then self:Refresh() end
+        return
+    elseif kind == "A" then
+        local p = S.posted
+        if not p or p.id ~= id or S.game or not Net:IsMember(sender) or Net:VersionProblem(f[4]) then return end
+        S.posted = nil
+        local mine = self:PickSide(p.side)
+        Net:Send(self:Msg({ "S", p.id, sender, mine }), self.def.tag .. "-O")
+        self:Start("party", mine, sender, p.id)
+        return
+    elseif kind == "S" then
+        S.offers[sender] = nil
+        local a = S.accepting
+        if a and a.host == sender and a.id == id then
+            S.accepting = nil
+            if f[4] ~= Net:Me() then
+                self:SetStatus(f[4] .. " took " .. sender .. "'s challenge first.")
+            elseif f[5] == self.def.rules.sides[1] or f[5] == self.def.rules.sides[2] then
+                self:Start("party", self.def.rules.Other(f[5]), sender, id)
+                return
+            end
+        end
+        if self:Shown() then self:Refresh() end
+        return
+    end
+
+    local g = S.game
+    if not g or g.kind ~= "party" or g.id ~= id or sender ~= g.opp then return end
+    g.heard = GetTime()
+    g.quietShown = nil
+    local n = ns.getn(g.moves)
+    if kind == "M" then
+        local at = tonumber(f[4])
+        if at == n + 1 and self:Turn(g) == "them" then
+            local m = self:Decode(g.pos, f[5] or "")
+            if m then self:Play(m, "them") end
+        elseif at and at > n + 1 then
+            self:Ping(g)                                   -- we missed one: ask again
+        end
+    elseif kind == "Y" then
+        local theirs = tonumber(f[4]) or 0
+        if theirs < n then
+            -- they're behind (a reload, or a lost message): send what they miss
+            for i = theirs + 1, n do Net:Send(self:Msg({ "M", g.id, i, g.moves[i] })) end
+        elseif theirs > n then
+            self:Ping(g)
+        end
+        if self:Shown() then self:Refresh() end
+    elseif kind == "D" then
+        if tonumber(f[4]) == n then
+            g.drawOffer = { by = "them", n = n }
+            self:SetStatus(sender .. " offers a draw. Take it, or just play on.")
+            ns:Sound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+            self:Refresh()
+        end
+    elseif kind == "Z" then
+        if g.drawOffer and g.drawOffer.by == "me" and tonumber(f[4]) == n then self:Finish("draw", "agreed") end
+    elseif kind == "F" then
+        self:Finish(g.me, sender .. " resigned")
+    elseif kind == "C" then
+        self:Finish(nil, sender .. " called the game off.")
+    end
+end
+
+function Kit:GroupChanged()
+    local S = self.S
+    for name in pairs(S.offers) do
+        if not Net:IsMember(name) then S.offers[name] = nil end
+    end
+    if S.accepting and not Net:IsMember(S.accepting.host) then S.accepting = nil end
+    if S.posted and not Net:InGroup() then S.posted = nil end
+    local g = S.game
+    if g and g.kind == "party" and not Net:IsMember(g.opp) then
+        self:Finish(nil, g.opp .. " left the group, so the game is called off.")
+    end
+    if self:Shown() then self:Refresh() end
+end
+
+function Kit:Tick()
+    if not self.db then return end
+    local S, now = self.S, GetTime()
+    local g = S.game
+    if g and g.kind == "solo" then self:Think() end
+    if g and g.kind == "party" then
+        if now - (g.pinged or 0) >= PING_EVERY then self:Ping(g) end
+        if self:Quiet(g) and not g.quietShown then
+            g.quietShown = true
+            if self:Shown() then self:Refresh() end
+        end
+    end
+    if S.posted and now - (S.posted.sentAt or 0) >= OFFER_EVERY then self:SendOffer() end
+    if S.accepting and now - S.accepting.at > 15 then
+        S.accepting = nil
+        if self.ui.board then
+            self:SetStatus("No answer to that challenge.")
+            self:Refresh()
+        end
+    end
+end
+
+---------------------------------------------------------------------------
+-- Display
+---------------------------------------------------------------------------
+-- Where square s sits on screen (0-7 across, 0-7 down), seen from `me`.
+local function Place(s, flipped)
+    local row, col = math.floor((s - 1) / 8), ns.Mod(s - 1, 8)
+    if flipped then return 7 - col, row end
+    return col, 7 - row
+end
+
+function Kit:DrawBoard(pos, me, last, sel, targets)
+    local R, ui, def = self.def.rules, self.ui, self.def
+    local flipped = me ~= R.sides[1]
+    local check = R.CheckSquare and pos and R.CheckSquare(pos)
+    local inLast = {}
+    if last then for _, s in ipairs(last.path) do inLast[s] = true end end
+    local inSel = {}
+    if sel then for _, s in ipairs(sel) do inSel[s] = true end end
+    for s = 1, 64 do
+        local b = ui.squares[s]
+        local x, y = Place(s, flipped)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", ui.board, "TOPLEFT", x * SQ, -y * SQ)
+        local c = R.Dark(s) and def.dark or def.light
+        b.bg:SetTexture(c[1], c[2], c[3], 1)
+        local piece = pos and R.PieceAt(pos, s)
+        local cell = piece and def.atlas[piece]
+        if cell then
+            local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 4
+            b.piece:SetTexCoord(u, u + 0.25, v, v + 0.25)
+            b.piece:Show()
+        else
+            b.piece:Hide()
+        end
+        if s == check then
+            b.mark:SetTexture(0.9, 0.1, 0.1, 0.55); b.mark:Show()
+        elseif inSel[s] then
+            b.mark:SetTexture(1, 0.82, 0, 0.55); b.mark:Show()
+        elseif inLast[s] then
+            b.mark:SetTexture(1, 0.9, 0.3, 0.25); b.mark:Show()
+        else
+            b.mark:Hide()
+        end
+        ns.SetShown(b.dot, targets and targets[s])
+    end
+    -- the edge labels follow the board's way round
+    for i = 1, 8 do
+        ui.files[i]:SetText(string.sub("abcdefgh", flipped and (9 - i) or i, flipped and (9 - i) or i))
+        ui.ranks[i]:SetText(flipped and i or (9 - i))
+    end
+end
+
+function Kit:StatsText()
+    local s = self.db.stats
+    local text = string.format("Games %d  Won %d  Lost %d  Drawn %d", s.games, s.wins, s.losses, s.draws)
+    if self.def.rules.ChooseMove then text = text .. "  Net " .. ns.UI.Net(s.won - s.wagered) .. "|r" end
+    return text
+end
+
+function Kit:Refresh()
+    local ui, S, R, db = self.ui, self.S, self.def.rules, self.db
+    if not ui.board then return end
+    ns:UpdateChipsDisplay()
+    local g = S.game
+    local solo = self:Mode() == "solo"
+    if ui.soloTab then
+        ns.SetEnabled(ui.soloTab, g == nil and not S.posted and not solo)
+        ns.SetEnabled(ui.partyTab, g == nil and solo)
+        ui.soloTab:SetText((solo and "|cffffff00" or "") .. "Vs the computer")
+        ui.partyTab:SetText((not solo and "|cffffff00" or "") .. "Party game")
+    end
+
+    -- the board: the game, the one just finished, or the starting position
+    local targets
+    if g then
+        if S.sel and self:Turn(g) == "me" and not S.choice then
+            targets = {}
+            local depth = ns.getn(S.sel) + 1
+            for _, m in ipairs(self:Matching(S.sel)) do if m.path[depth] then targets[m.path[depth]] = true end end
+        end
+        self:DrawBoard(g.pos, g.me, g.last, S.sel, targets)
+    elseif S.over then
+        self:DrawBoard(S.over.pos, S.over.me, S.over.last)
+    else
+        local side = db.side == "?" and R.sides[1] or db.side
+        self:DrawBoard(R.New(), side)
+    end
+
+    -- the promotion choice
+    local choice = S.choice
+    for i = 1, 4 do
+        local b = ui.choices[i]
+        if choice and choice[i] then
+            b:SetText(R.ChoiceLabel and R.ChoiceLabel(choice[i]) or tostring(i))
+            b:Show()
+        else
+            b:Hide()
+        end
+    end
+    ns.SetShown(ui.choiceBox, choice ~= nil)
+
+    -- whose turn, and the moves so far
+    if g then
+        local me = self:SideName(g.me)
+        if self:Turn(g) == "me" then
+            ui.turn:SetText("|cff66ff66Your move|r\n(" .. me .. ")")
+        else
+            ui.turn:SetText((g.kind == "solo" and "Computer" or g.opp) .. "'s move\n(" .. self:SideName(R.Other(g.me)) .. ")")
+        end
+        ui.against:SetText(g.kind == "solo" and ("vs " .. R.LEVELS[g.level].name .. " computer\nfor " .. Fmt(g.stake)) or ("vs " .. g.opp .. "\n(free)"))
+    else
+        ui.turn:SetText(S.over and "Game over" or "")
+        ui.against:SetText("")
+    end
+    local log = (g and g.log) or (S.over and S.over.log) or {}
+    local n = ns.getn(log)
+    for i = 1, LOG_LINES do ui.log[i]:SetText(log[n - LOG_LINES + i] or "") end
+
+    -- the party lobby, over the board between games
+    local lobby = not solo and not g
+    ns.SetShown(ui.lobby, lobby)
+    if lobby then
+        local list = self:OpenOffers()
+        for r = 1, 4 do
+            local row, offer = ui.rows[r], list[r]
+            row.offer = offer
+            if offer then
+                local side = offer.side == "?" and "random sides" or ("plays " .. self:SideName(offer.side))
+                row.text:SetText(offer.host .. " (" .. side .. ")" .. Net:VersionNote(offer.ver))
+                row:Show()
+                ns.SetEnabled(row.accept, not S.accepting and not S.posted and not Net:VersionProblem(offer.ver))
+            else
+                row:Hide()
+            end
+        end
+        ui.lobbyTitle:SetText(S.posted and "Your challenge is open. Waiting..." or (list[1] and "Open challenges in your group:" or
+            (Net:InGroup() and "No open challenges yet.\nChallenge your group below." or "Join a party or raid to play\nyour friends.")))
+    end
+
+    -- the pickers
+    for _, p in ipairs(ui.pickers) do p:Refresh() end
+    if ui.stake then
+        ns.SetShown(ui.stake, solo)
+        ns.SetShown(ui.level, solo)
+    end
+
+    -- the buttons
+    if g then
+        ui.go:Hide()
+        ui.resign:Show()
+        ui.resign:SetText(self:Quiet(g) and "Call it off" or "Resign")
+        ns.SetShown(ui.draw, g.kind == "party")
+        if g.kind == "party" then
+            local offer = g.drawOffer
+            if offer and offer.by == "them" then ui.draw:SetText("Accept draw"); ns.SetEnabled(ui.draw, true)
+            elseif offer then ui.draw:SetText("Draw offered"); ns.SetEnabled(ui.draw, false)
+            else ui.draw:SetText("Offer draw"); ns.SetEnabled(ui.draw, true) end
+        end
+    else
+        ui.resign:Hide()
+        ui.draw:Hide()
+        ui.go:Show()
+        if solo then
+            ui.go:SetText("Play for " .. Fmt(db.stake))
+            ns.SetEnabled(ui.go, ns.db.chips >= db.stake)
+        elseif S.posted then
+            ui.go:SetText("Withdraw challenge")
+            ns.SetEnabled(ui.go, true)
+        else
+            ui.go:SetText("Challenge the group")
+            ns.SetEnabled(ui.go, Net:InGroup() and not S.accepting)
+        end
+    end
+    ui.stats:SetText(self:StatsText())
+end
+
+function Kit:Mode()
+    if not self.def.rules.ChooseMove then return "party" end
+    return self.db.mode
+end
+
+function Kit:SetMode(mode)
+    if self.S.game or self.S.posted or self.db.mode == mode then return end
+    self.db.mode = mode
+    self.S.over = nil
+    ns:Sound("IG_MAINMENU_OPTION")
+    self:Welcome()
+    self:Refresh()
+end
+
+function Kit:Welcome()
+    if self:Mode() == "party" then
+        Net:Send(self:Msg({ "Q" }))
+        self:SetStatus(Net:InGroup() and "Challenge your group, or take a challenge." or "Join a party or raid to play your friends.")
+    else
+        self:SetStatus("Pick a stake, a level and your side, then Play.")
+    end
+end
+
+---------------------------------------------------------------------------
+-- Build
+---------------------------------------------------------------------------
+function Kit:BuildBoard(panel)
+    local ui = self.ui
+    local game = self
+    local frame = ns.CreateFrame("Frame", nil, panel)
+    frame:SetPoint("TOPLEFT", panel, "TOPLEFT", BX, BY)
+    frame:SetWidth(8 * SQ); frame:SetHeight(8 * SQ)
+    local edge = frame:CreateTexture(nil, "BACKGROUND")
+    edge:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
+    edge:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 3, -3)
+    edge:SetTexture(0.16, 0.10, 0.05, 1)
+    ui.board = frame
+    ui.squares = {}
+    for s = 1, 64 do
+        local s = s     -- own copy for the closure (Lua 5.0)
+        local b = ns.CreateFrame("Button", nil, frame)
+        b:SetWidth(SQ); b:SetHeight(SQ)
+        b.sq = s
+        b.bg = b:CreateTexture(nil, "BACKGROUND")
+        b.bg:SetAllPoints(b)
+        b.mark = b:CreateTexture(nil, "BORDER")
+        b.mark:SetAllPoints(b)
+        b.mark:Hide()
+        b.piece = b:CreateTexture(nil, "ARTWORK")
+        b.piece:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
+        b.piece:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+        b.piece:SetTexture(ATLAS)
+        b.piece:Hide()
+        b.dot = b:CreateTexture(nil, "OVERLAY")
+        b.dot:SetWidth(10); b.dot:SetHeight(10)
+        b.dot:SetPoint("CENTER", b, "CENTER", 0, 0)
+        b.dot:SetTexture(0.2, 0.95, 0.3, 0.8)
+        b.dot:Hide()
+        local hl = b:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints(b)
+        hl:SetTexture(1, 1, 1, 0.15)
+        b:SetScript("OnClick", function() game:Click(s) end)
+        ui.squares[s] = b
+    end
+    ui.files, ui.ranks = {}, {}
+    for i = 1, 8 do
+        local f = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        f:SetPoint("TOP", frame, "BOTTOMLEFT", (i - 0.5) * SQ, -4)
+        ui.files[i] = f
+        local r = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        r:SetPoint("RIGHT", frame, "TOPLEFT", -5, -(i - 0.5) * SQ)
+        ui.ranks[i] = r
+    end
+
+    -- promotion: which piece?
+    local box = ns.CreateFrame("Frame", nil, frame)
+    box:SetFrameLevel(frame:GetFrameLevel() + 10)
+    box:SetWidth(8 * SQ - 40); box:SetHeight(84)
+    box:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    box:EnableMouse(true)
+    local bg = box:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(box)
+    bg:SetTexture(0, 0, 0, 0.88)
+    local label = box:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("TOP", box, "TOP", 0, -8)
+    label:SetText("Promote to:")
+    ui.choices = {}
+    for i = 1, 4 do
+        local i = i
+        local b = MakeButton(box, "?", 84, function() game:Choose(i) end)
+        b:SetPoint("TOPLEFT", box, "TOPLEFT", 6 + ns.Mod(i - 1, 2) * 88, -26 - math.floor((i - 1) / 2) * 26)
+        ui.choices[i] = b
+    end
+    box:Hide()
+    ui.choiceBox = box
+end
+
+function Kit:BuildLobby(panel)
+    local ui, game = self.ui, self
+    local lobby = ns.CreateFrame("Frame", nil, ui.board)
+    lobby:SetAllPoints(ui.board)
+    lobby:SetFrameLevel(ui.board:GetFrameLevel() + 8)
+    lobby:EnableMouse(true)
+    local bg = lobby:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(lobby)
+    bg:SetTexture(0, 0, 0, 0.72)
+    ui.lobbyTitle = lobby:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.lobbyTitle:SetPoint("TOP", lobby, "TOP", 0, -12)
+    ui.lobbyTitle:SetWidth(8 * SQ - 12)
+    ui.rows = {}
+    for r = 1, 4 do
+        local r = r
+        local row = ns.CreateFrame("Frame", nil, lobby)
+        row:SetWidth(8 * SQ - 16); row:SetHeight(36)
+        row:SetPoint("TOP", lobby, "TOP", 0, -44 - (r - 1) * 40)
+        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.text:SetPoint("LEFT", row, "LEFT", 0, 0)
+        row.text:SetWidth(8 * SQ - 90)
+        row.text:SetJustifyH("LEFT")
+        row.accept = MakeButton(row, "Accept", 66, function() game:Accept(game.ui.rows[r].offer) end)
+        row.accept:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        row:Hide()
+        ui.rows[r] = row
+    end
+    lobby:Hide()
+    ui.lobby = lobby
+end
+
+function Kit:BuildSide(panel)
+    local ui = self.ui
+    ui.turn = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.turn:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X, BY)
+    ui.turn:SetWidth(SIDE_W)
+    ui.turn:SetJustifyH("LEFT")
+    ui.against = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.against:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X, BY - 32)
+    ui.against:SetWidth(SIDE_W)
+    ui.against:SetJustifyH("LEFT")
+    local logBg = panel:CreateTexture(nil, "BORDER")
+    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X - 2, BY - 64)
+    logBg:SetWidth(SIDE_W + 2); logBg:SetHeight(LOG_LINES * 13 + 6)
+    logBg:SetTexture(0, 0, 0, 0.35)
+    ui.log = {}
+    for i = 1, LOG_LINES do
+        local t = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        t:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X + 2, BY - 67 - (i - 1) * 13)
+        t:SetWidth(SIDE_W - 4)
+        t:SetJustifyH("LEFT")
+        ui.log[i] = t
+    end
+end
+
+function Kit:BuildBottom(panel)
+    local ui, game, R = self.ui, self, self.def.rules
+    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status:SetPoint("BOTTOM", panel, "BOTTOM", 0, 80)
+    ui.status:SetWidth(344)
+
+    local function Locked() return game.S.game ~= nil or game.S.posted ~= nil end
+    local function Refresh() game:Refresh() end
+    local row = ns.CreateFrame("Frame", nil, panel)
+    row:SetWidth(344); row:SetHeight(24)
+    row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 50)
+    ui.pickers = {}
+    ui.side = ns.UI.Stepper(row, {
+        list = { R.sides[1], R.sides[2], "?" }, width = 52,
+        label = function(v) return v == "?" and "|cffffffffRandom|r" or ("|cffffffff" .. R.names[v] .. "|r") end,
+        get = function() return game.db.side end,
+        set = function(v) game.db.side = v end,
+        locked = Locked, onChange = Refresh,
+    })
+    table.insert(ui.pickers, ui.side)
+    if R.ChooseMove then
+        ui.stake = ns.UI.Stepper(row, {
+            list = STAKES, width = 66,
+            label = function(v) return "Stake |cffffffff" .. Fmt(v) .. "|r" end,
+            get = function() return game.db.stake end,
+            set = function(v) game.db.stake = v end,
+            locked = Locked, onChange = Refresh,
+        })
+        ui.stake:SetPoint("LEFT", row, "LEFT", 0, 0)
+        ui.level = ns.UI.Stepper(row, {
+            list = { 1, 2, 3 }, width = 52,
+            label = function(v) return "|cffffffff" .. R.LEVELS[v].name .. "|r" end,
+            get = function() return game.db.level end,
+            set = function(v) game.db.level = v end,
+            locked = Locked, onChange = Refresh,
+        })
+        ui.level:SetPoint("LEFT", ui.stake, "RIGHT", 4, 0)
+        table.insert(ui.pickers, ui.stake)
+        table.insert(ui.pickers, ui.level)
+        ui.side:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+    else
+        ui.side:SetPoint("CENTER", row, "CENTER", 0, 0)
+    end
+
+    ui.go = MakeButton(panel, "Play", 180, function()
+        if game:Mode() == "solo" then game:PlaySolo()
+        elseif game.S.posted then game:Withdraw()
+        else game:Post() end
+    end, 28)
+    ui.go:SetPoint("BOTTOM", panel, "BOTTOM", 0, 18)
+    ui.resign = MakeButton(panel, "Resign", 110, function() game:Resign() end, 26)
+    ui.resign:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
+    ui.resign:Hide()
+    ui.draw = MakeButton(panel, "Offer draw", 110, function() game:Draw() end, 26)
+    ui.draw:SetPoint("BOTTOMLEFT", panel, "BOTTOM", 4, 19)
+    ui.draw:Hide()
+    ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
+end
+
+function Kit:Build(panel)
+    local def, game, R = self.def, self, self.def.rules
+    self.db = ns:SetupGame(panel, self.id, {
+        defaults = { mode = R.ChooseMove and "solo" or "party", stake = 50, level = 2, side = R.sides[1] },
+        stats = DEFAULT_STATS,
+        sounds = EXTRA_SOUNDS,
+        felt = def.felt,
+    })
+    if R.ChooseMove then
+        self.ui.soloTab = MakeButton(panel, "Vs the computer", 150, function() game:SetMode("solo") end)
+        self.ui.soloTab:SetPoint("TOPRIGHT", panel, "TOP", -4, -4)
+        self.ui.partyTab = MakeButton(panel, "Party game", 150, function() game:SetMode("party") end)
+        self.ui.partyTab:SetPoint("TOPLEFT", panel, "TOP", 4, -4)
+    else
+        local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOP", panel, "TOP", 0, -10)
+        title:SetText("Party " .. string.lower(def.name) .. " - play anyone in your group")
+    end
+    self:BuildBoard(panel)
+    self:BuildLobby(panel)
+    self:BuildSide(panel)
+    self:BuildBottom(panel)
+    self.ui.options = ns:GameOptions(self, panel, {
+        rules = def.rulesText,
+        onReset = function() game:ResetStats() end,
+        db = function() return game.db end,
+        sounds = EXTRA_SOUNDS,
+    })
+
+    -- a game from before a reload
+    local db = self.db
+    if db.party then
+        local p = db.party
+        local g = { kind = "party", id = p.id, opp = p.opp, me = p.me, moves = p.moves or {}, heard = GetTime(), pinged = GetTime() }
+        self:Replay(g)
+        db.party.moves = g.moves
+        self.S.game = g
+        self:Ping(g)
+        self:SetStatus("Welcome back - your game with " .. tostring(p.opp) .. " is still on.")
+    elseif db.solo and R.ChooseMove then
+        local p = db.solo
+        local g = { kind = "solo", me = p.me, stake = p.stake, level = p.level or 2, moves = p.moves or {} }
+        self:Replay(g)
+        db.solo.moves = g.moves
+        self.S.game = g
+        g.thinkAt = GetTime() + THINK_PAUSE
+        self:SetStatus("Welcome back - your game is still on.")
+        if self:CheckEnd() then return end
+    else
+        self:Welcome()
+    end
+    self:Refresh()
+end
+
+function Kit:OnShow()
+    if self.ui.board then
+        if self:Mode() == "party" and not self.S.game then Net:Send(self:Msg({ "Q" })) end
+        self:Refresh()
+    end
+end
+
+function Kit:OnHide()
+    if self.ui.options then self.ui.options:Hide() end
+end
+
+function Kit:ChipsInPlay()
+    local d = ns.db[self.id]
+    return (self.S.game ~= nil and self.S.game.kind == "solo") or (d ~= nil and d.solo ~= nil)
+end
+
+-- Start over (Options): a game in progress is resigned.
+function Kit:Abandon()
+    if self.S.posted then self:Withdraw(true) end
+    local g = self.S.game
+    if g then
+        if g.kind == "party" then Net:Send(self:Msg({ "F", g.id })) end
+        self:Finish(self.def.rules.Other(g.me), "you resigned")
+    else
+        local d = ns.db[self.id]
+        if d then d.solo, d.party = nil, nil end
+    end
+end
+
+function Kit:ResetStats()
+    local d = ns.db[self.id]
+    if not d then return end
+    d.stats = {}
+    Fill(d.stats, DEFAULT_STATS)
+    if self.ui.stats and self.db then self:Refresh() end
+end
+
+---------------------------------------------------------------------------
+-- A new board game
+---------------------------------------------------------------------------
+function Kit.New(def)
+    local game = setmetatable({
+        id = def.id, name = def.name, description = def.description, icon = def.icon, dealer = def.dealer,
+        def = def, ui = {}, S = { offers = {} },
+    }, Kit)
+    Net.handlers[def.tag] = function(sender, f) game:OnMessage(sender, f) end
+    Net.groupHandlers[def.id] = function() game:GroupChanged() end
+    local ticker = ns.CreateFrame("Frame")
+    local wait = 0
+    ticker:SetScript("OnUpdate", function()
+        wait = wait + (arg1 or 0)
+        -- the computer thinks every frame; the rest can wait a moment
+        if game.S.think or wait >= 0.1 then
+            wait = 0
+            game:Tick()
+        end
+    end)
+    return game
+end

@@ -26,13 +26,15 @@ One addon folder runs on two clients:
 - **Three Card Poker**: Ante and Play against the dealer, with the Ante bonus and a Pair Plus side bet
 - **Keno**: pick 1 to 10 of 80 numbers, twenty are drawn; quick pick and auto play
 - **Deathroll**: the classic gold duel, against the dealer or with your party (real /rolls)
+- **Checkers**: American checkers against the computer (Easy, Normal or Hard) or anyone in your party
+- **Chess**: the full game against anyone in your party; a reload picks the game back up
 
-Party tables and party duels are free to join: everyone plays with the stack the host
+Party tables, party duels and party board games are free to join: everyone plays with the stack the host
 picks, and nobody's own chips are touched. Run short at a table and you can top back up to
 that stack between hands. Everyone at a table needs the same party version of CowCasino;
 a table from another version shows in the list but can't be joined.
 
-A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker and Deathroll).
+A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker, Deathroll, Checkers and Chess).
 Pick another dealer in Options (the Display tab), or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
 explains how a game drives it, including showing a party member's 3D portrait.
 
