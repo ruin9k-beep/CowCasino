@@ -63,6 +63,19 @@ Check("after a reload the game is still on, same moves", G2.S.game ~= nil and ta
   and G2.S.game.stake == 50 and G2:ChipsInPlay())
 
 H.Press("Resign")
+Check("Resign asks first, and can't be confirmed for 3 seconds", G.S.game ~= nil and H.Find("Resign? 3") ~= nil
+  and not H.Find("Resign? 3").enabled)
+H.Tick(1.5)
+Check("...it counts down", H.Find("Resign? 2") ~= nil and H.Find("Confirm") == nil)
+H.Tick(1.6)
+Check("...then Confirm", H.Find("Confirm") ~= nil and H.Find("Confirm").enabled and G.S.game ~= nil)
+Check("the Resign button has a red wash the Play button doesn't", G.ui.resign.wash ~= nil and G.ui.resign.wash.shown
+  and rawget(G.ui.go, "wash") == nil)
+H.Tick(6)
+Check("left alone, it goes back to Resign", H.Find("Resign") ~= nil and G.S.game ~= nil)
+H.Press("Resign")
+H.Tick(3.1)
+H.Press("Confirm")
 Check("Resign loses the game (and the stake)", G.S.game == nil and G.db.stats.losses == 1 and ns.db.chips == before - 50)
 Check("...and the last position stays on the board", G.S.over ~= nil and H.Find("Play for 50") ~= nil)
 
@@ -122,6 +135,8 @@ env.Fire(CH.ui.squares[Sq("e5")], "OnClick", "LeftButton")
 H.Tick(5)
 Check("your move, then the computer's", table.getn(cg.moves) == 3, table.getn(cg.moves))
 H.Press("Resign")
+H.Tick(3.1)
+H.Press("Confirm")
 Check("Resign ends it as a loss", CH.S.game == nil and CH.db.stats.losses == 1 and ns.db.chips == before - 50)
 
 ---------------------------------------------------------------------------
@@ -213,6 +228,8 @@ Move(guest, "d8", "d5")
 host.env.Fire(host.P.ui.squares[Sq("b1")], "OnClick", "LeftButton")
 Check("a piece with no capture shows no path", DotsShown(host) == 0 and not host.P.ui.squares[Sq("c3")].threat.shown)
 PressIn(host, "Resign")
+Run(3.1)
+PressIn(host, "Confirm")
 Run(1)
 
 -- a draw offer
@@ -233,6 +250,8 @@ Run(1)
 Move(guest, "e7", "e5")
 Check("a move instead turns the offer down", FindIn(host, "Offer draw") ~= nil and FindIn(guest, "Accept draw") == nil)
 PressIn(guest, "Resign")
+Run(3.1)
+PressIn(guest, "Confirm")
 Run(1)
 Check("Resign: the other player wins", host.P.S.game == nil and host.P.db.stats.wins == 1 and guest.P.db.stats.losses == 1)
 
@@ -254,6 +273,8 @@ PressIn(host, "Knight")
 Run(1)
 Check("...and the other board gets the same piece", gg.pos.sq[Sq("e8")] == "wN" and hg.pos.sq[Sq("e8")] == "wN")
 PressIn(host, "Resign")
+Run(3.1)
+PressIn(host, "Confirm")
 Run(1)
 
 -- a reload: the game carries on, and missed moves catch up
@@ -287,6 +308,8 @@ Drop(guest)
 Run(95)
 Check("after a long silence, Resign becomes Call it off", FindIn(host, "Call it off") ~= nil)
 PressIn(host, "Call it off")
+Run(3.1)
+PressIn(host, "Confirm")
 Check("...which ends the game without a result (not counted)", host.P.S.game == nil and host.P.db.stats.games == 5,
   host.P.db.stats.games)
 

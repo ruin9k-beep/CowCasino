@@ -40,6 +40,8 @@ local OFFER_EVERY  = 20
 local OFFER_TIMEOUT = 60
 local PING_EVERY   = 30      -- a party game says "still here" this often
 local QUIET_LIMIT  = 90      -- nothing heard this long: the game can be called off
+local RESIGN_DELAY = 3       -- Resign asks again; the second click only counts after this
+local RESIGN_WINDOW = 5      -- ...and the question goes away this long after that
 local EXTRA_SOUNDS = { { key = "move", label = "The other side moves", default = "tick" } }
 local DEFAULT_STATS = { games = 0, wins = 0, losses = 0, draws = 0, partyGames = 0, wagered = 0, won = 0, biggestWin = 0 }
 
@@ -158,7 +160,7 @@ end
 function Kit:Finish(winner, why)
     local g = self.S.game
     if not g then return end
-    self.S.game, self.S.sel, self.S.choice, self.S.think = nil, nil, nil, nil
+    self.S.game, self.S.sel, self.S.choice, self.S.think, self.S.resignArmed = nil, nil, nil, nil, nil
     self.db.solo, self.db.party = nil, nil
     local s = self.db.stats
     local solo = g.kind == "solo"
@@ -404,6 +406,46 @@ function Kit:Resign()
     self:Finish(self.def.rules.Other(g.me), "you resigned")
 end
 
+-- Resign takes two clicks: the first asks, and the second only works once
+-- RESIGN_DELAY seconds have gone by (so a stray double click can't end a game).
+function Kit:ResignClick()
+    local armed = self.S.resignArmed
+    if armed then
+        if GetTime() - armed >= RESIGN_DELAY then
+            self.S.resignArmed = nil
+            self:Resign()
+        end
+        return
+    end
+    self.S.resignArmed = GetTime()
+    ns:Sound("IG_MAINMENU_OPTION")
+    self:ResignButton()
+end
+
+-- The Resign button's text and state (it counts down while armed).
+function Kit:ResignButton()
+    local g, ui = self.S.game, self.ui
+    if not g or not ui.resign then return end
+    local word = self:Quiet(g) and "Call it off" or "Resign"
+    local armed = self.S.resignArmed
+    if armed then
+        local waited = GetTime() - armed
+        if waited >= RESIGN_DELAY + RESIGN_WINDOW then
+            self.S.resignArmed, armed = nil, nil
+        elseif waited < RESIGN_DELAY then
+            ui.resign:SetText(word .. "? " .. math.ceil(RESIGN_DELAY - waited))
+            ns.SetEnabled(ui.resign, false)
+            return
+        else
+            ui.resign:SetText("Confirm")
+            ns.SetEnabled(ui.resign, true)
+            return
+        end
+    end
+    ui.resign:SetText(word)
+    ns.SetEnabled(ui.resign, true)
+end
+
 -- Offer a draw, or take the one on the table.
 function Kit:Draw()
     local g = self.S.game
@@ -524,6 +566,7 @@ function Kit:Tick()
     local S, now = self.S, GetTime()
     local g = S.game
     if g and g.kind == "solo" then self:Think() end
+    if self.S.resignArmed and self:Shown() then self:ResignButton() end
     if g and g.kind == "party" then
         if now - (g.pinged or 0) >= PING_EVERY then self:Ping(g) end
         if self:Quiet(g) and not g.quietShown then
@@ -804,7 +847,7 @@ function Kit:Refresh()
     if g then
         ui.go:Hide()
         ui.resign:Show()
-        ui.resign:SetText(self:Quiet(g) and "Call it off" or "Resign")
+        self:ResignButton()
         ns.SetShown(ui.draw, g.kind == "party")
         if g.kind == "party" then
             local offer = g.drawOffer
@@ -1049,8 +1092,14 @@ function Kit:BuildBottom(panel)
         else game:Post() end
     end, 28)
     ui.go:SetPoint("BOTTOM", panel, "BOTTOM", 0, 18)
-    ui.resign = MakeButton(panel, "Resign", 110, function() game:Resign() end, 26)
+    ui.resign = MakeButton(panel, "Resign", 110, function() game:ResignClick() end, 26)
     ui.resign:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
+    -- a red wash, so it never looks like the Play button
+    local wash = ui.resign:CreateTexture(nil, "ARTWORK")
+    wash:SetPoint("TOPLEFT", ui.resign, "TOPLEFT", 3, -3)
+    wash:SetPoint("BOTTOMRIGHT", ui.resign, "BOTTOMRIGHT", -3, 3)
+    wash:SetTexture(0.75, 0.05, 0.05, 0.5)
+    ui.resign.wash = wash
     ui.resign:Hide()
     ui.draw = MakeButton(panel, "Offer draw", 110, function() game:Draw() end, 26)
     ui.draw:SetPoint("BOTTOMLEFT", panel, "BOTTOM", 4, 19)

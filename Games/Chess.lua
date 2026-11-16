@@ -26,7 +26,7 @@ local Chess = ns.BoardKit.New({
         .. "To move, click a piece, then where it goes. To castle, move the king two squares. A pawn reaching the "
         .. "far rank asks what to promote to.\n\n"
         .. "The game ends in checkmate, or a draw by stalemate, the fifty-move rule, the same position three "
-        .. "times, or too few pieces to mate. You can also offer a draw, or resign.\n\n"
+        .. "times, or too few pieces to mate. You can also offer a draw, or resign (Resign asks again: click Confirm once its 3 seconds are up).\n\n"
         .. "A reload doesn't end the game: it picks up where you left off. In a party game, if the other player "
         .. "goes quiet for a while, you can call the game off.",
 })
