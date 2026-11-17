@@ -1,0 +1,28 @@
+# Push a version tag (v0.18.0) and GitHub builds the addon and publishes a
+# release with CowCasino-forever.zip attached: the name updaters such as
+# wowui.io look for (<addon>-forever.zip). The same zip works on 1.12 too.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the zip
+        run: |
+          python3 dev/release.py --zip-only
+          mv dev/CowCasino.zip CowCasino-forever.zip
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" CowCasino-forever.zip \
+            --title "CowCasino ${GITHUB_REF_NAME#v}" \
+            --notes "Download **CowCasino-forever.zip** and unzip it into Interface\\AddOns (WoW Forever, or the 1.12 Octo/Turtle client)."

@@ -3,6 +3,7 @@
 
     python3 dev/release.py            check, test on both clients, write dev/CowCasino.zip
     python3 dev/release.py --no-zip   check and test only
+    python3 dev/release.py --zip-only just the zip (used by the GitHub release workflow)
 
 The repo root is the addon folder (so git addon managers can clone it
 straight into Interface\\AddOns\\CowCasino); this dev/ folder holds the
@@ -167,6 +168,10 @@ def package():
 if __name__ == "__main__":
     version, nfiles = write_mainline_toc()
     print(f"CowCasino {version}: CowCasino_Mainline.toc written ({nfiles} files)")
+    if "--zip-only" in sys.argv:          # GitHub's release build: tests already ran here
+        package()
+        print("wrote " + ZIP)
+        sys.exit(0)
     static_checks()
     print("static checks pass (shared calls, Lua 5.0, upvalues)")
     n = run_tests()
