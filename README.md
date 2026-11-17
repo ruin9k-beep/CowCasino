@@ -78,9 +78,10 @@ mock of each client. The tests run with `texlua` (LuaTeX's Lua). `startup_tests`
 real saved-variables file; point `COWCASINO_SAVE` at one to include it. The zip it makes
 holds just the addon, ready to unzip into `Interface\AddOns`.
 
-Releases: push a version tag (`git tag v0.18.0 && git push origin v0.18.0`) and the GitHub
-workflow in `.github/workflows/release.yml` builds the zip and publishes a release with
-`CowCasino-forever.zip` attached, the name updaters such as wowui.io look for.
+Releases: when a push to main changes the version in `CowCasino.toc`, the GitHub workflow in
+`.github/workflows/release.yml` builds the zip and publishes release `v<version>` with
+`CowCasino-forever.zip` attached, the name updaters such as wowui.io look for. (It can also be
+run by hand from the repository's Actions tab; it skips a version that's already released.)
 
 Test files share `dev/tests/harness.lua`: `Check`, `Start` (a fresh client), `Find`,
 `Press`, `Tick`, `Done`, and `H.Party` for party tests (isolated clients on a simulated

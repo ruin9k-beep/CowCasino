@@ -1,11 +1,15 @@
-# Push a version tag (v0.18.0) and GitHub builds the addon and publishes a
-# release with CowCasino-forever.zip attached: the name updaters such as
-# wowui.io look for (<addon>-forever.zip). The same zip works on 1.12 too.
+# Publishes a GitHub release with CowCasino-forever.zip attached (the name
+# updaters such as wowui.io look for: <addon>-forever.zip; the same zip works
+# on the 1.12 client too). It runs when a push to main changes the version in
+# CowCasino.toc (or this file), or by hand from the Actions tab, and makes
+# release v<version> unless that one already exists.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: ["CowCasino.toc", ".github/workflows/release.yml"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,14 +19,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Read the version
+        id: version
+        run: echo "tag=v$(sed -n 's/^## Version: *//p' CowCasino.toc | tr -d '\r')" >> "$GITHUB_OUTPUT"
+      - name: Skip if it's already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=no" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build the zip
+        if: steps.check.outputs.exists == 'no'
         run: |
           python3 dev/release.py --zip-only
           mv dev/CowCasino.zip CowCasino-forever.zip
       - name: Publish the release
+        if: steps.check.outputs.exists == 'no'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" CowCasino-forever.zip \
-            --title "CowCasino ${GITHUB_REF_NAME#v}" \
+          gh release create "$TAG" CowCasino-forever.zip --target "$GITHUB_SHA" \
+            --title "CowCasino ${TAG#v}" \
             --notes "Download **CowCasino-forever.zip** and unzip it into Interface\\AddOns (WoW Forever, or the 1.12 Octo/Turtle client)."
