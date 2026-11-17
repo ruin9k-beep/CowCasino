@@ -29,11 +29,11 @@ local Kit = {}
 Kit.__index = Kit
 ns.BoardKit = Kit
 
-local SQ, BX, BY   = 26, 18, -34       -- square size; the board's top-left in the panel
+local SQ, BX, BY   = 30, 18, -32       -- square size; the board's top-left in the panel
 local SIDE_X       = BX + 8 * SQ + 10  -- the column to the right of the board
 local SIDE_W       = 352 - SIDE_X - 4
-local LOG_LINES    = 11
-local TAKEN_SIZE, TAKEN_PER_ROW = 13, 8   -- the captured-piece icons (def.taken)
+local LOG_LINES    = 9       -- move list lines (5 when the captured pieces show too)
+local TAKEN_SIZE, TAKEN_PER_ROW = 12, 5   -- the captured-piece icons (def.taken)
 local ATLAS        = "Interface\\AddOns\\CowCasino\\Art\\BoardPieces"
 local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
 local THINK_PAUSE  = 0.6     -- seconds before the computer starts thinking
@@ -758,6 +758,7 @@ function Kit:DrawTaken(g)
             end
         end
         for _, p in ipairs(list) do sum = sum + (def.taken[p] or 0) end
+        row:SetHeight(math.max(1, math.ceil(ns.getn(list) / TAKEN_PER_ROW) * TAKEN_SIZE))
         worth[k] = sum
     end
     local diff = worth[2] - worth[1]
@@ -843,11 +844,12 @@ function Kit:Refresh()
     if g then
         local me = self:SideName(g.me)
         if self:Turn(g) == "me" then
-            ui.turn:SetText("|cff66ff66Your move|r\n(" .. me .. ")")
+            ui.turn:SetText("|cff66ff66Your move|r")
         else
-            ui.turn:SetText((g.kind == "solo" and "Computer" or g.opp) .. "'s move\n(" .. self:SideName(R.Other(g.me)) .. ")")
+            ui.turn:SetText("Their move")
         end
-        ui.against:SetText(g.kind == "solo" and ("vs " .. R.LEVELS[g.level].name .. " computer\nfor " .. Fmt(g.stake)) or ("vs " .. g.opp .. "\n(free)"))
+        ui.against:SetText("You: " .. me .. "\n" .. (g.kind == "solo" and ("vs " .. R.LEVELS[g.level].name .. " AI\nfor " .. Fmt(g.stake))
+            or ("vs " .. g.opp .. "\n(free)")))
     else
         ui.turn:SetText(S.over and "Game over" or "")
         ui.against:SetText("")
@@ -856,6 +858,7 @@ function Kit:Refresh()
     local n = ns.getn(log)
     local lines = self.logLines
     for i = 1, lines do ui.log[i]:SetText(log[n - lines + i] or "") end
+    ns.SetShown(ui.logBg, n > 0)
     if ui.taken then self:DrawTaken(g or S.over) end
 
     -- the party lobby, over the board between games
@@ -881,9 +884,11 @@ function Kit:Refresh()
 
     -- the pickers
     for _, p in ipairs(ui.pickers) do p:Refresh() end
+    -- (hidden during a game: the column says what it's for)
+    ns.SetShown(ui.side, g == nil)
     if ui.stake then
-        ns.SetShown(ui.stake, solo)
-        ns.SetShown(ui.level, solo)
+        ns.SetShown(ui.stake, solo and g == nil)
+        ns.SetShown(ui.level, solo and g == nil)
     end
 
     -- the buttons
@@ -1061,48 +1066,65 @@ function Kit:BuildLobby(panel)
     ui.lobby = lobby
 end
 
+-- The column beside the board, top to bottom: whose move, who against,
+-- what's happening, the captured pieces (def.taken), and the moves so far
+-- (at the foot, level with the board's bottom). Each piece hangs from the
+-- one above it, so a long message pushes the rest down.
 function Kit:BuildSide(panel)
     local ui = self.ui
     ui.turn = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.turn:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X, BY)
+    ui.turn:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X, BY - 2)
     ui.turn:SetWidth(SIDE_W)
     ui.turn:SetJustifyH("LEFT")
     ui.against = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ui.against:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X, BY - 32)
+    ui.against:SetPoint("TOPLEFT", ui.turn, "BOTTOMLEFT", 0, -4)
     ui.against:SetWidth(SIDE_W)
     ui.against:SetJustifyH("LEFT")
-    -- the captured pieces: what the other side took on top, what you took
-    -- below (each row up to 8 icons, most valuable first), and who's ahead
-    local logTop, lines = BY - 64, LOG_LINES
+    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ui.status:SetPoint("TOPLEFT", ui.against, "BOTTOMLEFT", 0, -8)
+    ui.status:SetWidth(SIDE_W)
+    ui.status:SetJustifyH("LEFT")
+
+    -- the captured pieces: what the other side took, then what you took
+    -- (most valuable first), and who's ahead
+    local lines = LOG_LINES
     if self.def.taken then
         ui.taken = {}
-        for k, y in ipairs({ BY - 60, BY - 92 }) do
-            local row = { icons = {} }
+        local above = ui.status
+        for k = 1, 2 do
+            local box = ns.CreateFrame("Frame", nil, panel)
+            box:SetWidth(SIDE_W); box:SetHeight(1)
+            box:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, k == 1 and -8 or -3)
+            box.icons = {}
             for i = 1, 16 do
-                local t = panel:CreateTexture(nil, "ARTWORK")
+                local t = box:CreateTexture(nil, "ARTWORK")
                 t:SetWidth(TAKEN_SIZE); t:SetHeight(TAKEN_SIZE)
-                t:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X + ns.Mod(i - 1, TAKEN_PER_ROW) * TAKEN_SIZE,
-                    y - math.floor((i - 1) / TAKEN_PER_ROW) * TAKEN_SIZE)
+                t:SetPoint("TOPLEFT", box, "TOPLEFT", ns.Mod(i - 1, TAKEN_PER_ROW) * TAKEN_SIZE,
+                    -math.floor((i - 1) / TAKEN_PER_ROW) * TAKEN_SIZE)
                 t:SetTexture(ATLAS)
                 t:Hide()
-                row.icons[i] = t
+                box.icons[i] = t
             end
-            row.lead = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            row.lead:SetPoint("TOPRIGHT", panel, "TOPLEFT", SIDE_X + SIDE_W, y - TAKEN_SIZE - 1)
-            ui.taken[k] = row
+            box.lead = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            box.lead:SetPoint("TOPRIGHT", box, "TOPRIGHT", 0, -1)
+            ui.taken[k] = box
+            above = box
         end
-        logTop, lines = BY - 124, 6
+        lines = 5
     end
     self.logLines = lines
-    local logBg = panel:CreateTexture(nil, "BORDER")
-    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X - 2, logTop)
-    logBg:SetWidth(SIDE_W + 2); logBg:SetHeight(lines * 13 + 6)
-    logBg:SetTexture(0, 0, 0, 0.35)
+
+    -- the moves so far, at the foot of the column
+    local bottom = BY - 8 * SQ
+    ui.logBg = panel:CreateTexture(nil, "BORDER")
+    ui.logBg:SetPoint("BOTTOMLEFT", panel, "TOPLEFT", SIDE_X - 2, bottom)
+    ui.logBg:SetWidth(SIDE_W + 4); ui.logBg:SetHeight(lines * 13 + 6)
+    ui.logBg:SetTexture(0, 0, 0, 0.35)
     ui.log = {}
     for i = 1, lines do
         local t = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        t:SetPoint("TOPLEFT", panel, "TOPLEFT", SIDE_X + 2, logTop - 3 - (i - 1) * 13)
-        t:SetWidth(SIDE_W - 4)
+        t:SetPoint("BOTTOMLEFT", panel, "TOPLEFT", SIDE_X + 1, bottom + 3 + (lines - i) * 13)
+        t:SetWidth(SIDE_W)
         t:SetJustifyH("LEFT")
         ui.log[i] = t
     end
@@ -1110,10 +1132,6 @@ end
 
 function Kit:BuildBottom(panel)
     local ui, game, R = self.ui, self, self.def.rules
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.status:SetPoint("BOTTOM", panel, "BOTTOM", 0, 80)
-    ui.status:SetWidth(344)
-
     local function Locked() return game.S.game ~= nil or game.S.posted ~= nil end
     local function Refresh() game:Refresh() end
     local row = ns.CreateFrame("Frame", nil, panel)
