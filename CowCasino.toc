@@ -2,7 +2,7 @@
 ## Title: |cffffd100CowCasino|r
 ## Notes: A just-for-fun casino. No real gold is ever wagered. Type /casino to open.
 ## Author: ruin9k
-## Version: 0.19.1
+## Version: 0.20.0
 ## SavedVariables: CowCasinoDB
 
 Compat112.lua
@@ -53,3 +53,6 @@ Games\ChessAI.lua
 Games\BattleshipRules.lua
 Games\Battleship.lua
 Games\Chess.lua
+Games\SketchWords.lua
+Games\SketchKit.lua
+Games\Sketch.lua

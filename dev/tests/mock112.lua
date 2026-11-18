@@ -156,9 +156,12 @@ function methods:SetUnit(u) assert(type(u) == "string", "SetUnit needs a unit");
 function methods:SetModel(m) assert(type(m) == "string"); self.model = m; self.unit = nil end
 function methods:ClearModel() self.unit, self.model = nil, nil end
 function methods:SetCamera(c) assert(type(c) == "number"); self.camera = c end
-function methods:SetTexCoord(l, r, t, b)
-  assert(type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number", "SetTexCoord needs 4 numbers")
-  self.coords = { l, r, t, b }
+-- 4 numbers (left, right, top, bottom), or 8 (the corners: UL, LL, UR, LR as x, y).
+function methods:SetTexCoord(a, b, c, d, e, f, g, h)
+  local n = { a, b, c, d, e, f, g, h }
+  local count = e ~= nil and 8 or 4
+  for i = 1, count do assert(type(n[i]) == "number" and n[i] == n[i], "SetTexCoord needs 4 or 8 numbers") end
+  self.coords = n
 end
 function methods:SetAlpha(a) assert(type(a) == "number", "SetAlpha needs a number"); self.alpha = a end
 function methods:SetTextColor(r, g, b, a) assert(type(r) == "number" and type(g) == "number" and type(b) == "number"); self.color = { r, g, b, a or 1 } end

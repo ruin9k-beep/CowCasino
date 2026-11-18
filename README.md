@@ -31,6 +31,9 @@ One addon folder runs on two clients:
   picks the game back up
 - **Battleship**: the classic 10 x 10 sea, against the computer (Easy, Medium or Hard) or anyone in your party;
   party fleets stay secret and are checked against every answer at the end
+- **Sketch & Guess**: a party drawing game. Everyone takes a turn drawing a secret word while the
+  others race to guess it; the host picks the words (built-in packs, their own list or both), the
+  time to draw and the turns each. Practice mode lets you doodle on your own
 
 Party tables, party duels and party board games are free to join: everyone plays with the stack the host
 picks, and nobody's own chips are touched. Run short at a table and you can top back up to
@@ -84,6 +87,11 @@ Releases: when a push to main changes the version in `CowCasino.toc`, the GitHub
 `.github/workflows/release.yml` builds the zip and publishes release `v<version>` with
 `CowCasino-forever.zip` attached, the name updaters such as wowui.io look for. (It can also be
 run by hand from the repository's Actions tab; it skips a version that's already released.)
+
+Drawing games share a kit, `Games/SketchKit.lua` (`ns.SketchKit`): a canvas (strokes in a 256 x 256
+space, drawn as rotated lines or as dots), a tools bar (colors, sizes, eraser, Undo, Clear) and a sync
+that keeps everyone's copy of a drawing in step over the party (several artists can share one canvas).
+Word packs live in `Games/SketchWords.lua`. `Games/Sketch.lua` shows how a game puts them together.
 
 Test files share `dev/tests/harness.lua`: `Check`, `Start` (a fresh client), `Find`,
 `Press`, `Tick`, `Done`, and `H.Party` for party tests (isolated clients on a simulated

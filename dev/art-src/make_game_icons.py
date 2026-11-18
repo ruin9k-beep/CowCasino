@@ -450,11 +450,37 @@ def battleship():
     return frame(img)
 
 
+def sketch():
+    img = backdrop((70, 120, 150, 255), (22, 40, 58, 255))
+    d = ImageDraw.Draw(img)
+    # a sheet of paper, a little turned, with a doodled dragon-ish face
+    sheet = [(92, 120), (400, 92), (424, 400), (116, 428)]
+    shadow(img, lambda sd, o, c: sd.polygon([(x + o[0], y + o[1]) for x, y in sheet], fill=c))
+    d = ImageDraw.Draw(img)
+    d.polygon(sheet, fill=(246, 240, 224, 255), outline=(120, 100, 70, 255), width=5)
+    d.arc((150, 170, 330, 350), 200, 520, fill=(30, 26, 24, 255), width=12)          # a head
+    d.ellipse((200, 220, 226, 246), fill=(30, 26, 24, 255))                       # eyes
+    d.ellipse((262, 214, 288, 240), fill=(30, 26, 24, 255))
+    d.arc((205, 250, 290, 310), 20, 160, fill=(200, 30, 24, 255), width=10)      # a grin
+    d.line([(178, 186), (150, 120), (214, 172)], fill=(30, 26, 24, 255), width=11, joint="curve")   # horns
+    d.line([(296, 168), (330, 104), (318, 182)], fill=(30, 26, 24, 255), width=11, joint="curve")
+    d.line([(150, 372), (190, 352), (230, 380), (270, 352), (310, 378), (350, 356)], fill=(40, 90, 200, 255), width=9, joint="curve")
+    # a pencil across the corner
+    pencil = [(330, 470), (470, 330), (494, 354), (354, 494)]
+    shadow(img, lambda sd, o, c: sd.polygon([(x + o[0], y + o[1]) for x, y in pencil], fill=c), blur=10)
+    d = ImageDraw.Draw(img)
+    d.polygon(pencil, fill=GOLD, outline=DARKGOLD, width=5)
+    d.polygon([(330, 470), (354, 494), (300, 506)], fill=(238, 206, 160, 255), outline=DARKGOLD, width=4)
+    d.polygon([(312, 488), (318, 500), (300, 506)], fill=INK)
+    d.polygon([(470, 330), (494, 354), (506, 342), (482, 318)], fill=(220, 120, 140, 255), outline=DARKGOLD, width=4)
+    return frame(img)
+
+
 ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
          ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker),
          ("ThreeCardIcon", threecard), ("KenoIcon", keno), ("DeathrollIcon", deathroll),
          ("CheckersIcon", checkers), ("ChessIcon", chess),
-         ("BattleshipIcon", battleship)]
+         ("BattleshipIcon", battleship), ("SketchIcon", sketch)]
 
 if __name__ == "__main__":
     big = []
