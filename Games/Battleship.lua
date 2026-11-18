@@ -29,7 +29,10 @@ B.__index = B
 
 local SIZE, FLEET = R.SIZE, R.FLEET
 local L = Kit.LAYOUT
-local SQ = L.BOARD / SIZE                    -- 24
+local SQ = 25                                -- 10 x 25: a 250 board
+local BOARD = SIZE * SQ
+local SIDE_X = L.BX + BOARD + 10             -- the column beside it
+local SIDE_W = L.PANEL_W - SIDE_X - 4
 local MINI = 7                               -- the small board's squares
 local LOG_LINES = 4
 local ANSWER_PAUSE = 0.35                    -- the computer "checks" before answering your shot
@@ -633,7 +636,7 @@ end
 ---------------------------------------------------------------------------
 function B:BuildSide(panel)
     local ui = self.ui
-    local x, w = L.SIDE_X, L.SIDE_W
+    local x, w = SIDE_X, SIDE_W
     ui.turn = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.turn:SetPoint("TOPLEFT", panel, "TOPLEFT", x, L.BY - 2)
     ui.turn:SetWidth(w)
@@ -648,7 +651,7 @@ function B:BuildSide(panel)
     ui.status:SetJustifyH("LEFT")
 
     -- the small board (our fleet), above the shot list at the column's foot
-    local bottom = L.BY - L.BOARD
+    local bottom = L.BY - BOARD
     local mini = ns.CreateFrame("Frame", nil, panel)
     mini:SetWidth(SIZE * MINI); mini:SetHeight(SIZE * MINI)
     mini:SetPoint("BOTTOMLEFT", panel, "TOPLEFT", x + 2, bottom + LOG_LINES * 13 + 12)

@@ -5,6 +5,8 @@ local ns = CowCasino.ns
 
 local FRAME_W, FRAME_H = 436, 440
 local INSET = 42            -- the menu and game pages sit this far in from the sides (clear of the totem poles)
+local GAME_INSET = 28       -- a game's area reaches closer, up to the poles' inner edge (380 across)
+local GAME_W = 352          -- the width most games are laid out for (centered in the wider area)
 local ROW_H, ROW_GAP = 56, 6
 local LIST_H = 318          -- room for the game list under the header
 local PAGER_H = 24          -- page buttons under the list, when the games need more than one page
@@ -653,40 +655,46 @@ function ns:BuildMainFrame()
     end)
     self:LayoutMenu()
 
-    -- The window's one Options button, top right across from the title row.
+    -- The window's one Options button, in the title row (left of the close button).
     -- On the game list it opens the CowCasino options; in a game, that game's
     -- own page (each game fills it in with ns:GameOptions). It moves onto
     -- whichever page is showing so it draws over it.
     local optionsButton = ns.CreateFrame("Button", ns:NewName(), menu, "UIPanelButtonTemplate")
     optionsButton:SetWidth(70); optionsButton:SetHeight(22)
-    optionsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -INSET, -38)
+    optionsButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -INSET - 28, -9)    -- the title row, left of the close button
     optionsButton:SetText("Options")
     optionsButton:SetScript("OnClick", function() ns:ToggleOptions() end)
     frame.optionsButton = optionsButton
     self.optionsPage = self:BuildOptionsPage(frame)
 
     -- Page 2: open game ----------------------------------------------------
+    -- The title row holds < Games, the game's name and Options; the chips sit
+    -- just under the name, and the game gets everything below (380 x 380).
     local gamePage = ns.CreateFrame("Frame", nil, frame)
-    gamePage:SetPoint("TOPLEFT", gamePage:GetParent(), "TOPLEFT", INSET, -36)
-    gamePage:SetPoint("BOTTOMRIGHT", gamePage:GetParent(), "BOTTOMRIGHT", -INSET, 14)
+    gamePage:SetPoint("TOPLEFT", gamePage:GetParent(), "TOPLEFT", GAME_INSET, -8)
+    gamePage:SetPoint("BOTTOMRIGHT", gamePage:GetParent(), "BOTTOMRIGHT", -GAME_INSET, 14)
     gamePage:Hide()
     frame.gamePage = gamePage
 
     local back = ns.CreateFrame("Button", ns:NewName(), gamePage, "UIPanelButtonTemplate")
     back:SetWidth(80); back:SetHeight(22)
-    back:SetPoint("TOPLEFT", back:GetParent(), "TOPLEFT", 0, -2)
+    back:SetPoint("TOPLEFT", back:GetParent(), "TOPLEFT", INSET - GAME_INSET, -1)   -- level with the close button
     back:SetText("< Games")
     back:SetScript("OnClick", function()
         ns:Sound("IG_MAINMENU_OPTION")
         ns:ShowMenu()
     end)
 
-    gamePage.chips = gamePage:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    gamePage.chips:SetPoint("TOP", gamePage, "TOP", 0, -6)
+    gamePage.chips = gamePage:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    gamePage.chips:SetPoint("TOP", frame, "TOP", 0, -31)
 
     local container = ns.CreateFrame("Frame", nil, gamePage)
-    container:SetPoint("TOPLEFT", container:GetParent(), "TOPLEFT", 0, -30)
+    container:SetPoint("TOPLEFT", container:GetParent(), "TOPLEFT", 0, -38)
     container:SetPoint("BOTTOMRIGHT", container:GetParent(), "BOTTOMRIGHT", 0, 0)
+    -- a dark ground; games laid out for 352 sit centered on it
+    local ground = container:CreateTexture(nil, "BACKGROUND")
+    ground:SetAllPoints(container)
+    ground:SetTexture(0.05, 0.04, 0.03, 0.85)
     frame.container = container
 
     self.rebuyPage = self:BuildRebuyPage(frame)
@@ -853,8 +861,15 @@ function ns:OpenGame(id)
     if self.currentGame and self.currentGame ~= id then self:ShowMenu() end
 
     if not game.panel then
-        game.panel = ns.CreateFrame("Frame", nil, self.frame.container)
-        game.panel:SetAllPoints(self.frame.container)
+        local container = self.frame.container
+        game.panel = ns.CreateFrame("Frame", nil, container)
+        if game.wide then
+            game.panel:SetAllPoints(container)          -- a game that uses the whole area
+        else
+            game.panel:SetPoint("TOP", container, "TOP", 0, 0)
+            game.panel:SetPoint("BOTTOM", container, "BOTTOM", 0, 0)
+            game.panel:SetWidth(GAME_W)
+        end
         if game.Build then game:Build(game.panel) end
         -- every game has an Options page; a plain one if it didn't make its own
         if not game.options then ns:GameOptions(game, game.panel, {}) end
@@ -866,7 +881,7 @@ function ns:OpenGame(id)
     if self.optionsPage then self.optionsPage:Hide() end
     self.frame.gamePage:Show()
     game.panel:Show()
-    self.frame.title:SetText("CowCasino - " .. (game.name or id))
+    self.frame.title:SetText(game.name or id)   -- (short: it shares its row with < Games and Options)
     if ns.Dealer then ns.Dealer:Attach(game) end      -- before OnShow, so it can talk straight away
     if game.OnShow then game:OnShow() end
 end

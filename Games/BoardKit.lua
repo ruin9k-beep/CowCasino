@@ -29,9 +29,11 @@ local Kit = {}
 Kit.__index = Kit
 ns.BoardKit = Kit
 
-local SQ, BX, BY   = 30, 18, -32       -- square size; the board's top-left in the panel
+-- Board games use the whole game area (380 x 380: the window's "wide" layout).
+local PANEL_W      = 380
+local SQ, BX, BY   = 32, 18, -32       -- square size; the board's top-left in the panel
 local SIDE_X       = BX + 8 * SQ + 10  -- the column to the right of the board
-local SIDE_W       = 352 - SIDE_X - 4
+local SIDE_W       = PANEL_W - SIDE_X - 4
 local LOG_LINES    = 9       -- move list lines (5 when the captured pieces show too)
 local TAKEN_SIZE, TAKEN_PER_ROW = 12, 5   -- the captured-piece icons (def.taken)
 local ATLAS        = "Interface\\AddOns\\CowCasino\\Art\\BoardPieces"   -- 4 x 8 cells of 64 (see make_board_pieces.py)
@@ -46,7 +48,7 @@ local QUIET_LIMIT  = 90      -- nothing heard this long: the game can be called 
 local RESIGN_DELAY = 3       -- Resign asks again; the second click only counts after this
 local RESIGN_WINDOW = 5      -- ...and the question goes away this long after that
 -- for games built on the kit with their own screens (Battleship)
-Kit.LAYOUT = { BX = BX, BY = BY, SIDE_X = SIDE_X, SIDE_W = SIDE_W, BOARD = 8 * SQ }
+Kit.LAYOUT = { BX = BX, BY = BY, SIDE_X = SIDE_X, SIDE_W = SIDE_W, BOARD = 8 * SQ, PANEL_W = PANEL_W }
 Kit.STAKES, Kit.THINK_PAUSE, Kit.PING_EVERY = STAKES, THINK_PAUSE, PING_EVERY
 local EXTRA_SOUNDS = { { key = "move", label = "The other side moves", default = "tick" } }
 local DEFAULT_STATS = { games = 0, wins = 0, losses = 0, draws = 0, partyGames = 0, wagered = 0, won = 0, biggestWin = 0 }
@@ -1173,7 +1175,7 @@ function Kit:BuildBottom(panel)
     local function Locked() return game.S.game ~= nil or game.S.posted ~= nil end
     local function Refresh() game:Refresh() end
     local row = ns.CreateFrame("Frame", nil, panel)
-    row:SetWidth(344); row:SetHeight(24)
+    row:SetWidth(PANEL_W - 8); row:SetHeight(24)
     row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 50)
     ui.pickers = {}
     ui.side = ns.UI.Stepper(row, {
@@ -1325,7 +1327,7 @@ end
 function Kit.New(def, class)
     local game = setmetatable({
         id = def.id, name = def.name, description = def.description, icon = def.icon, dealer = def.dealer,
-        def = def, ui = {}, S = { offers = {} },
+        def = def, ui = {}, S = { offers = {} }, wide = true,
         cols = def.cols or 8, rows = def.rows or 8, sq = def.sq or SQ,
     }, class or Kit)
     Net.handlers[def.tag] = function(sender, f) game:OnMessage(sender, f) end
