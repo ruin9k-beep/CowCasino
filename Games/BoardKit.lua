@@ -34,7 +34,8 @@ local SIDE_X       = BX + 8 * SQ + 10  -- the column to the right of the board
 local SIDE_W       = 352 - SIDE_X - 4
 local LOG_LINES    = 9       -- move list lines (5 when the captured pieces show too)
 local TAKEN_SIZE, TAKEN_PER_ROW = 12, 5   -- the captured-piece icons (def.taken)
-local ATLAS        = "Interface\\AddOns\\CowCasino\\Art\\BoardPieces"
+local ATLAS        = "Interface\\AddOns\\CowCasino\\Art\\BoardPieces"   -- 4 x 8 cells of 64 (see make_board_pieces.py)
+Kit.ATLAS = ATLAS
 local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
 local THINK_PAUSE  = 0.6     -- seconds before the computer starts thinking
 local THINK_STEPS  = 3       -- search slices per frame
@@ -44,6 +45,9 @@ local PING_EVERY   = 30      -- a party game says "still here" this often
 local QUIET_LIMIT  = 90      -- nothing heard this long: the game can be called off
 local RESIGN_DELAY = 3       -- Resign asks again; the second click only counts after this
 local RESIGN_WINDOW = 5      -- ...and the question goes away this long after that
+-- for games built on the kit with their own screens (Battleship)
+Kit.LAYOUT = { BX = BX, BY = BY, SIDE_X = SIDE_X, SIDE_W = SIDE_W, BOARD = 8 * SQ }
+Kit.STAKES, Kit.THINK_PAUSE, Kit.PING_EVERY = STAKES, THINK_PAUSE, PING_EVERY
 local EXTRA_SOUNDS = { { key = "move", label = "The other side moves", default = "tick" } }
 local DEFAULT_STATS = { games = 0, wins = 0, losses = 0, draws = 0, partyGames = 0, wagered = 0, won = 0, biggestWin = 0 }
 
@@ -133,6 +137,7 @@ function Kit:Say(event, vars, fallback, quiet)
 end
 
 function Kit:SetStatus(text, r, g, b)
+    self.S.statusText = text
     if not self.ui.status then return end
     self.ui.status:SetText(text or "")
     self.ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
@@ -307,6 +312,9 @@ function Kit:Click(s)
     self:Refresh()
 end
 
+-- The mouse is over square s (nil: it left the board). Nothing by default.
+function Kit:Hover(s) end
+
 function Kit:Choose(i)
     local list = self.S.choice
     if not list or not list[i] then return end
@@ -351,6 +359,13 @@ function Kit:PickSide(choice)
     local sides = self.def.rules.sides
     if choice == "?" then return sides[math.random(1, 2)] end
     return choice
+end
+
+-- The big button under the board: Play, Challenge or Withdraw.
+function Kit:Go()
+    if self:Mode() == "solo" then self:PlaySolo()
+    elseif self.S.posted then self:Withdraw()
+    else self:Post() end
 end
 
 function Kit:PlaySolo()
@@ -531,10 +546,21 @@ function Kit:OnMessage(sender, f)
     end
 
     local g = S.game
-    if not g or g.kind ~= "party" or g.id ~= id or sender ~= g.opp then return end
+    if not g or g.kind ~= "party" or g.id ~= id or sender ~= g.opp then
+        self:OnLateMessage(sender, kind, f)
+        return
+    end
     g.heard = GetTime()
     g.quietShown = nil
-    local n = ns.getn(g.moves)
+    self:OnGameMessage(sender, kind, f, g)
+end
+
+-- A message about a game that's over (or not ours). Nothing by default.
+function Kit:OnLateMessage(sender, kind, f) end
+
+-- A message from the other player in a party game.
+function Kit:OnGameMessage(sender, kind, f, g)
+    local n = ns.getn(g.moves or {})
     if kind == "M" then
         local at = tonumber(f[4])
         if at == n + 1 and self:Turn(g) == "them" then
@@ -706,8 +732,8 @@ function Kit:DrawBoard(pos, me, last, sel, targets, show)
         local piece = pos and R.PieceAt(pos, s)
         local cell = piece and def.atlas[piece]
         if cell then
-            local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 4
-            b.piece:SetTexCoord(u, u + 0.25, v, v + 0.25)
+            local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 8
+            b.piece:SetTexCoord(u, u + 0.25, v, v + 0.125)
             b.piece:Show()
         else
             b.piece:Hide()
@@ -750,8 +776,8 @@ function Kit:DrawTaken(g)
             local p = list[i]
             local cell = p and def.atlas[p]
             if cell then
-                local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 4
-                t:SetTexCoord(u, u + 0.25, v, v + 0.25)
+                local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 8
+                t:SetTexCoord(u, u + 0.25, v, v + 0.125)
                 t:Show()
             else
                 t:Hide()
@@ -862,25 +888,7 @@ function Kit:Refresh()
     if ui.taken then self:DrawTaken(g or S.over) end
 
     -- the party lobby, over the board between games
-    local lobby = not solo and not g
-    ns.SetShown(ui.lobby, lobby)
-    if lobby then
-        local list = self:OpenOffers()
-        for r = 1, 4 do
-            local row, offer = ui.rows[r], list[r]
-            row.offer = offer
-            if offer then
-                local side = offer.side == "?" and "random sides" or ("plays " .. self:SideName(offer.side))
-                row.text:SetText(offer.host .. " (" .. side .. ")" .. Net:VersionNote(offer.ver))
-                row:Show()
-                ns.SetEnabled(row.accept, not S.accepting and not S.posted and not Net:VersionProblem(offer.ver))
-            else
-                row:Hide()
-            end
-        end
-        ui.lobbyTitle:SetText(S.posted and "Your challenge is open. Waiting..." or (list[1] and "Open challenges in your group:" or
-            (Net:InGroup() and "No open challenges yet.\nChallenge your group below." or "Join a party or raid to play\nyour friends.")))
-    end
+    self:RefreshLobby(not solo and not g)
 
     -- the pickers
     for _, p in ipairs(ui.pickers) do p:Refresh() end
@@ -921,6 +929,29 @@ function Kit:Refresh()
     ui.stats:SetText(self:StatsText())
 end
 
+-- The party lobby over the board (shown between party games).
+function Kit:RefreshLobby(shown)
+    local ui, S, R = self.ui, self.S, self.def.rules
+    ns.SetShown(ui.lobby, shown)
+    if not shown then return end
+    local list = self:OpenOffers()
+    for r = 1, 4 do
+        local row, offer = ui.rows[r], list[r]
+        row.offer = offer
+        if offer then
+            local side = offer.side == "?" and "random sides" or
+                (R.OfferText and R.OfferText(offer.side) or ("plays " .. self:SideName(offer.side)))
+            row.text:SetText(offer.host .. " (" .. side .. ")" .. Net:VersionNote(offer.ver))
+            row:Show()
+            ns.SetEnabled(row.accept, not S.accepting and not S.posted and not Net:VersionProblem(offer.ver))
+        else
+            row:Hide()
+        end
+    end
+    ui.lobbyTitle:SetText(S.posted and "Your challenge is open. Waiting..." or (list[1] and "Open challenges in your group:" or
+        (Net:InGroup() and "No open challenges yet.\nChallenge your group below." or "Join a party or raid to play\nyour friends.")))
+end
+
 function Kit:Mode()
     if not self.def.rules.ChooseMove then return "party" end
     return self.db.mode
@@ -947,22 +978,25 @@ end
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
+-- The board: cols x rows squares of size sq (8 x 8 of 30 by default; a
+-- game can ask for another size, keeping it 240 across).
 function Kit:BuildBoard(panel)
     local ui = self.ui
     local game = self
+    local cols, rows, sq = self.cols, self.rows, self.sq
     local frame = ns.CreateFrame("Frame", nil, panel)
     frame:SetPoint("TOPLEFT", panel, "TOPLEFT", BX, BY)
-    frame:SetWidth(8 * SQ); frame:SetHeight(8 * SQ)
+    frame:SetWidth(cols * sq); frame:SetHeight(rows * sq)
     local edge = frame:CreateTexture(nil, "BACKGROUND")
     edge:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
     edge:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 3, -3)
     edge:SetTexture(0.16, 0.10, 0.05, 1)
     ui.board = frame
     ui.squares = {}
-    for s = 1, 64 do
+    for s = 1, cols * rows do
         local s = s     -- own copy for the closure (Lua 5.0)
         local b = ns.CreateFrame("Button", nil, frame)
-        b:SetWidth(SQ); b:SetHeight(SQ)
+        b:SetWidth(sq); b:SetHeight(sq)
         b.sq = s
         b.bg = b:CreateTexture(nil, "BACKGROUND")
         b.bg:SetAllPoints(b)
@@ -994,6 +1028,8 @@ function Kit:BuildBoard(panel)
         hl:SetAllPoints(b)
         hl:SetTexture(1, 1, 1, 0.15)
         b:SetScript("OnClick", function() game:Click(s) end)
+        b:SetScript("OnEnter", function() game:Hover(s) end)
+        b:SetScript("OnLeave", function() game:Hover(nil) end)
         ui.squares[s] = b
     end
     -- capture paths draw over the pieces
@@ -1003,12 +1039,14 @@ function Kit:BuildBoard(panel)
     ui.dots = {}
 
     ui.files, ui.ranks = {}, {}
-    for i = 1, 8 do
+    for i = 1, cols do
         local f = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        f:SetPoint("TOP", frame, "BOTTOMLEFT", (i - 0.5) * SQ, -4)
+        f:SetPoint("TOP", frame, "BOTTOMLEFT", (i - 0.5) * sq, -4)
         ui.files[i] = f
+    end
+    for i = 1, rows do
         local r = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        r:SetPoint("RIGHT", frame, "TOPLEFT", -5, -(i - 0.5) * SQ)
+        r:SetPoint("RIGHT", frame, "TOPLEFT", -5, -(i - 0.5) * sq)
         ui.ranks[i] = r
     end
 
@@ -1170,11 +1208,7 @@ function Kit:BuildBottom(panel)
         ui.side:SetPoint("CENTER", row, "CENTER", 0, 0)
     end
 
-    ui.go = MakeButton(panel, "Play", 180, function()
-        if game:Mode() == "solo" then game:PlaySolo()
-        elseif game.S.posted then game:Withdraw()
-        else game:Post() end
-    end, 28)
+    ui.go = MakeButton(panel, "Play", 180, function() game:Go() end, 28)
     ui.go:SetPoint("BOTTOM", panel, "BOTTOM", 0, 18)
     ui.resign = MakeButton(panel, "Resign", 110, function() game:ResignClick() end, 26)
     ui.resign:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
@@ -1286,11 +1320,14 @@ end
 ---------------------------------------------------------------------------
 -- A new board game
 ---------------------------------------------------------------------------
-function Kit.New(def)
+-- class: a table of methods that replace some of the kit's (its __index
+-- should fall back to Kit), for a game that plays differently (Battleship).
+function Kit.New(def, class)
     local game = setmetatable({
         id = def.id, name = def.name, description = def.description, icon = def.icon, dealer = def.dealer,
         def = def, ui = {}, S = { offers = {} },
-    }, Kit)
+        cols = def.cols or 8, rows = def.rows or 8, sq = def.sq or SQ,
+    }, class or Kit)
     Net.handlers[def.tag] = function(sender, f) game:OnMessage(sender, f) end
     Net.groupHandlers[def.id] = function() game:GroupChanged() end
     local ticker = ns.CreateFrame("Frame")

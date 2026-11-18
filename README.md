@@ -29,13 +29,15 @@ One addon folder runs on two clients:
 - **Checkers**: American checkers against the computer (Easy, Medium or Hard) or anyone in your party
 - **Chess**: the full game against the computer (Easy, Medium or Hard) or anyone in your party; a reload
   picks the game back up
+- **Battleship**: the classic 10 x 10 sea, against the computer (Easy, Medium or Hard) or anyone in your party;
+  party fleets stay secret and are checked against every answer at the end
 
 Party tables, party duels and party board games are free to join: everyone plays with the stack the host
 picks, and nobody's own chips are touched. Run short at a table and you can top back up to
 that stack between hands. Everyone at a table needs the same party version of CowCasino;
 a table from another version shows in the list but can't be joined.
 
-A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker, Deathroll, Checkers and Chess).
+A goblin dealer sits on top of the window and talks you through the game (Blackjack, Texas Hold'em, Five-Card Draw, Craps, Three Card Poker, Deathroll, Checkers, Chess and Battleship).
 Pick another dealer in Options (the Display tab), or add your own ([DEALERS.md](DEALERS.md)); `Dealer.lua`
 explains how a game drives it, including showing a party member's 3D portrait.
 

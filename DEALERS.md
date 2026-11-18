@@ -134,13 +134,13 @@ Deathroll (against the dealer, and party duels):
 | `deathrollClose` | a roll drops into single digits (skipped if busy) | `{name}` (who rolled), `{value}` |
 | `deathrollWin` / `deathrollLose` | the duel ends | `{name}` (the other player or dealer), `{amount}` (the stake) |
 
-Checkers and Chess (the board games):
+Checkers, Chess and Battleship (the board games):
 
 | Moment | When | Fills in |
 |---|---|---|
-| `checkersStart` / `chessStart` | a game against the computer starts | `{stake}` |
-| `checkersParty` / `chessParty` | a party game starts | `{name}` (the other player) |
-| `checkersWin` / `checkersLose` / `chessWin` / `chessLose` | a game ends | `{name}` (the other player, or "the computer") |
+| `checkersStart` / `chessStart` / `battleshipStart` | a game against the computer starts | `{stake}` |
+| `checkersParty` / `chessParty` / `battleshipParty` | a party game starts | `{name}` (the other player) |
+| `checkersWin` / `checkersLose` / `chessWin` / `chessLose` / `battleshipWin` / `battleshipLose` | a game ends | `{name}` (the other player, or "the computer") |
 | `checkersDraw` / `chessDraw` | a game is drawn | nothing |
 
 `Art\DealerGoblin.lua` has Fizzlecog's lines as an example.

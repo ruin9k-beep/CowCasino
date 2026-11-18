@@ -357,6 +357,23 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
             "{name} takes it. Tip over your king, nobody's lookin'. Everybody's lookin'.",
             "That's the game. Chess is hard, friend. Try deathroll, it's mostly luck!",
         },
+        -- Battleship
+        battleshipStart = {
+            "{stake} on the high seas! The machine hides its boats under a rock. I've seen it.",
+            "Battleship for {stake}. Hide 'em well, kid. Then go fishin'.",
+        },
+        battleshipParty = {
+            "{name} wants a sea battle! Free, friendly, and I'm keepin' score.",
+        },
+        battleshipWin = {
+            "Every last boat on the bottom! Admiral of the casino, you are.",
+            "You sank 'em all! I'll get my snorkel and collect the winnings... for you.",
+        },
+        battleshipLose = {
+            "Your fleet's sleepin' with the fishes. Better luck next voyage.",
+            "Glub glub. That's the sound of your chips sinkin', friend.",
+        },
+
         chessDraw = {
             "A draw! Very sportsmanlike. Very boring. Shake hands, you two.",
         },

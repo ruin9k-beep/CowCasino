@@ -415,10 +415,46 @@ def chess():
     return frame(img)
 
 
+# --- Battleship: a warship on a gridded sea, a hit burning ------------------
+def battleship():
+    img = Image.new("RGBA", (S, S), (24, 62, 104, 255))
+    d = ImageDraw.Draw(img)
+    for i in range(0, S, S // 6):
+        d.line((i, 0, i, S), fill=(52, 98, 146, 255), width=3)
+        d.line((0, i, S, i), fill=(52, 98, 146, 255), width=3)
+    # the ship, side on
+    hull = [(40, 270), (472, 270), (430, 340), (82, 340)]
+    shadow(img, lambda sd, o, c: sd.polygon([(x + o[0], y + o[1]) for x, y in hull], fill=c))
+    d = ImageDraw.Draw(img)
+    d.polygon(hull, fill=(120, 128, 140, 255), outline=(40, 44, 50, 255), width=6)
+    d.rectangle((150, 220, 330, 272), fill=(140, 148, 160, 255), outline=(40, 44, 50, 255), width=6)
+    d.rectangle((210, 168, 268, 222), fill=(150, 158, 170, 255), outline=(40, 44, 50, 255), width=6)
+    d.rectangle((232, 120, 246, 170), fill=(60, 64, 70, 255))
+    for x in (100, 380):
+        d.ellipse((x - 26, 236, x + 26, 274), fill=(110, 118, 128, 255), outline=(40, 44, 50, 255), width=5)
+        d.line((x, 250, x + (60 if x > 200 else -60), 236), fill=(60, 64, 70, 255), width=10)
+    # a hit: fire on the bow
+    import math as _m
+    c = (392, 262)
+    for r1, r2, col in ((80, 36, (190, 20, 10, 255)), (58, 26, (255, 110, 20, 255)), (34, 14, (255, 220, 70, 255))):
+        pts = []
+        for i in range(18):
+            r = r1 if i % 2 == 0 else r2
+            a = i * _m.pi / 9
+            pts.append((c[0] + r * _m.cos(a), c[1] + r * _m.sin(a)))
+        d.polygon(pts, fill=col)
+    # a splash where a shot missed
+    for dx, dy, r in ((-70, -60, 16), (-40, -88, 10), (-100, -84, 9)):
+        d.ellipse((150 + dx - r, 420 + dy - r, 150 + dx + r, 420 + dy + r), fill=(225, 240, 255, 230))
+    d.ellipse((60, 380, 140, 400), outline=(225, 240, 255, 220), width=6)
+    return frame(img)
+
+
 ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
          ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker),
          ("ThreeCardIcon", threecard), ("KenoIcon", keno), ("DeathrollIcon", deathroll),
-         ("CheckersIcon", checkers), ("ChessIcon", chess)]
+         ("CheckersIcon", checkers), ("ChessIcon", chess),
+         ("BattleshipIcon", battleship)]
 
 if __name__ == "__main__":
     big = []
