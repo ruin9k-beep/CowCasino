@@ -503,11 +503,31 @@ def hangman():
     return frame(img)
 
 
+def mafia():
+    img = backdrop((90, 30, 34, 255), (24, 8, 10, 255))
+    hat, band, edge = (34, 32, 36, 255), (150, 24, 28, 255), (8, 8, 10, 255)
+    def fedora(d, o, c=None):
+        d.ellipse((60 + o[0], 300 + o[1], 452 + o[0], 392 + o[1]), fill=c or hat)          # the brim
+        d.rounded_rectangle((140 + o[0], 150 + o[1], 372 + o[0], 352 + o[1]), radius=60, fill=c or hat)  # the crown
+    shadow(img, lambda sd, o, c: fedora(sd, o, c))
+    d = ImageDraw.Draw(img)
+    fedora(d, (0, 0))
+    d.ellipse((60, 300, 452, 392), outline=edge, width=6)
+    d.rounded_rectangle((140, 150, 372, 352), radius=60, outline=edge, width=6)
+    d.polygon([(200, 158), (256, 196), (312, 158)], fill=(20, 18, 22, 255))             # the pinch
+    d.rectangle((143, 288, 369, 326), fill=band)                                          # the hat band
+    d.line([(143, 288), (369, 288)], fill=edge, width=4); d.line([(143, 326), (369, 326)], fill=edge, width=4)
+    # a playing card tucked in the band, face down
+    d.rounded_rectangle((300, 232, 352, 316), radius=8, fill=(240, 232, 214, 255), outline=edge, width=4)
+    d.rectangle((310, 244, 342, 304), outline=band, width=4)
+    return frame(img)
+
+
 ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
          ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker),
          ("ThreeCardIcon", threecard), ("KenoIcon", keno), ("DeathrollIcon", deathroll),
          ("CheckersIcon", checkers), ("ChessIcon", chess),
-         ("BattleshipIcon", battleship), ("SketchIcon", sketch), ("HangmanIcon", hangman)]
+         ("BattleshipIcon", battleship), ("SketchIcon", sketch), ("HangmanIcon", hangman), ("MafiaIcon", mafia)]
 
 if __name__ == "__main__":
     big = []

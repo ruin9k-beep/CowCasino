@@ -24,8 +24,10 @@
 --   room:BuildLobby(panel, opts)  /  room:RefreshLobby()
 --
 -- Messages (tag, then): Q (who's hosting?), O;tid;players;phase;ver, J;tid;ver,
--- F;tid;name;why (can't join), L;tid (leaving), X;tid (closed), R;tid;roster,
--- S;tid;<the game's state>. Any other kind goes to the game's hooks.
+-- F;tid;name;why (can't join), L;tid (leaving), X;tid (closed),
+-- R;tid;version;part;parts;rows (the roster, split so a big raid fits: rows
+-- are name:field:..., joined by commas), S;tid;<the game's state>. Any other
+-- kind goes to the game's hooks.
 
 local ns = CowCasino.ns
 local Net = ns.Net
@@ -108,11 +110,51 @@ function Room:SendState()
     self:Send(parts, self.tag .. "-S")
 end
 
+-- The roster, in as many parts as it takes (each a message of its own).
+local ROSTER_PART = 170
+function Room:SendRoster()
+    local parts, cur = {}, ""
+    for _, row in ipairs(Net.Split(self:RosterText(), ",")) do
+        if cur ~= "" and string.len(cur) + 1 + string.len(row) > ROSTER_PART then
+            table.insert(parts, cur)
+            cur = row
+        else
+            cur = (cur == "") and row or (cur .. "," .. row)
+        end
+    end
+    table.insert(parts, cur)
+    self.rosterVersion = ns.Mod((self.rosterVersion or 0) + 1, 1000)
+    local n = ns.getn(parts)
+    for k, text in ipairs(parts) do
+        self:Send({ "R", self.tid, self.rosterVersion, k, n, text }, self.tag .. "-R" .. k)
+    end
+end
+
+-- A roster part arrived: the whole roster once every part of it is in.
+function Room:RosterPart(f)
+    local v, k, n = f[4], tonumber(f[5] or ""), tonumber(f[6] or "")
+    if not k or not n or k < 1 or k > n then return nil end
+    local got = self.rosterParts
+    if not got or got.v ~= v or got.tid ~= f[3] then
+        got = { v = v, tid = f[3], n = n, parts = {}, count = 0 }
+        self.rosterParts = got
+    end
+    if not got.parts[k] then
+        got.parts[k] = f[7] or ""
+        got.count = got.count + 1
+    end
+    if got.count < got.n then return nil end
+    self.rosterParts = nil
+    local rows = {}
+    for i = 1, got.n do if got.parts[i] ~= "" then table.insert(rows, got.parts[i]) end end
+    return self:ParseRoster(table.concat(rows, ","))
+end
+
 -- The roster and the state (and, by heartbeat, the offer).
 function Room:Broadcast()
     if self.mode ~= "host" then return end
     self.nextBeat = GetTime() + RK.HEARTBEAT
-    self:Send({ "R", self.tid, self:RosterText() }, self.tag .. "-R")
+    self:SendRoster()
     self:SendState()
 end
 
@@ -231,7 +273,8 @@ function Room:OnMessage(sender, f)
             self:Refresh()
             return
         elseif kind == "R" then
-            local roster = self:ParseRoster(f[4])
+            local roster = self:RosterPart(f)
+            if not roster then return end
             local mine = false
             for _, p in ipairs(roster) do if p.name == Net:Me() then mine = true end end
             if not mine then return end
@@ -247,7 +290,9 @@ function Room:OnMessage(sender, f)
     if self.mode ~= "client" or sender ~= self.host or tid ~= self.tid then return end
     self.heard = GetTime()
     if kind == "R" then
-        self.players = self:ParseRoster(f[4])
+        local roster = self:RosterPart(f)
+        if not roster then return end
+        self.players = roster
         if not self:Player(Net:Me()) then
             self:ToLobby("You're no longer in " .. sender .. "'s game.")
             return

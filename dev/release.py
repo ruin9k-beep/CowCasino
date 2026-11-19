@@ -62,7 +62,7 @@ TESTS_BOTH = ["harness112", "roulette_tests", "sound_tests", "options_tests", "m
               "race_cards_tests", "bj_layout_tests", "startup_tests", "craps_tests", "party_craps_tests",
               "plinko_crash_tests", "slots_features_tests", "hilo_tests", "dealer_tests", "draw_tests",
               "draw_party_tests", "videopoker_tests", "threecard_tests", "keno_tests", "deathroll_tests",
-              "board_rules_tests", "board_tests", "battleship_tests", "sketch_tests", "hangman_tests"]
+              "board_rules_tests", "board_tests", "battleship_tests", "sketch_tests", "hangman_tests", "mafia_tests"]
 TESTS_FOREVER_ONLY = ["net_throttle_tests"]
 
 

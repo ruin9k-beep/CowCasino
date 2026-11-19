@@ -37,6 +37,9 @@ One addon folder runs on two clients:
 - **Hangman**: guess the word before the gallows is done. Solo against the computer for chips
   (2x your bet, 3x with no misses), or a free party game: take turns calling letters (points for
   every hit, and you go again) or solving for a bonus
+- **Mafia**: the social deduction game for 5 to 30 players in a raid. Secret roles (Mafia, Godfather,
+  Detective, Doctor, Vigilante, Bodyguard, Mayor, Jester, Townsfolk), night actions, day votes and
+  lynches; the addon deals the roles and runs the clock while everyone talks in raid chat or voice
 
 Party tables, party duels and party board games are free to join: everyone plays with the stack the host
 picks, and nobody's own chips are touched. Run short at a table and you can top back up to

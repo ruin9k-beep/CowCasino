@@ -120,16 +120,29 @@ function H.Party(opts)
     env.SELECT_SAVED = select
     assert(loadfile((os.getenv("MOCK") or "mock112.lua"), "t", env))()
     env.GetTime = function() return P.clock end
+    -- more than five in P.group makes it a raid
+    local function Raid() return P.InGroup(name) and table.getn(P.group) > 5 end
     env.UnitName = function(u)
       if u == "player" then return name end
+      local _, _, r = string.find(u, "^raid(%d+)$")
+      if r then return Raid() and P.group[tonumber(r)] or nil end
       local _, _, n = string.find(u, "^party(%d)$")
-      if n and P.InGroup(name) then return P.Others(name)[tonumber(n)] end
+      if n and P.InGroup(name) and not Raid() then return P.Others(name)[tonumber(n)] end
       return nil
     end
-    env.GetNumPartyMembers = function() if P.InGroup(name) and table.getn(P.group) > 1 then return table.getn(P.group) - 1 end return 0 end
-    env.GetNumRaidMembers = function() return 0 end
+    env.GetNumPartyMembers = function()
+      if P.InGroup(name) and not Raid() and table.getn(P.group) > 1 then return table.getn(P.group) - 1 end
+      return 0
+    end
+    env.GetNumRaidMembers = function() return Raid() and table.getn(P.group) or 0 end
+    env.IsInRaid = function() return Raid() end
+    env.GetNumGroupMembers = function()
+      if Raid() then return table.getn(P.group) end
+      local n = env.GetNumPartyMembers()
+      return n > 0 and n + 1 or 0
+    end
     env.SendAddonMessage = function(prefix, text, chan)
-      assert(type(text) == "string" and chan == "PARTY", "bad addon message")
+      assert(type(text) == "string" and (chan == (Raid() and "RAID" or "PARTY")), "bad addon message channel: " .. tostring(chan))
       local len = string.len(prefix) + string.len(text)
       assert(len <= 254, "addon message too long (" .. len .. "): " .. text)
       stats.sent = stats.sent + 1
