@@ -1,0 +1,416 @@
+-- CowCasino: the party room kit. One player hosts a game for the group:
+-- their client keeps the players, runs the game and tells everyone how it
+-- stands; the others join from a list of games in the group. This kit is the
+-- part every such game shares: offers and joining, the roster, heartbeats,
+-- someone leaving (or the host going quiet), a reload closing the game, the
+-- lobby page and table chat. The game brings its own state and rules.
+--
+--   local room = ns.RoomKit.New({
+--       tag = "HM", id = "hangman", max = 8,
+--       phase    = function() return "w" end,            -- for the lobby list (w waiting, o between games, else playing)
+--       state    = function() return { ... } end,         -- host: the game's state, sent as S;tid;...
+--       onState  = function(f) end,                       -- clients: an S message (fields from f[4])
+--       onHost   = function() end,                        -- host: the room just opened
+--       onJoin   = function(name, player) end,            -- host: someone joined (player is their roster row)
+--       onDrop   = function(name) end,                    -- host: someone left
+--       onHostMessage   = function(sender, f) end,        -- host: another kind from a player
+--       onClientMessage = function(f) end,                -- clients: another kind from the host
+--       onLobby  = function() end,                        -- back in the lobby (left, closed, lost touch)
+--       refresh  = function() end,                        -- redraw
+--       fields   = { "score" },                           -- numbers each roster row carries (default score)
+--   })
+--   room:Restore(db)        (in Build: remembers db, and cleans up a game a reload ended)
+--   room:Tick(now)          (every so often: heartbeats and timeouts)
+--   room:BuildLobby(panel, opts)  /  room:RefreshLobby()
+--
+-- Messages (tag, then): Q (who's hosting?), O;tid;players;phase;ver, J;tid;ver,
+-- F;tid;name;why (can't join), L;tid (leaving), X;tid (closed), R;tid;roster,
+-- S;tid;<the game's state>. Any other kind goes to the game's hooks.
+
+local ns = CowCasino.ns
+local Net = ns.Net
+
+local RK = { HEARTBEAT = 8, HOST_TIMEOUT = 35, OFFER_TIMEOUT = 60 }
+ns.RoomKit = RK
+
+local Room = {}
+Room.__index = Room
+RK.Room = Room
+
+local function Call(f, a, b) if f then return f(a, b) end end
+
+function RK.New(spec)
+    local r = setmetatable({ spec = spec, tag = spec.tag, max = spec.max or 10, fields = spec.fields or { "score" },
+        mode = "lobby", players = {}, offers = {} }, Room)
+    Net.handlers[spec.tag] = function(sender, f) r:OnMessage(sender, f) end
+    Net.groupHandlers[spec.id] = function() r:GroupChanged() end
+    return r
+end
+
+function Room:Me() return Net:Me() end
+function Room:IsHost() return self.mode == "host" end
+function Room:InRoom() return self.mode == "host" or self.mode == "client" end
+function Room:HostName() return self.mode == "host" and Net:Me() or self.host end
+
+function Room:Send(parts, key)
+    Net:Send(self.tag .. ";" .. table.concat(parts, ";"), key)
+end
+
+function Room:Player(name)
+    for i, p in ipairs(self.players) do if p.name == name then return p, i end end
+end
+
+function Room:NewPlayer(name)
+    local p = { name = name }
+    for _, k in ipairs(self.fields) do p[k] = 0 end
+    return p
+end
+
+function Room:RosterText()
+    local t = {}
+    for _, p in ipairs(self.players) do
+        local row = { p.name }
+        for _, k in ipairs(self.fields) do table.insert(row, p[k] or 0) end
+        table.insert(t, table.concat(row, ":"))
+    end
+    return table.concat(t, ",")
+end
+
+function Room:ParseRoster(text)
+    local out = {}
+    for _, part in ipairs(Net.Split(text or "", ",")) do
+        local bits = Net.Split(part, ":")
+        if bits[1] and bits[1] ~= "" then
+            local p = { name = bits[1] }
+            for i, k in ipairs(self.fields) do p[k] = tonumber(bits[i + 1] or "") or 0 end
+            table.insert(out, p)
+        end
+    end
+    return out
+end
+
+---------------------------------------------------------------------------
+-- The host
+---------------------------------------------------------------------------
+function Room:Refresh() Call(self.spec.refresh) end
+
+function Room:Phase() return Call(self.spec.phase) or "w" end
+
+function Room:Offer()
+    if self.mode ~= "host" then return end
+    self:Send({ "O", self.tid, ns.getn(self.players), self:Phase(), Net.PARTY_VERSION }, self.tag .. "-O")
+end
+
+function Room:SendState()
+    if self.mode ~= "host" then return end
+    local parts = { "S", self.tid }
+    for _, v in ipairs(Call(self.spec.state) or {}) do table.insert(parts, v) end
+    self:Send(parts, self.tag .. "-S")
+end
+
+-- The roster and the state (and, by heartbeat, the offer).
+function Room:Broadcast()
+    if self.mode ~= "host" then return end
+    self.nextBeat = GetTime() + RK.HEARTBEAT
+    self:Send({ "R", self.tid, self:RosterText() }, self.tag .. "-R")
+    self:SendState()
+end
+
+function Room:Host()
+    if self.mode ~= "lobby" or not Net:InGroup() then return false end
+    self.mode, self.host, self.lobbyMsg = "host", nil, nil
+    self.tid = tostring(math.random(10000, 99999))
+    self.players = { self:NewPlayer(Net:Me()) }
+    if self.db then self.db.hosting = true end
+    Call(self.spec.onHost)
+    self:Broadcast()
+    self:Offer()
+    self:Refresh()
+    return true
+end
+
+function Room:Close(message)
+    if self.mode ~= "host" then return end
+    self:Send({ "X", self.tid })
+    self:ToLobby(message or "You closed your game.")
+end
+
+function Room:HostJoin(name, ver)
+    if Net:VersionProblem(ver) then return end
+    if not self:Player(name) then
+        if ns.getn(self.players) >= self.max then
+            self:Send({ "F", self.tid, name, "The game is full." })
+            return
+        end
+        local p = self:NewPlayer(name)
+        table.insert(self.players, p)
+        Call(self.spec.onJoin, name, p)
+    end
+    self:Broadcast()
+    self:Offer()
+    self:Refresh()
+end
+
+function Room:Drop(name)
+    local _, i = self:Player(name)
+    if not i or name == Net:Me() then return end
+    table.remove(self.players, i)
+    Call(self.spec.onDrop, name)
+    self:Broadcast()
+    self:Offer()
+    self:Refresh()
+end
+
+---------------------------------------------------------------------------
+-- Joining and leaving
+---------------------------------------------------------------------------
+function Room:ToLobby(message)
+    self.mode, self.tid, self.host, self.joining = "lobby", nil, nil, nil
+    self.players = {}
+    self.lobbyMsg = message
+    if self.db then self.db.hosting, self.db.joined = nil, nil end
+    Call(self.spec.onLobby)
+    self:Refresh()
+end
+
+function Room:Join(host, tid)
+    if self.mode ~= "lobby" then return end
+    self.joining = { host = host, tid = tid }
+    self.lobbyMsg = "Asking " .. host .. " to join..."
+    self:Send({ "J", tid, Net.PARTY_VERSION })
+    self:Refresh()
+end
+
+function Room:Leave()
+    if self.mode ~= "client" then return end
+    self:Send({ "L", self.tid })
+    self:ToLobby("You left " .. (self.host or "the") .. "'s game.")
+end
+
+-- Leave a room either way (host closes it, a player leaves).
+function Room:Exit()
+    if self.mode == "host" then self:Close() elseif self.mode == "client" then self:Leave() end
+end
+
+function Room:OnMessage(sender, f)
+    local kind, tid = f[2], f[3]
+    if kind == "Q" then
+        if self.mode == "host" then self:Offer() end
+        return
+    elseif kind == "O" then
+        self.offers[sender] = { tid = tid, players = tonumber(f[4] or "") or 0, phase = f[5], ver = tonumber(f[6] or ""), heard = GetTime() }
+        if self.mode == "lobby" then self:Refresh() end
+        return
+    end
+
+    if self.mode == "host" then
+        if tid ~= self.tid then return end
+        if kind == "J" then self:HostJoin(sender, f[4])
+        elseif kind == "L" then self:Drop(sender)
+        elseif self:Player(sender) then Call(self.spec.onHostMessage, sender, f) end
+        return
+    end
+
+    if kind == "X" then
+        self.offers[sender] = nil
+        if self.joining and self.joining.host == sender then
+            self.joining = nil
+            self.lobbyMsg = sender .. " closed the game."
+        elseif self.mode == "client" and sender == self.host and tid == self.tid then
+            self:ToLobby(sender .. " closed the game.")
+            return
+        end
+        self:Refresh()
+        return
+    end
+
+    if self.joining and sender == self.joining.host and tid == self.joining.tid then
+        if kind == "F" and f[4] == Net:Me() then
+            self.joining = nil
+            self.lobbyMsg = f[5] or "Couldn't join."
+            self:Refresh()
+            return
+        elseif kind == "R" then
+            local roster = self:ParseRoster(f[4])
+            local mine = false
+            for _, p in ipairs(roster) do if p.name == Net:Me() then mine = true end end
+            if not mine then return end
+            self.mode, self.host, self.tid, self.joining, self.lobbyMsg = "client", sender, tid, nil, nil
+            self.players, self.heard, self.fresh = roster, GetTime(), true
+            if self.db then self.db.joined = { host = sender, tid = tid } end
+            ns:Sound("IG_MAINMENU_OPTION")
+            self:Refresh()
+            return
+        end
+    end
+
+    if self.mode ~= "client" or sender ~= self.host or tid ~= self.tid then return end
+    self.heard = GetTime()
+    if kind == "R" then
+        self.players = self:ParseRoster(f[4])
+        if not self:Player(Net:Me()) then
+            self:ToLobby("You're no longer in " .. sender .. "'s game.")
+            return
+        end
+        self:Refresh()
+    elseif kind == "S" then
+        Call(self.spec.onState, f)
+        self.fresh = nil
+    else
+        Call(self.spec.onClientMessage, f)
+    end
+end
+
+function Room:GroupChanged()
+    if self.mode == "host" then
+        local gone = {}
+        for _, p in ipairs(self.players) do if not Net:IsMember(p.name) then table.insert(gone, p.name) end end
+        for _, name in ipairs(gone) do self:Drop(name) end
+        if not Net:InGroup() then self:Close("You left the group, so your game closed.") end
+    elseif self.mode == "client" and not Net:IsMember(self.host) then
+        self:ToLobby((self.host or "The host") .. " left the group.")
+    end
+    for name in pairs(self.offers) do
+        if not Net:IsMember(name) then self.offers[name] = nil end
+    end
+    if self.mode == "lobby" then self:Refresh() end
+end
+
+function Room:Tick(now)
+    now = now or GetTime()
+    if self.mode == "host" and now >= (self.nextBeat or 0) then
+        self:Broadcast()
+        self:Offer()
+    elseif self.mode == "client" and now - (self.heard or now) > RK.HOST_TIMEOUT then
+        self:ToLobby("Lost touch with " .. (self.host or "the host") .. ".")
+    end
+end
+
+-- In Build: a game can't survive a reload.
+function Room:Restore(db)
+    self.db = db
+    if db.hosting then
+        db.hosting = nil
+        self.lobbyMsg = "Your game closed when the game reloaded."
+    end
+    if db.joined then
+        if Net:IsMember(db.joined.host) then self:Send({ "L", db.joined.tid }) end
+        self.lobbyMsg = "You left " .. (db.joined.host or "the") .. "'s game when the game reloaded."
+        db.joined = nil
+    end
+end
+
+-- Ask who's hosting (opening the lobby).
+function Room:Ask()
+    if self.mode == "lobby" and Net:InGroup() then self:Send({ "Q" }) end
+end
+
+function Room:ChatTable()
+    if not self:InRoom() then return nil end
+    local members = {}
+    for _, p in ipairs(self.players) do members[p.name] = true end
+    members[self:HostName()] = true
+    return { game = self.tag, host = self:HostName(), tid = self.tid, members = members }
+end
+
+---------------------------------------------------------------------------
+-- The lobby page: what the game is, Host (plus the game's own buttons), the
+-- games in the group with Join, a message line and a stats line.
+--   opts: title, info, buttons = { { text, onClick, width } }, stats = function() return text end
+---------------------------------------------------------------------------
+local ROWS = 4
+
+function Room:BuildLobby(panel, opts)
+    local MakeButton = ns.UI.Button
+    local r = self
+    local l = ns.CreateFrame("Frame", nil, panel)
+    l:SetAllPoints(panel)
+    self.lobby = l
+    local title = ns:BigFont(l:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 22)
+    title:SetPoint("TOP", l, "TOP", 0, -12)
+    title:SetText(opts.title or "")
+    local info = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    info:SetPoint("TOP", title, "BOTTOM", 0, -8)
+    info:SetWidth(350)
+    info:SetText(opts.info or "")
+    l.groupInfo = l:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    l.groupInfo:SetPoint("TOP", l, "TOP", 0, -90)
+    l.groupInfo:SetWidth(350)
+
+    local buttons = { { "Host a game", function() r:Host() end, 130 } }
+    for _, b in ipairs(opts.buttons or {}) do table.insert(buttons, b) end
+    local total = 0
+    for _, b in ipairs(buttons) do total = total + (b[3] or 130) + 10 end
+    local x = -(total - 10) / 2
+    for i, b in ipairs(buttons) do
+        local w = b[3] or 130
+        local btn = MakeButton(l, b[1], w, b[2], 24)
+        btn:SetPoint("TOPLEFT", l, "TOP", x, -112)
+        x = x + w + 10
+        if i == 1 then l.host = btn end
+    end
+
+    local header = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    header:SetPoint("TOPLEFT", l, "TOPLEFT", 16, -156)
+    header:SetText("Games in your group")
+    local refresh = MakeButton(l, "Refresh", 70, function()
+        r:Send({ "Q" })
+        r:Refresh()
+    end)
+    refresh:SetPoint("TOPRIGHT", l, "TOPRIGHT", -14, -151)
+    l.rows = {}
+    for i = 1, ROWS do
+        local i = i   -- own copy for closures (Lua 5.0)
+        local row = {}
+        row.text = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.text:SetPoint("TOPLEFT", l, "TOPLEFT", 18, -186 - (i - 1) * 30)
+        row.text:SetWidth(270)
+        row.text:SetJustifyH("LEFT")
+        row.join = MakeButton(l, "Join", 60, function()
+            local o = l.rows[i].offer
+            if o then r:Join(o.host, o.tid) end
+        end)
+        row.join:SetPoint("TOPRIGHT", l, "TOPRIGHT", -14, -180 - (i - 1) * 30)
+        l.rows[i] = row
+    end
+    l.msg = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    l.msg:SetPoint("TOP", l, "TOP", 0, -310)
+    l.msg:SetWidth(350)
+    l.stats = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    l.stats:SetPoint("BOTTOM", l, "BOTTOM", 0, 10)
+    l.stats:SetWidth(360)
+    self.lobbyOpts = opts
+    return l
+end
+
+function Room:RefreshLobby()
+    local l = self.lobby
+    if not l then return end
+    local inGroup = Net:InGroup()
+    l.groupInfo:SetText(inGroup and ("You're in a group of " .. Net:GroupSize() .. ". Everyone needs CowCasino to play.")
+        or (self.lobbyOpts.alone or "Join a party or raid to play with friends."))
+    ns.SetEnabled(l.host, inGroup)
+    local list = {}
+    for name, o in pairs(self.offers) do
+        if GetTime() - o.heard < RK.OFFER_TIMEOUT and Net:IsMember(name) then
+            table.insert(list, { host = name, tid = o.tid, players = o.players, phase = o.phase, ver = o.ver })
+        end
+    end
+    table.sort(list, function(a, b) return a.host < b.host end)
+    for i = 1, ROWS do
+        local row, o = l.rows[i], list[i]
+        row.offer = o
+        if o then
+            local doing = (o.phase == "w" and "waiting to start") or (o.phase == "o" and "between games") or "playing"
+            row.text:SetText(string.format("%s's game - %d player%s, %s", o.host, o.players, o.players == 1 and "" or "s", doing)
+                .. Net:VersionNote(o.ver))
+            row.join:Show()
+            ns.SetEnabled(row.join, o.players < self.max and not self.joining and not Net:VersionProblem(o.ver))
+        else
+            row.text:SetText((i == 1 and inGroup) and "|cff888888No games yet. Host one, or ask someone to.|r" or "")
+            row.join:Hide()
+        end
+    end
+    l.msg:SetText(self.lobbyMsg or "")
+    l.stats:SetText(Call(self.lobbyOpts.stats) or "")
+end

@@ -67,6 +67,7 @@ local SOUNDS = {
     LOOT_WINDOW_COIN_SOUND          = "LOOTWINDOWCOINSOUND",
     UI_EPICLOOT_TOAST               = "LEVELUPSOUND",
     RAID_WARNING                    = "RaidWarning",
+    IG_QUEST_FAILED                 = "igQuestFailed",
 }
 
 function ns:Sound(key)

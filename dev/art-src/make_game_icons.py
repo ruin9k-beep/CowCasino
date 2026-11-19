@@ -476,11 +476,38 @@ def sketch():
     return frame(img)
 
 
+def hangman():
+    img = backdrop((150, 110, 70, 255), (48, 30, 18, 255))
+    wood, dark = (120, 78, 40, 255), (60, 36, 16, 255)
+    def gallows(d, o, c=None):
+        for box in ((70, 430, 330, 462), (110, 70, 142, 450), (110, 70, 380, 100)):
+            d.rectangle([box[0] + o[0], box[1] + o[1], box[2] + o[0], box[3] + o[1]], fill=c or wood)
+        d.line([(126 + o[0], 170 + o[1]), (210 + o[0], 86 + o[1])], fill=c or wood, width=26)
+    shadow(img, lambda sd, o, c: gallows(sd, o, c))
+    d = ImageDraw.Draw(img)
+    gallows(d, (0, 0))
+    for box in ((70, 430, 330, 462), (110, 70, 142, 450), (110, 70, 380, 100)):
+        d.rectangle(box, outline=dark, width=5)
+    d.line([(350, 100), (350, 168)], fill=(220, 200, 150, 255), width=8)            # the rope
+    ink = (250, 246, 236, 255)
+    d.ellipse((316, 166, 384, 234), outline=ink, width=12)                          # the figure, chalk white
+    d.line([(350, 234), (350, 340)], fill=ink, width=12)
+    d.line([(350, 262), (304, 304)], fill=ink, width=12)
+    d.line([(350, 262), (396, 304)], fill=ink, width=12)
+    d.line([(350, 340), (312, 404)], fill=ink, width=12)
+    # a word in blanks along the bottom, one letter found
+    for i in range(5):
+        x = 170 + i * 56
+        d.rectangle((x, 476, x + 38, 484), fill=GOLD)
+    d.text((228, 420), "A", fill=GOLD, font=ImageFont.truetype(SERIF, 54))
+    return frame(img)
+
+
 ICONS = [("BlackjackIcon", blackjack), ("HiLoIcon", hilo), ("HoldemIcon", holdem), ("DrawIcon", draw), ("RouletteIcon", roulette), ("SlotsIcon", slots),
          ("MinesIcon", mines), ("PlinkoIcon", plinko), ("CrashIcon", crash), ("VideoPokerIcon", videopoker),
          ("ThreeCardIcon", threecard), ("KenoIcon", keno), ("DeathrollIcon", deathroll),
          ("CheckersIcon", checkers), ("ChessIcon", chess),
-         ("BattleshipIcon", battleship), ("SketchIcon", sketch)]
+         ("BattleshipIcon", battleship), ("SketchIcon", sketch), ("HangmanIcon", hangman)]
 
 if __name__ == "__main__":
     big = []

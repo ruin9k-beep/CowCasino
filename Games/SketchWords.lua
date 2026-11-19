@@ -162,3 +162,120 @@ function W.Reveal(code, key)
     end
     return table.concat(out)
 end
+
+-- Like Pool, with each word's pack name as a hint: { word = , hint = }.
+function W.PoolHints(packs, customText)
+    local out = {}
+    for i = 1, string.len(packs or "") do
+        local p = W.Pack(string.sub(packs, i, i))
+        if p then for _, w in ipairs(p.words) do table.insert(out, { word = w, hint = p.name }) end end
+    end
+    if customText then
+        for _, w in ipairs(W.ParseCustom(customText)) do table.insert(out, { word = w, hint = "the host's own words" }) end
+    end
+    return out
+end
+
+---------------------------------------------------------------------------
+-- A word picker any game can show: a check box per pack, "My own words" and
+-- a box to type them in, and a count. 250 wide.
+--   spec: get() -> the settings table ({ packs = "ec", custom = true/false }),
+--         text() / setText(t) for the typed words, onChange(), own (label,
+--         default "My own words").
+-- Returns a frame with :Refresh(editable) and .height.
+---------------------------------------------------------------------------
+function W.NewPicker(parent, spec)
+    local f = ns.CreateFrame("Frame", nil, parent)
+    f:SetWidth(250)
+    local function Label(x, y, text, font)
+        local t = f:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
+        t:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
+        t:SetJustifyH("LEFT")
+        t:SetText(text or "")
+        return t
+    end
+    local function Check(x, y, text, onClick)
+        local c = ns.CreateFrame("CheckButton", ns:NewName(), f, "UICheckButtonTemplate")
+        c:SetWidth(22); c:SetHeight(22)
+        c:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
+        c:SetScript("OnClick", function() onClick() end)
+        c.label = Label(x + 24, y - 5, text)
+        return c
+    end
+    local function Changed()
+        ns:Sound("IG_MAINMENU_OPTION")
+        if spec.onChange then spec.onChange() end
+        f:Refresh(true)
+    end
+    f.checks = {}
+    for i, p in ipairs(W.PACKS) do
+        local key = p.key
+        local c = Check(ns.Mod(i - 1, 2) * 124, -math.floor((i - 1) / 2) * 22, p.name, function()
+            local s = spec.get()
+            local packs = s.packs or ""
+            local at = string.find(packs, key, 1, true)
+            if at then packs = string.sub(packs, 1, at - 1) .. string.sub(packs, at + 1) else packs = packs .. key end
+            s.packs = packs
+            Changed()
+        end)
+        c.key = key
+        table.insert(f.checks, c)
+    end
+    local n = ns.getn(W.PACKS)
+    f.own = Check(ns.Mod(n, 2) * 124, -math.floor(n / 2) * 22, spec.own or "My own words", function()
+        local s = spec.get()
+        s.custom = not s.custom
+        Changed()
+    end)
+    local y = -math.floor(n / 2 + 1) * 22
+    local box = ns.CreateFrame("EditBox", nil, f)
+    box:SetWidth(246); box:SetHeight(22)
+    box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, y - 2)
+    box:SetFontObject(GameFontHighlightSmall)
+    box:SetTextInsets(6, 6, 0, 0)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(2000)
+    box:SetBackdrop({
+        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    box:SetBackdropColor(0, 0, 0, 0.8)
+    box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
+    local hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    hint:SetPoint("LEFT", box, "LEFT", 7, 0)
+    hint:SetText("Your words, separated by commas")
+    local focused = false
+    box:SetScript("OnEditFocusGained", function() focused = true hint:Hide() end)
+    box:SetScript("OnEditFocusLost", function() focused = false ns.SetShown(hint, (box:GetText() or "") == "") end)
+    box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+    box:SetScript("OnEnterPressed", function() this:ClearFocus() end)
+    box:SetScript("OnTextChanged", function()
+        if f.filling then return end
+        spec.setText(box:GetText() or "")
+        ns.SetShown(hint, (box:GetText() or "") == "" and not focused)
+        f:Refresh(true)
+    end)
+    f.box, f.hint = box, hint
+    f.count = Label(4, y - 26, "", "GameFontDisableSmall")
+    f.height = -(y - 40)
+    f:SetHeight(f.height)
+    f.filling = true
+    box:SetText(spec.text() or "")
+    f.filling = nil
+    ns.SetShown(hint, (spec.text() or "") == "")
+
+    function f:Refresh(editable)
+        local s = spec.get()
+        for _, c in ipairs(self.checks) do
+            c:SetChecked(string.find(s.packs or "", c.key, 1, true) ~= nil)
+            ns.SetEnabled(c, editable)
+        end
+        self.own:SetChecked(s.custom and true or nil)
+        ns.SetEnabled(self.own, editable)
+        ns.SetShown(self.box, editable and s.custom)
+        self.count:SetText((editable and s.custom) and (ns.getn(W.ParseCustom(spec.text())) .. " of your own words") or "")
+    end
+    return f
+end

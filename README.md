@@ -34,6 +34,9 @@ One addon folder runs on two clients:
 - **Sketch & Guess**: a party drawing game. Everyone takes a turn drawing a secret word while the
   others race to guess it; the host picks the words (built-in packs, their own list or both), the
   time to draw and the turns each. Practice mode lets you doodle on your own
+- **Hangman**: guess the word before the gallows is done. Solo against the computer for chips
+  (2x your bet, 3x with no misses), or a free party game: take turns calling letters (points for
+  every hit, and you go again) or solving for a bonus
 
 Party tables, party duels and party board games are free to join: everyone plays with the stack the host
 picks, and nobody's own chips are touched. Run short at a table and you can top back up to
@@ -91,7 +94,11 @@ run by hand from the repository's Actions tab; it skips a version that's already
 Drawing games share a kit, `Games/SketchKit.lua` (`ns.SketchKit`): a canvas (strokes in a 256 x 256
 space, drawn as rotated lines or as dots), a tools bar (colors, sizes, eraser, Undo, Clear) and a sync
 that keeps everyone's copy of a drawing in step over the party (several artists can share one canvas).
-Word packs live in `Games/SketchWords.lua`. `Games/Sketch.lua` shows how a game puts them together.
+Word packs live in `Games/SketchWords.lua`, with a pack picker any game can show.
+
+Party games hosted by one player can use the room kit, `Games/RoomKit.lua` (`ns.RoomKit`): offers and
+joining, the roster, heartbeats, players leaving, reloads, the lobby page and table chat. The game
+brings its own state and rules (Hangman is built on it). `Games/Sketch.lua` shows how a game puts them together.
 
 Test files share `dev/tests/harness.lua`: `Check`, `Start` (a fresh client), `Find`,
 `Press`, `Tick`, `Done`, and `H.Party` for party tests (isolated clients on a simulated

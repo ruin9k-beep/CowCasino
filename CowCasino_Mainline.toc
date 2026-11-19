@@ -2,7 +2,7 @@
 ## Title: |cffffd100CowCasino|r
 ## Notes: A just-for-fun casino. No real gold is ever wagered. Type /casino to open.
 ## Author: ruin9k
-## Version: 0.20.0
+## Version: 0.21.0
 ## IconTexture: Interface\Icons\INV_Misc_Coin_02
 ## AddonCompartmentFunc: CowCasino_OnAddonCompartmentClick
 ## SavedVariables: CowCasinoDB
@@ -58,3 +58,5 @@ Games\Chess.lua
 Games\SketchWords.lua
 Games\SketchKit.lua
 Games\Sketch.lua
+Games\RoomKit.lua
+Games\Hangman.lua
