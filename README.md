@@ -88,7 +88,8 @@ holds just the addon, ready to unzip into `Interface\AddOns`.
 
 Releases: when a push to main changes the version in `CowCasino.toc`, the GitHub workflow in
 `.github/workflows/release.yml` builds the zip and publishes release `v<version>` with
-`CowCasino-forever.zip` attached, the name updaters such as wowui.io look for. (It can also be
+`CowCasino-<version>-forever.zip` attached. Updaters such as WowUp pick the zip ending in
+`-forever.zip` and take the file's name as its version, so the version has to be in the name. (It can also be
 run by hand from the repository's Actions tab; it skips a version that's already released.)
 
 Drawing games share a kit, `Games/SketchKit.lua` (`ns.SketchKit`): a canvas (strokes in a 256 x 256
