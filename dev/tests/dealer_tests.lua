@@ -299,7 +299,7 @@ Check("CowCasino has a goblin and a human dealer", ns.dealers.goblin ~= nil and 
   and ns.dealerOrder[1] == "goblin" and ns:GetDealer().id == "goblin")
 env.CowCasino.RegisterDealer({ id = "tester", name = "Test Orc", author = "someone", title = "Grukk",
   image = { "Interface\\Icons\\INV_Misc_Head_Orc_01", 0.08, 0.92, 0.08, 0.92 } })
-Check("another addon can add a dealer", ns.dealers.tester ~= nil and ns.dealerOrder[3] == "tester")
+Check("another addon can add a dealer", ns.dealers.tester ~= nil and ns.dealerOrder[table.getn(ns.dealerOrder)] == "tester")
 local okErr = pcall(env.CowCasino.RegisterDealer, { id = "broken" })
 Check("...a dealer without a picture is refused", not okErr and ns.dealers.broken == nil)
 ns:SetDealer("tester")
@@ -343,5 +343,61 @@ opts:Hide()
 env.CowCasinoFrame:Hide()
 ns:OpenGame("blackjack")
 Check("closing the window takes it along", not Visible(ui))
+
+-- Whiskers: a hidden dealer for players with Whiskers the Rat
+local W = ns.dealers.whiskers
+local function Has(list, x) for _, v in ipairs(list) do if v == x then return true end end return false end
+ns:CheckHiddenDealers()
+Check("Whiskers is hidden without the rat: not in the picker, not dealing", W and not W.unlocked
+  and not Has(ns:DealerChoices(), "whiskers") and ns:GetDealer().id == "goblin")
+local printed = {}
+local realPrint = ns.Print
+ns.Print = function(self, m) table.insert(printed, m) end
+env.BAGS[1] = { [5] = "|cffffffff|Hitem:23015:0:0:0|h[Rat Cage]|h|r" }
+ns:CheckHiddenDealers()
+Check("the Rat Cage in your bags: Whiskers takes the dealer's chair (and says so)", W.unlocked and ns.db.dealer == "whiskers"
+  and Has(ns:DealerChoices(), "whiskers") and string.find(printed[1] or "", "Whiskers", 1, true) ~= nil)
+env.CowCasinoFrame:Show()
+ns:OpenGame("blackjack")
+ui = D.UI()
+local modern = env.ns_FLAVOR or (ns.FLAVOR == "WoW Forever")
+Check("at the table: his name and his 3D model, no picture", ui.name.text == "Whiskers" and ui.model.shown and not ui.image.shown
+  and not ui.portrait.shown)
+if ns.FLAVOR == "WoW Forever" then
+  Check("...by his npc id on the modern client", ui.model.creature == 16549)
+  Tick(2)
+  Check("...or, when the client doesn't know him yet, the rat model", ui.model.model == "Creature\\Rat\\Rat.m2", tostring(ui.model.model))
+else
+  Check("...the rat model on 1.12", ui.model.model == "Creature\\Rat\\Rat.mdx", tostring(ui.model.model))
+end
+local line = D:Line("playerBust", { player = 23 })
+Check("his lines are his own (rat puns)", line and string.find(line, "23", 1, true) ~= nil
+  and (string.find(line, "trap", 1, true) or string.find(line, "nest", 1, true) or string.find(line, "nibble", 1, true)
+    or string.find(line, "Squeak", 1, true)) ~= nil, line)
+local count, events = 0, 0
+for event in pairs(ns.dealers.goblin.lines) do
+  events = events + 1
+  if W.lines[event] then count = count + 1 end
+end
+Check("...for every moment the goblin has", count == events, count .. " of " .. events)
+D:SetPlayer(BJ, "player")
+Check("a player's portrait still takes his place when a game asks", ui.portrait.shown and not ui.model.shown)
+D:SetImage(BJ, nil)
+Check("...and he comes back after", ui.model.shown and not ui.portrait.shown)
+
+ns:SetDealer("goblin")
+ns:CheckHiddenDealers()
+Check("pick another dealer and it sticks (he only takes over once)", ns.db.dealer == "goblin" and ns:GetDealer().id == "goblin")
+ns:SetDealer("whiskers")
+env.BAGS[1] = nil
+ns:CheckHiddenDealers()
+Check("no rat, no Whiskers: the goblin deals again", not W.unlocked and ns:GetDealer().id == "goblin" and ui.name.text == "Fizzlecog")
+env.SPELLBOOK = { "Attack", "Whiskers the Rat" }
+ns:CheckHiddenDealers()
+Check("a companion spell named Whiskers the Rat counts too", W.unlocked and ns:GetDealer().id == "whiskers"
+  and table.getn(printed) == 1)
+env.SPELLBOOK = {}
+ns:CheckHiddenDealers()
+ns.Print = realPrint
 
 H.Done("DEALER")

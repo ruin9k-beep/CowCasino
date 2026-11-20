@@ -32,3 +32,16 @@ ns.QUESTION_MARK_MODEL = "Interface\\Buttons\\talktomequestionmark.mdx"
 
 -- A portrait's close-up on the face: the model's face camera.
 function ns.FaceCamera(model) model:SetCamera(0) end
+
+-- A creature's model by file (spec.file, without the extension).
+function ns.SetCreatureModel(m, spec)
+    m:ClearModel()
+    m:SetModel(spec.file .. ".mdx")
+    m:SetCamera(0)
+end
+function ns.CheckCreatureModel(m) end
+
+-- Bags and the spellbook (for the hidden dealers).
+function ns.BagSlots(bag) return GetContainerNumSlots(bag) or 0 end
+function ns.BagLink(bag, slot) return GetContainerItemLink(bag, slot) end
+function ns.SpellNameAt(i) return GetSpellName(i, "spell") end

@@ -43,6 +43,27 @@ The picture is shown square, about 108 pixels on screen. A 128x128 image works
 well. For the 1.12 client, images must be .tga or .blp with sides that are a
 power of two (64, 128, 256...).
 
+### A 3D model instead of a picture
+
+A dealer can show a creature's 3D model in the picture's place:
+
+```lua
+    model = { file = "Creature\\Murloc\\Murloc", npc = 46 },
+```
+
+`file` is the model's path without its extension (CowCasino adds `.mdx` on the 1.12
+client and `.m2` on the modern one). On the modern client `npc` is tried first, for
+that creature's exact look; if the client hasn't seen the creature yet, the file is
+used. `image` is still needed: Options shows it, and it stands in if a model can't be shown.
+
+### Hidden dealers
+
+`unlock = function() return ... end` keeps a dealer out of the picker until it
+returns true (CowCasino checks when your bags or spells change). The first time it
+does, that dealer is picked for the player, and `unlockMessage` (optional) is printed
+in chat; after that the choice is theirs. `ns:HasItem(itemId)`, `ns:KnowsSpell(name)`
+and `ns:HasCompanion(name, itemId)` help write the check.
+
 ## Lines
 
 A dealer can have its own lines for the moments of a game. For each moment,

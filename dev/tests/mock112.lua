@@ -154,7 +154,13 @@ end
 function methods:GetValue() return self.value or 0 end
 function methods:SetUnit(u) assert(type(u) == "string", "SetUnit needs a unit"); self.unit = u; self.model = nil end
 function methods:SetModel(m) assert(type(m) == "string"); self.model = m; self.unit = nil end
-function methods:ClearModel() self.unit, self.model = nil, nil end
+function methods:ClearModel() self.unit, self.model, self.creature = nil, nil, nil end
+-- (modern client only) a creature by npc id; MODEL_CACHE[id] says whether the client knows it
+function methods:SetCreature(id) assert(type(id) == "number"); self.creature = id; self.model = nil end
+function methods:GetModelFileID()
+  if self.creature then return (MODEL_CACHE and MODEL_CACHE[self.creature]) and 1234 or 0 end
+  return self.model and 5678 or 0
+end
 function methods:SetCamera(c) assert(type(c) == "number"); self.camera = c end
 -- 4 numbers (left, right, top, bottom), or 8 (the corners: UL, LL, UR, LR as x, y).
 function methods:SetTexCoord(a, b, c, d, e, f, g, h)
@@ -208,6 +214,11 @@ UnitIsConnected = function(u) return UnitName(u) and 1 or nil end
 SendAddonMessage = function() end
 CLOCK = 0
 GetTime = function() return CLOCK end
+-- bags and the spellbook: tests fill BAGS[bag][slot] = link and SPELLBOOK = { names }
+BAGS, SPELLBOOK = {}, {}
+GetContainerNumSlots = function(bag) assert(type(bag) == "number"); return BAGS[bag] and 16 or 0 end
+GetContainerItemLink = function(bag, slot) return BAGS[bag] and BAGS[bag][slot] end
+GetSpellName = function(i, book) assert(book == "spell" or book == "pet"); return SPELLBOOK[i] end
 DEFAULT_CHAT_FRAME = newObj("Frame"); API.Frame.AddMessage = true; methods.AddMessage = function() end
 
 -- Lua 5.0 library: no string methods, 5.0 names, nothing from 5.1+.

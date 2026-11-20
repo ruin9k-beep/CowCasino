@@ -17,6 +17,44 @@ ns.partyGames = {} -- party modes shown inside a game's window (Party Blackjack,
 
 local PREFIX = "|cffffd100CowCasino|r"
 
+-- Is an item (by id) in the bags (backpack and the four bag slots)?
+function ns:HasItem(itemId)
+    local key = "item:" .. itemId .. ":"
+    for bag = 0, 4 do
+        for slot = 1, ns.BagSlots(bag) do
+            local link = ns.BagLink(bag, slot)
+            if link and string.find(link, key, 1, true) then return true end
+        end
+    end
+    return false
+end
+
+-- Is there a spell by this name in the spellbook (some clients teach
+-- companions as spells)?
+function ns:KnowsSpell(name)
+    for i = 1, 1024 do
+        local n = ns.SpellNameAt(i)
+        if not n then return false end
+        if n == name then return true end
+    end
+    return false
+end
+
+-- A companion pet: its item in the bags, its spell, or (where the client
+-- has one) the pet journal.
+function ns:HasCompanion(name, itemId)
+    if itemId and self:HasItem(itemId) then return true end
+    if self:KnowsSpell(name) then return true end
+    if C_PetJournal and C_PetJournal.GetNumPets and C_PetJournal.GetPetInfoByIndex then
+        local ok, _, owned = pcall(C_PetJournal.GetNumPets)
+        for i = 1, (ok and owned or 0) do
+            local _, _, isOwned, customName, _, _, _, speciesName = C_PetJournal.GetPetInfoByIndex(i)
+            if isOwned ~= false and (speciesName == name or customName == name) then return true end
+        end
+    end
+    return false
+end
+
 function ns:Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(PREFIX .. ": " .. tostring(msg))
 end

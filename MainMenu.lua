@@ -393,7 +393,7 @@ function ns:BuildOptionsPage(frame)
     local dealerName = disp:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     local dealerBy = disp:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     local function StepDealer(dir)
-        local order = ns.dealerOrder
+        local order = ns:DealerChoices()
         local current = ns:GetDealer()
         local idx = 1
         for i, id in ipairs(order) do

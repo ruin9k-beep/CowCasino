@@ -60,6 +60,14 @@ ns.Dealer = Dealer
 ns.dealers = {}
 ns.dealerOrder = {}
 
+-- A pack may also have:
+--   model  = { file = "Creature\\Rat\\Rat", npc = 16549 }: a 3D creature in
+--            the picture's place (file without its extension: .mdx on 1.12,
+--            .m2 on the modern client, which tries the creature's npc id first);
+--            image is still needed, for Options and in case the model can't load
+--   unlock = function() return true/false end: a hidden dealer, only in the
+--            picker (and dealing) while this is true; the first time it is,
+--            the dealer is picked for you
 function ns:RegisterDealer(pack)
     assert(type(pack) == "table" and type(pack.id) == "string", "CowCasino: a dealer needs an id")
     assert(type(pack.image) == "string" or type(pack.image) == "table",
@@ -71,10 +79,72 @@ function ns:RegisterDealer(pack)
     return pack
 end
 
+-- Is this dealer available (not hidden, or unlocked)?
+function ns:DealerAvailable(pack)
+    if not pack then return false end
+    if not pack.unlock then return true end
+    return pack.unlocked == true
+end
+
+-- The dealers in the Options picker: every one that's available.
+function ns:DealerChoices()
+    local out = {}
+    for _, id in ipairs(self.dealerOrder) do
+        if self:DealerAvailable(self.dealers[id]) then table.insert(out, id) end
+    end
+    return out
+end
+
 -- The dealer picked in Options (saved), or the goblin.
 function ns:GetDealer()
     local id = self.db and self.db.dealer
-    return self.dealers[id] or self.dealers[DEFAULT_DEALER] or self.dealers[self.dealerOrder[1]]
+    local pack = self.dealers[id]
+    if pack and self:DealerAvailable(pack) then return pack end
+    return self.dealers[DEFAULT_DEALER] or self.dealers[self.dealerOrder[1]]
+end
+
+-- Check the hidden dealers' unlocks (bags or spells changed). A dealer
+-- unlocked for the first time is picked; the choice is the player's after that.
+function ns:CheckHiddenDealers()
+    if not self.db then return end
+    local changed = false
+    for _, id in ipairs(self.dealerOrder) do
+        local pack = self.dealers[id]
+        if pack.unlock then
+            local ok = pack.unlock() and true or false
+            if ok ~= (pack.unlocked == true) then
+                pack.unlocked = ok
+                changed = true
+            end
+            self.db.dealersSeen = self.db.dealersSeen or {}
+            if ok and not self.db.dealersSeen[id] then
+                self.db.dealersSeen[id] = true
+                self.db.dealer = id
+                changed = true
+                if pack.unlockMessage then self:Print(pack.unlockMessage) end
+            end
+        end
+    end
+    if changed then
+        Dealer:Repaint()
+        if self.optionsPage and self.optionsPage:IsShown() then self.optionsPage:Refresh() end
+    end
+end
+
+do
+    local watch = ns.CreateFrame("Frame")
+    local due
+    watch:RegisterEvent("PLAYER_ENTERING_WORLD")
+    watch:RegisterEvent("BAG_UPDATE")
+    watch:RegisterEvent("SPELLS_CHANGED")
+    -- bag updates come in bursts: check once, a moment after
+    watch:SetScript("OnEvent", function() due = GetTime() + 1 end)
+    watch:SetScript("OnUpdate", function()
+        if due and GetTime() >= due then
+            due = nil
+            ns:CheckHiddenDealers()
+        end
+    end)
 end
 
 function ns:SetDealer(id)
@@ -151,6 +221,23 @@ local function Build()
     ui.image:SetPoint("BOTTOMRIGHT", ui.box, "BOTTOMRIGHT", -1, 1)
     ui.portrait = ns:CreatePortrait(ui.box, PIC, PIC)
     ui.portrait:SetPoint("CENTER", ui.box, "CENTER", 0, 0)
+    -- a dealer that's a 3D creature (pack.model), framed like a portrait
+    ui.model = ns.CreateFrame("PlayerModel", nil, ui.box)
+    ui.model:SetWidth(PIC - 2); ui.model:SetHeight(PIC - 2)
+    ui.model:SetPoint("CENTER", ui.box, "CENTER", 0, 0)
+    ui.model:SetFrameLevel(ui.box:GetFrameLevel() + 2)
+    ui.model:SetScript("OnShow", function() if this.spec then ns.SetCreatureModel(this, this.spec) end end)
+    ui.model:SetScript("OnUpdate", function()
+        -- the model loads a moment after it's asked for; keep framing it until then
+        if not this.settle then return end
+        this.settle = this.settle - (arg1 or 0)
+        ns.FaceCamera(this)
+        if this.settle <= 0 then
+            this.settle = nil
+            ns.CheckCreatureModel(this)
+        end
+    end)
+    ui.model:Hide()
 
     ui.name = ui:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.name:SetPoint("TOPLEFT", ui.box, "TOPRIGHT", 10, -2)
@@ -223,9 +310,30 @@ local function ShowImage(image)
     if type(image) == "table" then path, l, r, t, b = image[1], image[2] or 0, image[3] or 1, image[4] or 0, image[5] or 1 end
     ui.portrait:ShowUnit(nil)
     ui.portrait:Hide()
+    ui.model.spec = nil
+    ui.model:Hide()
     ui.image:SetTexture(path)
     ui.image:SetTexCoord(l, r, t, b)
     ui.image:Show()
+end
+
+-- A 3D creature in the picture's place (a dealer pack's model).
+local function ShowModel(spec)
+    showingPlayer = false
+    ui.portrait:ShowUnit(nil)
+    ui.portrait:Hide()
+    ui.image:Hide()
+    ui.model.spec = spec
+    ui.model:Show()
+    ns.SetCreatureModel(ui.model, spec)
+    ui.model.settle = 1.5
+end
+
+-- The game's own picture, or the chosen dealer's picture or model.
+local function ShowDefault()
+    local def = owner and owner.dealer
+    local pack = ns:GetDealer()
+    if not (def and def.image) and pack.model then ShowModel(pack.model) else ShowImage(DefaultImage()) end
 end
 
 -- Is the strip wanted (the arrow on the window's top edge)? Saved; on unless hidden.
@@ -269,7 +377,7 @@ function Dealer:Attach(game)
     ui.name:SetText(DefaultName())
     ui.text:SetText(idleText)
     ui.text:SetAlpha(1)
-    ShowImage(DefaultImage())
+    ShowDefault()
     Place()
 end
 
@@ -277,7 +385,7 @@ end
 -- player's portrait or its own picture up.
 function Dealer:Repaint()
     if not ui or not owner then return end
-    if not showingPlayer then ShowImage(DefaultImage()) end
+    if not showingPlayer then ShowDefault() end
     if not customName then ui.name:SetText(DefaultName()) end
 end
 
@@ -361,7 +469,7 @@ end
 -- goes back to the game's picture (or the dealer picked in Options).
 function Dealer:SetImage(game, image)
     if not Owns(game) then return end
-    ShowImage(image or DefaultImage())
+    if image then ShowImage(image) else ShowDefault() end
 end
 
 -- A player's 3D portrait: "player" for you, or a party or raid member's
@@ -374,11 +482,13 @@ function Dealer:SetPlayer(game, who)
         unit = ns.Net and ns.Net:UnitFor(who)
     end
     if not unit then
-        ShowImage(DefaultImage())
+        ShowDefault()
         return
     end
     showingPlayer = true
     ui.image:Hide()
+    ui.model.spec = nil
+    ui.model:Hide()
     ui.portrait:Show()
     ui.portrait:ShowUnit(unit)
 end

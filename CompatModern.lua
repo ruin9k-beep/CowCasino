@@ -264,6 +264,46 @@ function ns.FaceCamera(model)
     end
 end
 
+-- A creature's model: by its npc id where the client can (the creature's
+-- exact look), else by file (spec.file, without the extension).
+function ns.SetCreatureModel(m, spec)
+    m:ClearModel()
+    m.triedFile = nil
+    if spec.npc and m.SetCreature then
+        m:SetCreature(spec.npc)
+    else
+        m:SetModel(spec.file .. ".m2")
+        m.triedFile = true
+    end
+    ns.FaceCamera(m)
+end
+-- A creature the client hasn't seen can't be shown by id: fall back to the file.
+function ns.CheckCreatureModel(m)
+    if m.triedFile or not m.spec then return end
+    local id = m.GetModelFileID and m:GetModelFileID()
+    if not id or id == 0 then
+        m:SetModel(m.spec.file .. ".m2")
+        m.triedFile = true
+        ns.FaceCamera(m)
+    end
+end
+
+-- Bags and the spellbook (for the hidden dealers).
+function ns.BagSlots(bag)
+    if C_Container and C_Container.GetContainerNumSlots then return C_Container.GetContainerNumSlots(bag) or 0 end
+    return GetContainerNumSlots and GetContainerNumSlots(bag) or 0
+end
+function ns.BagLink(bag, slot)
+    if C_Container and C_Container.GetContainerItemLink then return C_Container.GetContainerItemLink(bag, slot) end
+    return GetContainerItemLink and GetContainerItemLink(bag, slot)
+end
+function ns.SpellNameAt(i)
+    if GetSpellBookItemName then return GetSpellBookItemName(i, "spell") end
+    if GetSpellName then return GetSpellName(i, "spell") end
+    if C_SpellBook and C_SpellBook.GetSpellBookItemName then return C_SpellBook.GetSpellBookItemName(i, 1) end
+    return nil
+end
+
 function CowCasino_OnAddonCompartmentClick()
     if ns.Toggle then ns:Toggle() end
 end
