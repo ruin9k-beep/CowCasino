@@ -36,7 +36,37 @@ local SIDE_W = L.PANEL_W - SIDE_X - 4
 local MINI = 7                               -- the small board's squares
 local LOG_LINES = 4
 local ANSWER_PAUSE = 0.35                    -- the computer "checks" before answering your shot
-local WATER, WATER2 = { 0.12, 0.30, 0.50 }, { 0.10, 0.27, 0.46 }
+-- Board colors (Options > Settings): a choice from PALETTE for each part.
+local PALETTE = {
+    { key = "sea", name = "Sea blue", 0.12, 0.30, 0.50 },
+    { key = "navy", name = "Navy", 0.06, 0.13, 0.32 },
+    { key = "teal", name = "Teal", 0.07, 0.38, 0.40 },
+    { key = "slate", name = "Slate", 0.24, 0.27, 0.31 },
+    { key = "black", name = "Black", 0.05, 0.05, 0.06 },
+    { key = "green", name = "Green", 0.25, 0.78, 0.30 },
+    { key = "lime", name = "Lime", 0.62, 0.95, 0.20 },
+    { key = "gray", name = "Gray", 0.62, 0.66, 0.72 },
+    { key = "pale", name = "Pale blue", 0.85, 0.92, 1.00 },
+    { key = "white", name = "White", 1.00, 1.00, 1.00 },
+    { key = "yellow", name = "Yellow", 0.95, 0.85, 0.20 },
+    { key = "orange", name = "Orange", 1.00, 0.55, 0.10 },
+    { key = "red", name = "Red", 0.95, 0.20, 0.10 },
+    { key = "pink", name = "Pink", 1.00, 0.45, 0.75 },
+    { key = "purple", name = "Purple", 0.60, 0.30, 0.85 },
+}
+local PALETTE_KEYS = {}
+for _, c in ipairs(PALETTE) do table.insert(PALETTE_KEYS, c.key) end
+-- what each color setting colors, and its default
+local COLOR_PARTS = {
+    { key = "water", label = "Water (both boards)", default = "sea" },
+    { key = "ships", label = "Your ships (small board)", default = "green" },
+    { key = "hits", label = "Their hits (small board)", default = "red" },
+    { key = "misses", label = "Their misses (small board)", default = "pale" },
+}
+local function Paint(key)
+    for _, c in ipairs(PALETTE) do if c.key == key then return c end end
+    return PALETTE[1]
+end
 local CELL = { left = 16, right = 17, top = 18, bottom = 19, across = 20, down = 21, miss = 22, hit = 23 }
 local function Fmt(n) return ns:FormatChips(n) end
 
@@ -503,6 +533,7 @@ function B:DrawBoards()
         end
         if g.pending then washes[g.pending.sq] = "aim" end
     end
+    local water, ships, hits, misses = self:Color("water"), self:Color("ships"), self:Color("hits"), self:Color("misses")
     local last
     if g and not placing then
         for i = ns.getn(g.events), 1, -1 do
@@ -512,8 +543,8 @@ function B:DrawBoards()
     for s = 1, SIZE * SIZE do
         local b = ui.squares[s]
         local row, col = R.RowCol(s)
-        local c = ns.Mod(row + col, 2) == 0 and WATER or WATER2
-        b.bg:SetTexture(c[1], c[2], c[3], 1)
+        local shade = ns.Mod(row + col, 2) == 0 and 1 or 0.9
+        b.bg:SetTexture(water[1] * shade, water[2] * shade, water[3] * shade, 1)
         if parts[s] then Cell(b.piece, parts[s]); b.piece:Show() else b.piece:Hide() end
         if markers[s] then Cell(b.top, markers[s]); b.top:Show() else b.top:Hide() end
         local w = washes[s]
@@ -533,10 +564,8 @@ function B:DrawBoards()
     for s = 1, SIZE * SIZE do
         local t = ui.mini[s]
         local res = theirs[s]
-        if res and res ~= "m" then t:SetTexture(0.95, 0.2, 0.1, 1)
-        elseif res then t:SetTexture(0.85, 0.92, 1, 0.9)
-        elseif myParts[s] then t:SetTexture(0.62, 0.66, 0.72, 1)
-        else t:SetTexture(WATER[1], WATER[2], WATER[3], 1) end
+        local c = (res and res ~= "m" and hits) or (res and misses) or (myParts[s] and ships) or water
+        t:SetTexture(c[1], c[2], c[3], 1)
     end
 end
 
@@ -731,6 +760,9 @@ function B:Build(panel)
         onReset = function() game:ResetStats() end,
         db = function() return game.db end,
         sounds = { { key = "move", label = "The other side fires", default = "tick" } },
+        settings = true,
+        build = function(o) game:BuildColorOptions(o) end,
+        refresh = function(o) for _, st in ipairs(o.colorSteps or {}) do st:Refresh() end end,
     })
 
     -- a game from before a reload
@@ -752,6 +784,64 @@ function B:Build(panel)
         self:Welcome()
     end
     self:Refresh()
+end
+
+-- A board color: the chosen palette entry for part ("water", "ships", ...).
+function B:Color(part)
+    local chosen = self.db and self.db.colors and self.db.colors[part]
+    if not chosen then
+        for _, p in ipairs(COLOR_PARTS) do if p.key == part then chosen = p.default end end
+    end
+    return Paint(chosen)
+end
+
+-- Options > Settings: a color for each part of the boards, and a way back to the defaults.
+function B:BuildColorOptions(o)
+    local game = self
+    local s = o.settings
+    local head = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    head:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -48)
+    head:SetText("Board colors")
+    o.colorSteps = {}
+    for i, part in ipairs(COLOR_PARTS) do
+        local key = part.key
+        local y = -72 - (i - 1) * 30
+        local label = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        label:SetPoint("TOPLEFT", o, "TOPLEFT", 20, y - 6)
+        label:SetText(part.label)
+        local swatch = s:CreateTexture(nil, "ARTWORK")
+        swatch:SetWidth(16); swatch:SetHeight(16)
+        swatch:SetPoint("TOPLEFT", o, "TOPLEFT", 176, y - 4)
+        local st = ns.UI.Stepper(s, {
+            list = PALETTE_KEYS, width = 80,
+            label = function(v)
+                local c = Paint(v)
+                swatch:SetTexture(c[1], c[2], c[3], 1)
+                return string.format("|cff%02x%02x%02x%s|r", math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255), c.name)
+            end,
+            get = function() return game:Color(key).key end,
+            set = function(v)
+                game.db.colors = game.db.colors or {}
+                game.db.colors[key] = v
+            end,
+            onChange = function() game:DrawBoards() end,
+        })
+        st:SetPoint("TOPLEFT", o, "TOPLEFT", 198, y)
+        st.part, st.swatch = key, swatch
+        table.insert(o.colorSteps, st)
+    end
+    local reset = ns.UI.Button(s, "Default colors", 120, function()
+        game.db.colors = nil
+        ns:Sound("IG_MAINMENU_OPTION")
+        for _, st in ipairs(o.colorSteps) do st:Refresh() end
+        game:DrawBoards()
+    end)
+    reset:SetPoint("TOPLEFT", o, "TOPLEFT", 20, -72 - ns.getn(COLOR_PARTS) * 30 - 4)
+    local note = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    note:SetPoint("TOPLEFT", reset, "BOTTOMLEFT", 0, -8)
+    note:SetWidth(330)
+    note:SetJustifyH("LEFT")
+    note:SetText("The hit and miss marks on the big board are pictures and keep their look.")
 end
 
 function B:Welcome()

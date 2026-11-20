@@ -129,6 +129,27 @@ Check("then the computer fires back, onto your small board", table.getn(g.events
 Click(target)
 Check("you can't fire at the same square twice", g.pending == nil)
 
+-- board colors: your ships green by default, set in Options > Settings
+local mine
+for sq = 1, 100 do if R.ShipAt(g.fleet, sq) and sq ~= g.events[2].sq then mine = sq break end end
+local function Near(c, r, gr, b) return c and math.abs(c[1] - r) < 0.01 and math.abs(c[2] - gr) < 0.01 and math.abs(c[3] - b) < 0.01 end
+local shotAt = G.ui.mini[g.events[2].sq].color
+Check("your ships are green on the small board; their shots red or pale blue", Near(G.ui.mini[mine].color, 0.25, 0.78, 0.30)
+  and (Near(shotAt, 0.95, 0.20, 0.10) or Near(shotAt, 0.85, 0.92, 1.00)))
+H.Press("Options")
+H.Press("Settings")
+local steps = G.ui.options.colorSteps
+Check("Options > Settings: a color for water, your ships, their hits and their misses", steps and table.getn(steps) == 4
+  and steps[2].part == "ships" and H.Visible(steps[2]))
+env.Fire(steps[2].up, "OnClick", "LeftButton")
+Check("changing your ships' color repaints the small board", ns.db.battleship.colors.ships == "lime"
+  and Near(G.ui.mini[mine].color, 0.62, 0.95, 0.20))
+env.Fire(steps[1].up, "OnClick", "LeftButton")
+Check("...navy water on the big board", ns.db.battleship.colors.water == "navy" and Near(G.ui.squares[1].bg.color, 0.06, 0.13, 0.32))
+H.Press("Default colors")
+Check("Default colors puts them back", ns.db.battleship.colors == nil and Near(G.ui.mini[mine].color, 0.25, 0.78, 0.30))
+H.Press("Options")
+
 -- a reload carries the game on
 local saved = Copy(env.CowCasinoDB)
 local env2, ns2 = H.Start(saved)
