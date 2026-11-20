@@ -672,12 +672,8 @@ function ns:BuildMainFrame()
     header:SetPoint("TOP", menu, "TOP", 0, -6)
     header:SetText("Pick a game")
 
-    local sub = menu:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    sub:SetPoint("TOP", header, "BOTTOM", 0, -4)
-    sub:SetText("Just for fun - no real gold is ever wagered.")
-
     menu.chips = menu:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    menu.chips:SetPoint("TOP", sub, "BOTTOM", 0, -8)
+    menu.chips:SetPoint("TOP", header, "BOTTOM", 0, -10)
 
     local list = ns.CreateFrame("Frame", nil, menu)
     list:SetPoint("TOPLEFT", list:GetParent(), "TOPLEFT", 0, -72)
@@ -797,7 +793,7 @@ function ns:BuildRebuyPage(frame)
     sub:SetText("Pick a fresh stack to start again.")
     local note = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     note:SetPoint("TOP", sub, "BOTTOM", 0, -6)
-    note:SetText("Your game stats start over with it. Just for fun - no real gold is ever wagered.")
+    note:SetText("Your game stats start over with it.")
     note:SetWidth(300)
 
     o.buttons = {}
