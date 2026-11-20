@@ -362,18 +362,48 @@ ns:OpenGame("blackjack")
 ui = D.UI()
 local modern = env.ns_FLAVOR or (ns.FLAVOR == "WoW Forever")
 if ns.FLAVOR == "WoW Forever" then
-  Check("at the table (modern client): his name and his 3D model, by npc id", ui.name.text == "Whiskers" and ui.model.shown
-    and not ui.image.shown and not ui.portrait.shown and ui.model.creature == 16549)
+  Check("at the table (modern client): his name, and his painted portrait while the model loads", ui.name.text == "Whiskers"
+    and ui.image.shown and not ui.portrait.shown)
+  Tick(0.2)
+  Check("...his 3D model is asked for by npc id", ui.model.creature == 16549)
   Tick(2)
-  Check("...and if the client hasn't seen him, his painted portrait (never a bare model)", ui.image.shown and not ui.model.shown
+  Check("...and if the client hasn't seen him, his painted portrait stays (never a bare model)", ui.image.shown and not ui.model.shown
     and string.find(ui.image.tex, "DealerWhiskers", 1, true) ~= nil)
   env.MODEL_CACHE = { [16549] = true }
   D:Repaint()
   Tick(2)
-  Check("...once the client knows him, his model stays", ui.model.shown and not ui.image.shown and ui.model.creature == 16549)
+  Check("...once the client knows him, his model replaces the picture", ui.model.shown and not ui.image.shown and ui.model.creature == 16549)
 else
-  Check("at the table (1.12): his name and his painted portrait (1.12 can't skin a model)", ui.name.text == "Whiskers"
+  Check("at the table (1.12): his name and his painted portrait", ui.name.text == "Whiskers"
     and ui.image.shown and not ui.model.shown and string.find(ui.image.tex, "DealerWhiskers", 1, true) ~= nil)
+  env.WORLD = { "Kobold Miner", "Old Murk-Eye" }
+  env.TARGET, env.TARGET_CHANGES = "Kobold Miner", 0
+  Tick(7)
+  Check("...he isn't out: the portrait stays and the target is never touched", ui.image.shown and not ui.model.shown
+    and env.TARGET == "Kobold Miner" and env.TARGET_CHANGES == 0, env.TARGET_CHANGES)
+  table.insert(env.WORLD, "Whiskers the rat")
+  env.IN_COMBAT = true
+  Tick(4)
+  Check("...he's out but you're in combat: no looking for him", ui.image.shown and not ui.model.shown and env.TARGET_CHANGES == 0)
+  env.IN_COMBAT = false
+  Tick(4)
+  Check("...out of combat: found nearby, copied into the box (skinned)", ui.model.shown and not ui.image.shown
+    and ui.model.unit == "target" and ui.model.unitCopy == "Whiskers the rat")
+  Check("...and your target is put back", env.TARGET == "Kobold Miner")
+  local changes = env.TARGET_CHANGES
+  Tick(10)
+  Check("...once he's up, no more looking", env.TARGET_CHANGES == changes and ui.model.shown)
+  env.TARGET, env.TARGET_CHANGES = nil, 0
+  D:Repaint()
+  Tick(0.5)
+  Check("...with no target to start, he's copied and the target cleared again", ui.model.shown and env.TARGET == nil
+    and env.TARGET_CHANGES == 2)
+  env.TARGET, env.TARGET_CHANGES = "Whiskers the Rat", 0
+  D:Repaint()
+  Tick(0.5)
+  Check("...already your target: copied straight away, target untouched", ui.model.shown and env.TARGET_CHANGES == 0
+    and ui.model.unitCopy == "Whiskers the Rat")
+  env.TARGET, env.WORLD = nil, {}
 end
 local line = D:Line("playerBust", { player = 23 })
 Check("his lines are his own (rat puns)", line and string.find(line, "23", 1, true) ~= nil

@@ -48,12 +48,15 @@ power of two (64, 128, 256...).
 A dealer can show a creature's 3D model in the picture's place:
 
 ```lua
-    model = { npc = 46 },
+    model = { npc = 46, name = "Murloc Forager" },
 ```
 
-`npc` is the creature's id. The modern client shows it, skinned, once it has seen
-that creature; until then, and always on the 1.12 client (which can't put a skin on
-a model an addon loads), the dealer's `image` shows instead.
+`npc` is the creature's id, for the modern client: it shows the model, skinned, once
+it has seen that creature. `name` is for the 1.12 client, which can only show a
+skinned model by copying a creature that's out nearby: while the dealer is on screen
+and you're out of combat, CowCasino looks for that creature by name every few
+seconds, copies it, and puts your target back. Until the model is up, the dealer's
+`image` shows.
 
 ### Hidden dealers
 

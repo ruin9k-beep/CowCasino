@@ -220,24 +220,17 @@ local function Build()
     ui.image:SetPoint("BOTTOMRIGHT", ui.box, "BOTTOMRIGHT", -1, 1)
     ui.portrait = ns:CreatePortrait(ui.box, PIC, PIC)
     ui.portrait:SetPoint("CENTER", ui.box, "CENTER", 0, 0)
-    -- a dealer that's a 3D creature (pack.model), framed like a portrait
+    -- a dealer that's a 3D creature (pack.model), framed like a portrait. The
+    -- picture stays up until the model is: on 1.12 the creature has to be out
+    -- nearby to be copied (looked for every few seconds), on the modern
+    -- client it loads by npc id if the client has seen it.
     ui.model = ns.CreateFrame("PlayerModel", nil, ui.box)
     ui.model:SetWidth(PIC - 2); ui.model:SetHeight(PIC - 2)
     ui.model:SetPoint("CENTER", ui.box, "CENTER", 0, 0)
     ui.model:SetFrameLevel(ui.box:GetFrameLevel() + 2)
-    ui.model:SetScript("OnShow", function() if this.spec then ns.SetCreatureModel(this, this.spec) end end)
-    ui.model:SetScript("OnUpdate", function()
-        -- the model loads a moment after it's asked for; keep framing it until then
-        if not this.settle then return end
-        this.settle = this.settle - (arg1 or 0)
-        ns.FaceCamera(this)
-        if this.settle <= 0 then
-            this.settle = nil
-            -- the client couldn't show it: the dealer's picture instead
-            if not ns.CreatureModelLoaded(this) then Dealer.ShowPicture() end
-        end
-    end)
     ui.model:Hide()
+    ui.modelDriver = ns.CreateFrame("Frame", nil, ui.box)
+    ui.modelDriver:SetScript("OnUpdate", function() Dealer.ModelTick(arg1 or 0) end)
 
     ui.name = ui:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.name:SetPoint("TOPLEFT", ui.box, "TOPRIGHT", 10, -2)
@@ -320,23 +313,54 @@ end
 -- The dealer's picture (when its model couldn't be shown).
 function Dealer.ShowPicture() if ui then ShowImage(DefaultImage()) end end
 
--- A 3D creature in the picture's place (a dealer pack's model).
-local function ShowModel(spec)
-    showingPlayer = false
-    ui.portrait:ShowUnit(nil)
-    ui.portrait:Hide()
+-- A dealer that's a 3D creature: the picture now, the model once it's up.
+local SCAN_EVERY = 3
+local function TryModel(spec)
+    ShowImage(DefaultImage())
+    local m = ui.model
+    m.spec, m.state, m.next, m.settle = spec, "try", 0, nil
+end
+
+local function ModelUp()
+    local m = ui.model
+    m.state = "shown"
     ui.image:Hide()
-    ui.model.spec = spec
-    ui.model:Show()
-    ns.SetCreatureModel(ui.model, spec)
-    ui.model.settle = 1.5
+    m:Show()
+    ns.FaceCamera(m)
+    m.settle = 1
+end
+
+function Dealer.ModelTick(dt)
+    local m = ui and ui.model
+    if not m or not m.spec or showingPlayer then return end
+    local now = GetTime()
+    if m.state == "try" then
+        if now < (m.next or 0) then return end
+        local r = ns.LoadCreature(m, m.spec)
+        if r == true then
+            ModelUp()
+        elseif r == "wait" then
+            m.state, m.waitUntil = "wait", now + 1.5
+            m:Show()        -- (empty until it loads; the picture shows through)
+        else
+            m.next = now + SCAN_EVERY
+        end
+    elseif m.state == "wait" then
+        if now < m.waitUntil then return end
+        if ns.CreatureModelLoaded(m) then ModelUp() else m:Hide(); m.state = "picture" end
+    elseif m.state == "shown" and m.settle then
+        -- the model loads a moment after it's asked for; keep framing it until then
+        m.settle = m.settle - dt
+        ns.FaceCamera(m)
+        if m.settle <= 0 then m.settle = nil end
+    end
 end
 
 -- The game's own picture, or the chosen dealer's picture or model.
 local function ShowDefault()
     local def = owner and owner.dealer
     local pack = ns:GetDealer()
-    if not (def and def.image) and pack.model and ns.CanShowCreature(pack.model) then ShowModel(pack.model) else ShowImage(DefaultImage()) end
+    if not (def and def.image) and pack.model and ns.CanShowCreature(pack.model) then TryModel(pack.model) else ShowImage(DefaultImage()) end
 end
 
 -- Is the strip wanted (the arrow on the window's top edge)? Saved; on unless hidden.

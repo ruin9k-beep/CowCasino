@@ -152,7 +152,7 @@ function methods:SetValue(v)
   if changed then Fire(self, "OnValueChanged", v) end
 end
 function methods:GetValue() return self.value or 0 end
-function methods:SetUnit(u) assert(type(u) == "string", "SetUnit needs a unit"); self.unit = u; self.model = nil end
+function methods:SetUnit(u) assert(type(u) == "string", "SetUnit needs a unit"); self.unit = u; self.model = nil; self.unitCopy = UnitName(u) end
 function methods:SetModel(m) assert(type(m) == "string"); self.model = m; self.unit = nil end
 function methods:ClearModel() self.unit, self.model, self.creature = nil, nil, nil end
 -- (modern client only) a creature by npc id; MODEL_CACHE[id] says whether the client knows it
@@ -204,7 +204,32 @@ Minimap = newObj("Frame"); Minimap.w = 140
 GetCursorPosition = function() return 400, 600 end
 IsShiftKeyDown = function() return nil end
 PLAYER_NAME = PLAYER_NAME or "Tester"
-UnitName = function(u) if u == "player" then return PLAYER_NAME end return nil end
+-- the world near the player: tests list units by name in WORLD (TargetByName
+-- finds them); TARGET / LAST_TARGET hold names; IN_COMBAT for the player
+WORLD, TARGET, LAST_TARGET, MOUSEOVER, IN_COMBAT, TARGET_CHANGES = {}, nil, nil, nil, false, 0
+UnitName = function(u)
+  if u == "player" then return PLAYER_NAME end
+  if u == "target" then return TARGET end
+  if u == "mouseover" then return MOUSEOVER end
+  return nil
+end
+UnitExists = function(u) return UnitName(u) and 1 or nil end
+UnitAffectingCombat = function(u) assert(u == "player"); return IN_COMBAT and 1 or nil end
+local function SetTarget(name)
+  if name ~= TARGET then TARGET_CHANGES = TARGET_CHANGES + 1 end
+  LAST_TARGET, TARGET = TARGET, name
+end
+TargetByName = function(name, exact)
+  assert(type(name) == "string")
+  for _, n in ipairs(WORLD) do
+    if (exact and string.lower(n) == string.lower(name)) or (not exact and string.find(string.lower(n), string.lower(name), 1, true)) then
+      SetTarget(n)
+      return
+    end
+  end
+end
+TargetLastTarget = function() SetTarget(LAST_TARGET) end
+ClearTarget = function() SetTarget(nil) end
 GetAddOnMetadata = function(addon, field) if field == "Version" then return "test" end end
 GetNumPartyMembers = function() return 0 end
 GetNumRaidMembers = function() return 0 end

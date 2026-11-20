@@ -2,8 +2,9 @@
 -- (and takes over the table, the first time) for players who have Whiskers
 -- the Rat as a companion: the Rat Cage (item 23015) in their bags, a
 -- companion spell by that name, or the pet journal where there is one.
--- Picture: his 3D model (npc 16549) where the client can show it skinned
--- (the modern client, once it's seen him); his painted portrait
+-- Picture: his 3D model where the client can show it skinned (the modern
+-- client by npc 16549, once it's seen him; 1.12 when he's out nearby, copied
+-- by name); his painted portrait
 -- (dev/art-src/make_dealer.py) otherwise, and in Options. Lines are keyed by game event; {name}, {amount} and the
 -- like are filled in (see DEALERS.md).
 
@@ -11,7 +12,7 @@ local ns = CowCasino.ns
 
 ns:RegisterDealer({ id = "whiskers", name = "Whiskers", title = "Whiskers", author = "a very small paw",
     image = "Interface\\AddOns\\CowCasino\\Art\\DealerWhiskers",
-    model = { npc = 16549 },
+    model = { npc = 16549, name = "Whiskers the Rat" },
     unlock = function() return ns:HasCompanion({ "Whiskers the Rat", "Whiskers" }, 23015) end,
     unlockMessage = "Whiskers the Rat has taken over the dealer's chair. (Options > Display > Dealer to change it back.)",
     lines = {

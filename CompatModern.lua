@@ -265,14 +265,17 @@ function ns.FaceCamera(model)
 end
 
 -- A creature's 3D model, skinned, by its npc id (spec.npc). The client must
--- have seen the creature; CreatureModelLoaded says whether it came up.
+-- have seen the creature: LoadCreature asks, and CreatureModelLoaded (a
+-- moment later) says whether it came up.
 function ns.CanShowCreature(spec)
     return spec and spec.npc and true or false
 end
-function ns.SetCreatureModel(m, spec)
+function ns.LoadCreature(m, spec)
     m:ClearModel()
-    if m.SetCreature then m:SetCreature(spec.npc) end
+    if not m.SetCreature then return false end
+    m:SetCreature(spec.npc)
     ns.FaceCamera(m)
+    return "wait"
 end
 function ns.CreatureModelLoaded(m)
     if not m.SetCreature then return false end
