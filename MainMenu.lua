@@ -237,7 +237,7 @@ function ns:MenuPage(dir)
 end
 
 ---------------------------------------------------------------------------
--- CowCasino options, in tabs: Display (window size, card art, the dealer),
+-- CowCasino options, in tabs: Display (window size, card art, the dealer, the window style),
 -- Games (their order), Chat (table chat) and Chips (starting over).
 ---------------------------------------------------------------------------
 function ns:BuildOptionsPage(frame)
@@ -426,6 +426,21 @@ function ns:BuildOptionsPage(frame)
     dealerPic:SetPoint("CENTER", dealerBox, "CENTER", 0, 0)
     o.dealerPic = dealerPic
 
+    -- The window's look
+    local styleY = dealerY - 58
+    local styleLabel = disp:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    styleLabel:SetPoint("TOPLEFT", o, "TOPLEFT", 12, styleY)
+    styleLabel:SetText("Window style")
+    local styleStep = ns.UI.Stepper(disp, {
+        list = ns.FRAME_STYLES, width = 90,
+        label = function(v) return "|cffffffff" .. ns.FRAME_STYLE_NAMES[v] .. "|r" end,
+        get = function() return ns:FrameStyle() end,
+        set = function(v) ns.db.frameStyle = v end,
+        onChange = function() ns:ApplyFrameStyle() end,
+    })
+    styleStep:SetPoint("TOPLEFT", o, "TOPLEFT", 120, styleY + 5)
+    o.styleStep = styleStep
+
     -- Table chat (Chat.lua), for party tables
     local chatY = -42
     local chatLabel = chat:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -575,6 +590,7 @@ function ns:BuildOptionsPage(frame)
         o.updating = nil
         scaleValue:SetText(math.floor((ns.db.scale or 1) * 100 + 0.5) .. "%")
         o.mpFirst:SetChecked(ns.db.mpFirst and true or nil)
+        o.styleStep:Refresh()
         local order = ns:MenuOrder()
         local n = ns.getn(order)
         for i, slot in ipairs(slots) do
@@ -629,6 +645,33 @@ function ns:SkinFrame(frame)
     totemR:SetWidth(TOTEM_W); totemR:SetHeight(TOTEM_H)
     totemR:SetPoint("TOPLEFT", frame, "TOPRIGHT", -TOTEM_X - TOTEM_W / 2, TOTEM_TOP)
     frame.skin, frame.hornL, frame.hornR, frame.totemL, frame.totemR = skin, left, right, totemL, totemR
+
+    -- The Modern look: one dark slate panel with a gold line under the title
+    -- (dev/art-src/make_modern_window.py), the same size as the Tauren art.
+    local modern = frame:CreateTexture(nil, "BORDER")
+    modern:SetTexture(ART .. "ModernFrame")
+    modern:SetPoint("TOPLEFT", frame, "TOPLEFT", -SKIN_PAD, SKIN_PAD)
+    modern:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", SKIN_PAD, -SKIN_PAD)
+    modern:SetTexCoord(0, (FRAME_W + 2 * SKIN_PAD) / 512, 0, (FRAME_H + 2 * SKIN_PAD) / 512)
+    frame.modern = modern
+    self:ApplyFrameStyle(frame)
+end
+
+-- The window's look (Options > Display): "modern" (the default) or "tauren".
+ns.FRAME_STYLES = { "modern", "tauren" }
+ns.FRAME_STYLE_NAMES = { modern = "Modern", tauren = "Tauren" }
+function ns:FrameStyle()
+    local s = self.db and self.db.frameStyle
+    if s ~= "tauren" then s = "modern" end
+    return s
+end
+
+function ns:ApplyFrameStyle(frame)
+    frame = frame or self.frame
+    if not frame or not frame.modern then return end
+    local tauren = self:FrameStyle() == "tauren"
+    for _, t in ipairs({ frame.skin, frame.hornL, frame.hornR, frame.totemL, frame.totemR }) do ns.SetShown(t, tauren) end
+    ns.SetShown(frame.modern, not tauren)
 end
 
 function ns:BuildMainFrame()

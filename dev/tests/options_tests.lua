@@ -195,6 +195,23 @@ do
   Check("unticked: back to the plain order", not ns.db.mpFirst and MenuOrder(env, ns) == table.concat(ns.gameOrder, ","))
   ns:OpenGame("blackjack")
 end
+-- the window style: Modern by default, Tauren in Options > Display
+do
+  local f = env.CowCasinoFrame
+  Check("the window is Modern by default (the Tauren art hidden)", f.modern:IsShown() and not f.skin:IsShown()
+    and not f.totemL:IsShown() and not f.hornR:IsShown())
+  ns:ShowMenu()
+  Press(Find("Options"))
+  Press(Find("Display"))
+  local st = ns.optionsPage.styleStep
+  Check("Options > Display: Window style, Modern", st ~= nil and Visible(st) and string.find(st.text.text, "Modern", 1, true) ~= nil)
+  env.Fire(st.up, "OnClick", "LeftButton")
+  Check("...switching to Tauren brings back the totems and horns", ns.db.frameStyle == "tauren" and f.skin:IsShown()
+    and f.totemL:IsShown() and f.hornL:IsShown() and not f.modern:IsShown())
+  env.Fire(st.down, "OnClick", "LeftButton")
+  Check("...and back to Modern", ns.db.frameStyle == "modern" and f.modern:IsShown() and not f.skin:IsShown())
+  Press(Find("Options"))
+end
 -- every game on the menu has its own painted icon, a 64x64 32-bit TGA in the addon
 do
   local bad, seen = {}, {}
