@@ -264,28 +264,20 @@ function ns.FaceCamera(model)
     end
 end
 
--- A creature's model: by its npc id where the client can (the creature's
--- exact look), else by file (spec.file, without the extension).
+-- A creature's 3D model, skinned, by its npc id (spec.npc). The client must
+-- have seen the creature; CreatureModelLoaded says whether it came up.
+function ns.CanShowCreature(spec)
+    return spec and spec.npc and true or false
+end
 function ns.SetCreatureModel(m, spec)
     m:ClearModel()
-    m.triedFile = nil
-    if spec.npc and m.SetCreature then
-        m:SetCreature(spec.npc)
-    else
-        m:SetModel(spec.file .. ".m2")
-        m.triedFile = true
-    end
+    if m.SetCreature then m:SetCreature(spec.npc) end
     ns.FaceCamera(m)
 end
--- A creature the client hasn't seen can't be shown by id: fall back to the file.
-function ns.CheckCreatureModel(m)
-    if m.triedFile or not m.spec then return end
+function ns.CreatureModelLoaded(m)
+    if not m.SetCreature then return false end
     local id = m.GetModelFileID and m:GetModelFileID()
-    if not id or id == 0 then
-        m:SetModel(m.spec.file .. ".m2")
-        m.triedFile = true
-        ns.FaceCamera(m)
-    end
+    return id ~= nil and id ~= 0
 end
 
 -- Bags and the spellbook (for the hidden dealers).

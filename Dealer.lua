@@ -61,10 +61,9 @@ ns.dealers = {}
 ns.dealerOrder = {}
 
 -- A pack may also have:
---   model  = { file = "Creature\\Rat\\Rat", npc = 16549 }: a 3D creature in
---            the picture's place (file without its extension: .mdx on 1.12,
---            .m2 on the modern client, which tries the creature's npc id first);
---            image is still needed, for Options and in case the model can't load
+--   model  = { npc = 16549 }: the creature's 3D model in the picture's place,
+--            where the client can show it skinned (the modern client, once it
+--            has seen the creature); the image shows otherwise, and in Options
 --   unlock = function() return true/false end: a hidden dealer, only in the
 --            picker (and dealing) while this is true; the first time it is,
 --            the dealer is picked for you
@@ -234,7 +233,8 @@ local function Build()
         ns.FaceCamera(this)
         if this.settle <= 0 then
             this.settle = nil
-            ns.CheckCreatureModel(this)
+            -- the client couldn't show it: the dealer's picture instead
+            if not ns.CreatureModelLoaded(this) then Dealer.ShowPicture() end
         end
     end)
     ui.model:Hide()
@@ -317,6 +317,9 @@ local function ShowImage(image)
     ui.image:Show()
 end
 
+-- The dealer's picture (when its model couldn't be shown).
+function Dealer.ShowPicture() if ui then ShowImage(DefaultImage()) end end
+
 -- A 3D creature in the picture's place (a dealer pack's model).
 local function ShowModel(spec)
     showingPlayer = false
@@ -333,7 +336,7 @@ end
 local function ShowDefault()
     local def = owner and owner.dealer
     local pack = ns:GetDealer()
-    if not (def and def.image) and pack.model then ShowModel(pack.model) else ShowImage(DefaultImage()) end
+    if not (def and def.image) and pack.model and ns.CanShowCreature(pack.model) then ShowModel(pack.model) else ShowImage(DefaultImage()) end
 end
 
 -- Is the strip wanted (the arrow on the window's top edge)? Saved; on unless hidden.

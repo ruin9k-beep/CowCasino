@@ -361,14 +361,19 @@ env.CowCasinoFrame:Show()
 ns:OpenGame("blackjack")
 ui = D.UI()
 local modern = env.ns_FLAVOR or (ns.FLAVOR == "WoW Forever")
-Check("at the table: his name and his 3D model, no picture", ui.name.text == "Whiskers" and ui.model.shown and not ui.image.shown
-  and not ui.portrait.shown)
 if ns.FLAVOR == "WoW Forever" then
-  Check("...by his npc id on the modern client", ui.model.creature == 16549)
+  Check("at the table (modern client): his name and his 3D model, by npc id", ui.name.text == "Whiskers" and ui.model.shown
+    and not ui.image.shown and not ui.portrait.shown and ui.model.creature == 16549)
   Tick(2)
-  Check("...or, when the client doesn't know him yet, the rat model", ui.model.model == "Creature\\Rat\\Rat.m2", tostring(ui.model.model))
+  Check("...and if the client hasn't seen him, his painted portrait (never a bare model)", ui.image.shown and not ui.model.shown
+    and string.find(ui.image.tex, "DealerWhiskers", 1, true) ~= nil)
+  env.MODEL_CACHE = { [16549] = true }
+  D:Repaint()
+  Tick(2)
+  Check("...once the client knows him, his model stays", ui.model.shown and not ui.image.shown and ui.model.creature == 16549)
 else
-  Check("...the rat model on 1.12", ui.model.model == "Creature\\Rat\\Rat.mdx", tostring(ui.model.model))
+  Check("at the table (1.12): his name and his painted portrait (1.12 can't skin a model)", ui.name.text == "Whiskers"
+    and ui.image.shown and not ui.model.shown and string.find(ui.image.tex, "DealerWhiskers", 1, true) ~= nil)
 end
 local line = D:Line("playerBust", { player = 23 })
 Check("his lines are his own (rat puns)", line and string.find(line, "23", 1, true) ~= nil
@@ -383,7 +388,7 @@ Check("...for every moment the goblin has", count == events, count .. " of " .. 
 D:SetPlayer(BJ, "player")
 Check("a player's portrait still takes his place when a game asks", ui.portrait.shown and not ui.model.shown)
 D:SetImage(BJ, nil)
-Check("...and he comes back after", ui.model.shown and not ui.portrait.shown)
+Check("...and he comes back after", (ui.model.shown or ui.image.shown) and not ui.portrait.shown)
 
 ns:SetDealer("goblin")
 ns:CheckHiddenDealers()

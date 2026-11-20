@@ -78,6 +78,60 @@ def human():
     return frame(img)
 
 
+def whiskers():
+    """Whiskers: a gray rat croupier in a green visor and a red bow tie."""
+    img = backdrop((70, 110, 80, 255), (14, 30, 20, 255))
+    fur, furDark, furLight = (138, 130, 128, 255), (78, 72, 72, 255), (186, 180, 176, 255)
+    pink, pinkDark = (236, 158, 170, 255), (180, 100, 112, 255)
+
+    def soft(shape_fn, color, blur):
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        shape_fn(ImageDraw.Draw(layer), color)
+        img.alpha_composite(layer.filter(ImageFilter.GaussianBlur(blur)))
+
+    d = ImageDraw.Draw(img)
+    # shoulders: a black vest over a white shirt
+    body(d)
+    # neck
+    d.ellipse((196, 330, 316, 430), fill=furDark)
+    # ears: smaller than a mouse's, set back on the head, pink inside
+    for cx in (166, 346):
+        d.ellipse((cx - 50, 104, cx + 50, 214), fill=fur, outline=furDark, width=6)
+        d.ellipse((cx - 32, 124, cx + 32, 198), fill=pink)
+        soft(lambda dd, c, cx=cx: dd.ellipse((cx - 24, 134, cx + 16, 184), fill=c), (255, 210, 220, 120), 8)
+    # the head, tapering into a long snout
+    d.ellipse((160, 150, 352, 310), fill=fur, outline=furDark, width=6)
+    d.polygon([(170, 250), (342, 250), (282, 392), (230, 392)], fill=fur, outline=furDark)
+    d.ellipse((168, 190, 344, 300), fill=fur)
+    d.ellipse((218, 330, 294, 400), fill=furLight, outline=furDark, width=5)
+    # shading: lighter brow and cheeks
+    soft(lambda dd, c: dd.ellipse((190, 170, 320, 250), fill=c), (230, 230, 238, 110), 18)
+    # the visor
+    d.chord((150, 128, 362, 236), 180, 360, fill=(30, 150, 70, 235))
+    d.rectangle((150, 176, 362, 190), fill=(20, 110, 50, 255))
+    # shiny black eyes
+    for x in (214, 298):
+        d.ellipse((x - 22, 222, x + 22, 266), fill=(18, 14, 16, 255))
+        d.ellipse((x - 11, 228, x + 1, 240), fill=(255, 255, 255, 255))
+        d.ellipse((x + 6, 248, x + 12, 254), fill=(200, 200, 210, 255))
+    # pink nose at the snout's tip, a small smile with two front teeth
+    d.ellipse((238, 362, 274, 388), fill=pink, outline=pinkDark, width=4)
+    d.ellipse((245, 366, 256, 373), fill=(255, 220, 228, 255))
+    d.line((256, 388, 256, 396), fill=furDark, width=4)
+    d.arc((232, 384, 256, 404), 20, 160, fill=furDark, width=4)
+    d.arc((256, 384, 280, 404), 20, 160, fill=furDark, width=4)
+    d.rectangle((248, 400, 264, 414), fill=(250, 246, 230, 255), outline=furDark, width=3)
+    d.line((256, 400, 256, 414), fill=furDark, width=2)
+    # the whiskers
+    for side in (-1, 1):
+        x0 = 256 + side * 20
+        for k, dy in enumerate((-12, 0, 12)):
+            x1 = 256 + side * (160 - k * 8)
+            d.line((x0, 378 + dy * 0.4, x1, 362 + dy * 2.4), fill=(240, 240, 245, 230), width=3)
+    bow_tie(d, 440)
+    return frame(img)
+
+
 if __name__ == "__main__":
     out, preview = sys.argv[1], sys.argv[2]
     here = os.path.dirname(os.path.abspath(__file__))
@@ -89,8 +143,8 @@ if __name__ == "__main__":
         fizz = pic.crop((left, top, left + side, top + side)).resize((S, S), Image.LANCZOS)
     else:
         fizz = goblin()
-    imgs = [("DealerGoblin", fizz), ("DealerHuman", human())]
-    sheet = Image.new("RGBA", (580, 170), (30, 30, 30, 255))
+    imgs = [("DealerGoblin", fizz), ("DealerHuman", human()), ("DealerWhiskers", whiskers())]
+    sheet = Image.new("RGBA", (870, 170), (30, 30, 30, 255))
     for i, (name, img) in enumerate(imgs):
         img.resize((128, 128), Image.LANCZOS).save(os.path.join(out, name + ".tga"))
         sheet.paste(img.resize((150, 150), Image.LANCZOS), (10 + i * 290, 10))

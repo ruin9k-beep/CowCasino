@@ -48,13 +48,12 @@ power of two (64, 128, 256...).
 A dealer can show a creature's 3D model in the picture's place:
 
 ```lua
-    model = { file = "Creature\\Murloc\\Murloc", npc = 46 },
+    model = { npc = 46 },
 ```
 
-`file` is the model's path without its extension (CowCasino adds `.mdx` on the 1.12
-client and `.m2` on the modern one). On the modern client `npc` is tried first, for
-that creature's exact look; if the client hasn't seen the creature yet, the file is
-used. `image` is still needed: Options shows it, and it stands in if a model can't be shown.
+`npc` is the creature's id. The modern client shows it, skinned, once it has seen
+that creature; until then, and always on the 1.12 client (which can't put a skin on
+a model an addon loads), the dealer's `image` shows instead.
 
 ### Hidden dealers
 
