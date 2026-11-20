@@ -206,10 +206,28 @@ do
   local st = ns.optionsPage.styleStep
   Check("Options > Display: Window style, Modern", st ~= nil and Visible(st) and string.find(st.text.text, "Modern", 1, true) ~= nil)
   env.Fire(st.up, "OnClick", "LeftButton")
+  Check("...Horde: its own art, nothing else", ns.db.frameStyle == "horde" and f.styleArt.horde:IsShown()
+    and not f.modern:IsShown() and not f.styleArt.alliance:IsShown() and not f.skin:IsShown())
+  Check("...with the Horde emblem at both ends of the title band", f.emblems.horde[1]:IsShown() and f.emblems.horde[2]:IsShown()
+    and not f.emblems.alliance[1]:IsShown() and string.find(f.emblems.horde[1].tex, "UI-PVP-Horde", 1, true) ~= nil)
+  env.Fire(st.up, "OnClick", "LeftButton")
+  Check("...Alliance, with its emblem", ns.db.frameStyle == "alliance" and f.styleArt.alliance:IsShown() and not f.styleArt.horde:IsShown()
+    and f.emblems.alliance[2]:IsShown() and not f.emblems.horde[2]:IsShown())
+  env.Fire(st.up, "OnClick", "LeftButton")
   Check("...switching to Tauren brings back the totems and horns", ns.db.frameStyle == "tauren" and f.skin:IsShown()
-    and f.totemL:IsShown() and f.hornL:IsShown() and not f.modern:IsShown())
-  env.Fire(st.down, "OnClick", "LeftButton")
-  Check("...and back to Modern", ns.db.frameStyle == "modern" and f.modern:IsShown() and not f.skin:IsShown())
+    and f.totemL:IsShown() and f.hornL:IsShown() and not f.modern:IsShown() and not f.styleArt.alliance:IsShown())
+  for _ = 1, 3 do env.Fire(st.down, "OnClick", "LeftButton") end
+  Check("...and back to Modern", ns.db.frameStyle == "modern" and f.modern:IsShown() and not f.skin:IsShown()
+    and not f.emblems.horde[1]:IsShown() and not f.emblems.alliance[1]:IsShown())
+  Check("every style's art is in the addon (512 x 512, 32-bit)", (function()
+    for _, file in pairs(ns.FRAME_STYLE_ART) do
+      local h = io.open(ADDON .. "/Art/" .. file .. ".tga", "rb")
+      local hdr = h and h:read(18)
+      if h then h:close() end
+      if not hdr or string.byte(hdr, 13) + string.byte(hdr, 14) * 256 ~= 512 or string.byte(hdr, 17) ~= 32 then return false end
+    end
+    return true
+  end)())
   Press(Find("Options"))
 end
 -- every game on the menu has its own painted icon, a 64x64 32-bit TGA in the addon

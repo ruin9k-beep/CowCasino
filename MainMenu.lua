@@ -616,6 +616,7 @@ local HORN = 96                    -- shown size of each horn
 local TOTEM_W, TOTEM_H = 64, 512   -- each totem pole's texture (the pole is 480 tall in it)
 local TOTEM_X = -8                 -- the pole's middle, from the window's side edge (outward)
 local TOTEM_TOP = 18               -- the pole's top, above the window's top edge
+local EMBLEM = 28                  -- the faction emblems at the ends of the title band
 
 function ns:SkinFrame(frame)
     local skin = frame:CreateTexture(nil, "BORDER")   -- over the horns
@@ -646,32 +647,66 @@ function ns:SkinFrame(frame)
     totemR:SetPoint("TOPLEFT", frame, "TOPRIGHT", -TOTEM_X - TOTEM_W / 2, TOTEM_TOP)
     frame.skin, frame.hornL, frame.hornR, frame.totemL, frame.totemR = skin, left, right, totemL, totemR
 
-    -- The Modern look: one dark slate panel with a gold line under the title
-    -- (dev/art-src/make_modern_window.py), the same size as the Tauren art.
-    local modern = frame:CreateTexture(nil, "BORDER")
-    modern:SetTexture(ART .. "ModernFrame")
-    modern:SetPoint("TOPLEFT", frame, "TOPLEFT", -SKIN_PAD, SKIN_PAD)
-    modern:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", SKIN_PAD, -SKIN_PAD)
-    modern:SetTexCoord(0, (FRAME_W + 2 * SKIN_PAD) / 512, 0, (FRAME_H + 2 * SKIN_PAD) / 512)
-    frame.modern = modern
+    -- The other looks are one painting each, the same size as the Tauren art:
+    -- Modern (dev/art-src/make_modern_window.py), Horde and Alliance
+    -- (dev/art-src/make_faction_windows.py).
+    frame.styleArt = {}
+    for _, style in ipairs(ns.FRAME_STYLES) do
+        local file = ns.FRAME_STYLE_ART[style]
+        if file then
+            local t = frame:CreateTexture(nil, "BORDER")
+            t:SetTexture(ART .. file)
+            t:SetPoint("TOPLEFT", frame, "TOPLEFT", -SKIN_PAD, SKIN_PAD)
+            t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", SKIN_PAD, -SKIN_PAD)
+            t:SetTexCoord(0, (FRAME_W + 2 * SKIN_PAD) / 512, 0, (FRAME_H + 2 * SKIN_PAD) / 512)
+            frame.styleArt[style] = t
+        end
+    end
+    frame.modern = frame.styleArt.modern
+    -- the faction's own emblem (the game's PvP icon, already in every client)
+    -- at both ends of the title band, for the Horde and Alliance looks
+    frame.emblems = {}
+    for style, file in pairs(ns.FRAME_STYLE_EMBLEM) do
+        local pair = {}
+        for side = 1, 2 do
+            local e = frame:CreateTexture(nil, "ARTWORK")
+            e:SetTexture(file)
+            e:SetTexCoord(0, 0.625, 0, 0.625)   -- the emblem sits in the icon's top-left 40 x 40
+            e:SetWidth(EMBLEM); e:SetHeight(EMBLEM)
+            if side == 1 then e:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -3)
+            else e:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -3) end
+            pair[side] = e
+        end
+        frame.emblems[style] = pair
+    end
     self:ApplyFrameStyle(frame)
 end
 
--- The window's look (Options > Display): "modern" (the default) or "tauren".
-ns.FRAME_STYLES = { "modern", "tauren" }
-ns.FRAME_STYLE_NAMES = { modern = "Modern", tauren = "Tauren" }
+-- The window's look (Options > Display): Modern (the default), Horde,
+-- Alliance or Tauren.
+ns.FRAME_STYLES = { "modern", "horde", "alliance", "tauren" }
+ns.FRAME_STYLE_NAMES = { modern = "Modern", horde = "Horde", alliance = "Alliance", tauren = "Tauren" }
+ns.FRAME_STYLE_ART = { modern = "ModernFrame", horde = "HordeFrame", alliance = "AllianceFrame" }
+ns.FRAME_STYLE_EMBLEM = {
+    horde = "Interface\\TargetingFrame\\UI-PVP-Horde",
+    alliance = "Interface\\TargetingFrame\\UI-PVP-Alliance",
+}
 function ns:FrameStyle()
     local s = self.db and self.db.frameStyle
-    if s ~= "tauren" then s = "modern" end
+    if not ns.FRAME_STYLE_NAMES[s or ""] then s = "modern" end
     return s
 end
 
 function ns:ApplyFrameStyle(frame)
     frame = frame or self.frame
-    if not frame or not frame.modern then return end
-    local tauren = self:FrameStyle() == "tauren"
+    if not frame or not frame.styleArt then return end
+    local style = self:FrameStyle()
+    local tauren = style == "tauren"
     for _, t in ipairs({ frame.skin, frame.hornL, frame.hornR, frame.totemL, frame.totemR }) do ns.SetShown(t, tauren) end
-    ns.SetShown(frame.modern, not tauren)
+    for key, t in pairs(frame.styleArt) do ns.SetShown(t, key == style) end
+    for key, pair in pairs(frame.emblems or {}) do
+        for _, e in ipairs(pair) do ns.SetShown(e, key == style) end
+    end
 end
 
 function ns:BuildMainFrame()
