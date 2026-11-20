@@ -398,6 +398,12 @@ Check("a companion spell named Whiskers the Rat counts too", W.unlocked and ns:G
   and table.getn(printed) == 1)
 env.SPELLBOOK = {}
 ns:CheckHiddenDealers()
+Check("...gone again without it", not W.unlocked)
+env.SPELLBOOK = { "Attack", "Fishing", "Whiskers" }
+ns:CheckHiddenDealers()
+Check("OctoWoW's spellbook name for him, just Whiskers, counts too", W.unlocked and ns:GetDealer().id == "whiskers")
+env.SPELLBOOK = {}
+ns:CheckHiddenDealers()
 ns.Print = realPrint
 
 H.Done("DEALER")

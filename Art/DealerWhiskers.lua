@@ -11,7 +11,7 @@ local ns = CowCasino.ns
 ns:RegisterDealer({ id = "whiskers", name = "Whiskers", title = "Whiskers", author = "a very small paw",
     image = { "Interface\\Icons\\INV_Box_PetCarrier_01", 0.08, 0.92, 0.08, 0.92 },
     model = { file = "Creature\\Rat\\Rat", npc = 16549 },
-    unlock = function() return ns:HasCompanion("Whiskers the Rat", 23015) end,
+    unlock = function() return ns:HasCompanion({ "Whiskers the Rat", "Whiskers" }, 23015) end,
     unlockMessage = "Whiskers the Rat has taken over the dealer's chair. (Options > Display > Dealer to change it back.)",
     lines = {
         -- Blackjack

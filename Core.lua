@@ -41,15 +41,21 @@ function ns:KnowsSpell(name)
 end
 
 -- A companion pet: its item in the bags, its spell, or (where the client
--- has one) the pet journal.
-function ns:HasCompanion(name, itemId)
+-- has one) the pet journal. names: the pet's name, or a list of the names
+-- clients give it (OctoWoW's spellbook has "Whiskers" for "Whiskers the Rat").
+function ns:HasCompanion(names, itemId)
+    if type(names) ~= "table" then names = { names } end
     if itemId and self:HasItem(itemId) then return true end
-    if self:KnowsSpell(name) then return true end
+    for _, name in ipairs(names) do
+        if self:KnowsSpell(name) then return true end
+    end
     if C_PetJournal and C_PetJournal.GetNumPets and C_PetJournal.GetPetInfoByIndex then
         local ok, _, owned = pcall(C_PetJournal.GetNumPets)
         for i = 1, (ok and owned or 0) do
             local _, _, isOwned, customName, _, _, _, speciesName = C_PetJournal.GetPetInfoByIndex(i)
-            if isOwned ~= false and (speciesName == name or customName == name) then return true end
+            for _, name in ipairs(names) do
+                if isOwned ~= false and (speciesName == name or customName == name) then return true end
+            end
         end
     end
     return false
