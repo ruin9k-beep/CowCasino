@@ -37,7 +37,7 @@ local DEFAULT_STATS = { solo = 0, soloWins = 0, perfect = 0, games = 0, wins = 0
 local Game = {
     id = "hangman",
     name = "Hangman",
-    description = "Guess the word a letter at a time, before the gallows is done.\n|cff66ccffSolo or party game|r",
+    description = "Guess the word a letter at a time, before the gallows is done.\n|cff66ccffSupports Multiplayer|r",
     icon = ART .. "HangmanIcon",   -- painted (dev/art-src/make_game_icons.py)
     wide = true,
 }
