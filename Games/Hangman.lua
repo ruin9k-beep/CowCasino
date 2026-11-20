@@ -790,7 +790,7 @@ function Game:Build(panel)
     room:BuildLobby(panel, {
         title = "Hangman",
         info = "Guess the word before the gallows is done. Play solo for chips, or take turns with your group "
-            .. "(free): letters score, and solving scores big.",
+            .. "(free): letters and solves score points.",
         alone = "Join a party or raid to play with friends, or play solo.",
         buttons = { { "Play solo", function()
             ui.mode = "solo"

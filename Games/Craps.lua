@@ -660,7 +660,7 @@ function Craps:Build(panel)
     BuildParty(panel)
 
     if Rules.Total(db.bets) > 0 then
-        SetStatus("Welcome back - your bets are still on the table.")
+        SetStatus("Your bets are still on the table.")
     elseif db.point then
         db.point = nil          -- nothing riding on an old point
         SetStatus("Place your bets and roll.")

@@ -9,7 +9,7 @@ local Checkers = ns.BoardKit.New({
     name = "Checkers",
     description = "Jump, crown and clear the board, vs the computer.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\CheckersIcon",   -- painted (dev/art-src/make_game_icons.py)
-    dealer = { idle = "Fancy a game of checkers? Black moves first." },
+    dealer = { idle = "Black moves first." },
     tag = "CK",
     rules = R,
     atlas = { bM = 12, bK = 13, rM = 14, rK = 15 },
@@ -25,7 +25,7 @@ local Checkers = ns.BoardKit.New({
         .. "no jump and no man moved is a draw.\n\n"
         .. "To move, click a piece, then the square to go to (for a double jump, each landing square in turn).\n\n"
         .. "Vs the computer: pick a stake, Easy, Medium or Hard, and your side. A win pays double, a draw gives "
-        .. "your stake back. Party game: free, for bragging rights. Offer a draw or resign at any time (Resign asks again: click Confirm once its 3 seconds are up).",
+        .. "your stake back. Party game: free. Offer a draw or resign at any time (Resign asks again: click Confirm once its 3 seconds are up).",
 })
 
 ns:RegisterGame(Checkers)

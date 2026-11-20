@@ -15,7 +15,7 @@ ns:RegisterGame(ns.NewPokerGame({
     name = "Five-Card Draw",
     description = "Classic draw poker against four computer players.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\DrawIcon",     -- painted (dev/art-src/make_game_icons.py)
-    dealer = { idle = "Five cards each. Ante up!" },
+    dealer = { idle = "Five cards each." },
     dbKey = "draw",
     tag = "DR",                    -- first field of every Five-Card Draw message
     say = "draw",                  -- the dealer's moments: drawDeal, drawDraw... (DEALERS.md)

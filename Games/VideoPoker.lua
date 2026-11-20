@@ -237,7 +237,7 @@ local function DrawCards()
         ns:PlayGameSound(db, "win")
         if row <= 3 then ns:Sound("UI_EPICLOOT_TOAST") end
     else
-        SetStatus("No win. Deal again?", 0.85, 0.85, 0.85)
+        SetStatus("No win.", 0.85, 0.85, 0.85)
         ns:PlayGameSound(db, "lose")
         local bet = db.coins * db.coin
         if bet > ns.db.chips then SetStatus(ns:LowChipsText(bet), 1, 0.35, 0.35) end
@@ -392,7 +392,7 @@ function VideoPoker:Build(panel)
     ui.options = BuildOptions(panel)
 
     if db.hand then
-        SetStatus("Welcome back - your hand is still dealt. Hold and Draw.")
+        SetStatus("Your hand is still dealt. Hold and Draw.")
     else
         SetStatus("Pick your bet and press Deal.")
     end

@@ -144,9 +144,9 @@ function B:Start(kind, me, opp, id, stake, level)
     ns:PlayGameSound(self.db, "newHand")
     self:SetStatus("Place your fleet: click a ship to move it, then Ready.")
     if kind == "solo" then
-        self:Say("battleshipStart", { stake = Fmt(stake) }, "Ships in the water! Good hunting.")
+        self:Say("battleshipStart", { stake = Fmt(stake) }, "Place your fleet.")
     else
-        self:Say("battleshipParty", { name = opp }, "A friendly game. Good luck to you both!")
+        self:Say("battleshipParty", { name = opp }, "Place your fleet.")
     end
     self:Refresh()
 end
@@ -739,7 +739,7 @@ function B:Build(panel)
         local g = self:Load(db.party, "party")
         self.S.game = g
         self:Ping(g)
-        self:SetStatus("Welcome back - your game with " .. tostring(g.opp) .. " is still on.")
+        self:SetStatus("Your game with " .. tostring(g.opp) .. " is still on.")
     elseif db.solo then
         local g = self:Load(db.solo, "solo")
         self.S.game = g
@@ -747,7 +747,7 @@ function B:Build(panel)
         if g.phase == "play" and g.pending == nil then
             -- a shot of ours that wasn't answered before the reload is simply gone
         end
-        self:SetStatus("Welcome back - your game is still on.")
+        self:SetStatus("Your game is still on.")
     else
         self:Welcome()
     end
@@ -779,7 +779,7 @@ local Battleship = Kit.New({
     name = "Battleship",
     description = "Hide your fleet, then hunt theirs down.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\BattleshipIcon",   -- painted (dev/art-src/make_game_icons.py)
-    dealer = { idle = "Battleship? Hide your boats, kid. Then sink theirs." },
+    dealer = { idle = "Hide your fleet, then sink theirs." },
     tag = "BS",
     rules = R,
     cols = SIZE, rows = SIZE, sq = SQ,

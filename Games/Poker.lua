@@ -12,7 +12,7 @@ ns:RegisterGame(ns.NewPokerGame({
     name = "Texas Hold'em",
     description = "No-limit poker against three computer players.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\HoldemIcon",   -- painted (dev/art-src/make_game_icons.py)
-    dealer = { idle = "Shuffle up and deal." },
+    dealer = { idle = "Press Deal to start." },
     dbKey = "holdem",
     tag = "HE",                    -- first field of every Hold'em message
     say = "holdem",                -- the dealer's moments: holdemDeal, holdemFlop... (DEALERS.md)

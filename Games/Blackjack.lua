@@ -33,7 +33,7 @@ local Blackjack = {
     icon = "Interface\\AddOns\\CowCasino\\Art\\BlackjackIcon",   -- painted (dev/art-src/make_game_icons.py)
     -- the dealer on top of the window (Dealer.lua)
     -- (the picture and name are the dealer picked in CowCasino Options)
-    dealer = { idle = "Place your bet and I'll deal." },
+    dealer = { idle = "Place your bet." },
 }
 
 -- What the dealer says (only while Blackjack is on screen).
@@ -277,8 +277,8 @@ local function SettleRound()
     if dBJ then call = "Dealer has blackjack."
     elseif dealerTotal > 21 then call = "I bust with " .. dealerTotal .. "!"
     else call = "Dealer stands on " .. dealerTotal .. "." end
-    if net > 0 then call = call .. " Nicely played - you win " .. Fmt(net) .. "."
-    elseif net < 0 then call = call .. " The house takes this one."
+    if net > 0 then call = call .. " You win " .. Fmt(net) .. "."
+    elseif net < 0 then call = call .. " You lose."
     else call = call .. " We push." end
     local anyBJ, allBust, surrendered = false, true, false
     for _, h in ipairs(S.hands) do

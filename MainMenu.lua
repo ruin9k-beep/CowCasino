@@ -807,7 +807,7 @@ function ns:BuildRebuyPage(frame)
             ns:Sound("IG_MAINMENU_OPTION")
             ns:RebuyChips(amount)
             o:Hide()
-            ns:Print("a fresh stack of " .. ns:FormatChips(amount) .. " chips. Good luck!")
+            ns:Print("a fresh stack of " .. ns:FormatChips(amount) .. " chips.")
         end)
         o.buttons[i] = b
     end

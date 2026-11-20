@@ -42,7 +42,7 @@ local DEFAULT_SET = { mafia = "auto", specials = "GDHVBY", day = 120, night = 30
 local Game = {
     id = "mafia",
     name = "Mafia",
-    description = "Find the Mafia before they find you: a social deduction game for 5 to 30.\n|cff66ccffParty game|r",
+    description = "Secret roles, night kills and day votes, for 5 to 30 players.\n|cff66ccffParty game|r",
     icon = ART .. "MafiaIcon",   -- painted (dev/art-src/make_game_icons.py)
     wide = true,
 }
@@ -163,8 +163,8 @@ local function GameOver(winner)
     G.phase, G.winner, G.deadline = "o", winner, nil
     for s = 1, G.n do G.shown[s] = R.RoleAt(HS.roles, s) end
     local text = (winner == "town" and "|cff66ccffThe Town wins!|r All the Mafia are gone.")
-        or (winner == "mafia" and "|cffff5050The Mafia win!|r They run the town now.")
-        or "|cffff66ffThe Jester wins!|r The town fell for it."
+        or (winner == "mafia" and "|cffff5050The Mafia win!|r They match the rest of the town.")
+        or "|cffff66ffThe Jester wins!|r The town lynched them."
     Say(text)
     room:Broadcast()
     room:Offer()
@@ -806,7 +806,7 @@ local function BuildTable(panel)
     ui.again:SetPoint("RIGHT", ui.leave, "LEFT", -8, 0)
 end
 
-local RULES = "A secret few are the Mafia; everyone else is the Town. Nights: the Mafia pick someone to kill, "
+local RULES = "Some players are secretly the Mafia; everyone else is the Town. Nights: the Mafia pick someone to kill, "
     .. "and the special roles act in secret. Days: everyone talks (in raid chat or voice) and votes; a majority lynches "
     .. "at once, otherwise the most votes when time's up (a tie lynches nobody). Dead players' roles are shown.\n\n"
     .. "The Town wins when the Mafia are gone; the Mafia win when they're as many as everyone else.\n\n"
@@ -824,7 +824,7 @@ function Game:Build(panel)
     room:Restore(db)
     room:BuildLobby(panel, {
         title = "Mafia",
-        info = "A secret few are the Mafia. Each night they strike; each day the town votes on who to lynch. "
+        info = "Some players are secretly the Mafia. Each night they kill someone; each day everyone votes on who to lynch. "
             .. "For 5 to 30 players in a raid. Free: no chips are wagered.",
         alone = "Join a raid (or party) to play. Everyone needs CowCasino.",
         stats = function()

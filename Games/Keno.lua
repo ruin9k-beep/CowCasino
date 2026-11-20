@@ -221,7 +221,7 @@ local function Finish()
         ns:PlayGameSound(db, "win")
         if m >= 100 then ns:Sound("UI_EPICLOOT_TOAST") end
     else
-        SetStatus(string.format("Caught %d of %d. No win this time.", hits, g.spots), 0.85, 0.85, 0.85)
+        SetStatus(string.format("Caught %d of %d. No win.", hits, g.spots), 0.85, 0.85, 0.85)
         ns:PlayGameSound(db, "lose")
     end
     if S.autoLeft > 0 then
@@ -496,7 +496,7 @@ function Keno:Build(panel)
     if db.game then
         -- a game cut off by a reload: its numbers were already drawn, so show them
         Finish()
-        SetStatus("Welcome back - your last game finished while you were away. " .. (ui.status:GetText() or ""))
+        SetStatus("Your last game finished while you were away. " .. (ui.status:GetText() or ""))
     elseif Spots() > 0 then
         SetStatus("Your numbers are still picked. Play when ready.")
     else

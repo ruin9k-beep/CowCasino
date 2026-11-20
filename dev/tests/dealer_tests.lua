@@ -33,7 +33,7 @@ Check("...anchored to the window's top edge, clear of the horns", ui.anchor and 
   and ui.anchor[3] == "TOPRIGHT" and ui.anchor[4] <= -30, ui.anchor and (tostring(ui.anchor[1]) .. " " .. tostring(ui.anchor[4])))
 Check("...the goblin by default: its name, picture and idle line", ui.name.text == "Fizzlecog" and ui.image.shown
   and not ui.portrait.shown and string.find(ui.image.tex, "DealerGoblin", 1, true) ~= nil
-  and ui.text.text == "Place your bet and I'll deal.", tostring(ui.name.text) .. " " .. tostring(ui.image.tex))
+  and ui.text.text == "Place your bet.", tostring(ui.name.text) .. " " .. tostring(ui.image.tex))
 
 -- a round: the dealer calls the result, then goes back to the idle line
 -- (the human dealer has no lines of his own: the plain calls)
@@ -118,10 +118,10 @@ Check("...and calls results in his own words", settled ~= nil and not string.fin
 -- the API, from the game on screen
 D:Idle(BJ)
 Tick(1)
-Check("Idle brings back the opening line", ui.text.text == "Place your bet and I'll deal." and D.Pending() == 0, ui.text.text)
+Check("Idle brings back the opening line", ui.text.text == "Place your bet." and D.Pending() == 0, ui.text.text)
 D:Say(BJ, "Hello there.")
 Tick(0.1)
-Check("changing the text fades it out first", ui.text.text == "Place your bet and I'll deal." and ui.text.alpha and ui.text.alpha < 1,
+Check("changing the text fades it out first", ui.text.text == "Place your bet." and ui.text.alpha and ui.text.alpha < 1,
   tostring(ui.text.alpha))
 Tick(0.2)
 Check("...then the message fades in", ui.text.text == "Hello there." and ui.text.alpha < 1, tostring(ui.text.alpha))
@@ -156,7 +156,7 @@ Check("...so the catch-up is short: the last three said, in order", spam[table.g
   table.concat(spam, " | "))
 D:Idle(BJ)
 Tick(0.5)
-Check("Idle drops what's waiting and goes back to the idle line", D.Pending() == 0 and ui.text.text == "Place your bet and I'll deal.", ui.text.text)
+Check("Idle drops what's waiting and goes back to the idle line", D.Pending() == 0 and ui.text.text == "Place your bet.", ui.text.text)
 D:SetIdle(BJ, "Bets, please.")
 Tick(0.5)
 Check("the idle line can change", ui.text.text == "Bets, please.")
@@ -189,7 +189,7 @@ Check("...and plays when it shows", Heard("LEVELUPSOUND") and ui.text.text == "W
 ns.db.chips = 100000
 ns:OpenGame("holdem")
 local HE = ns.games.holdem
-Check("Hold'em has the dealer too", D:IsShown() and ui.name.text == "Fizzlecog" and ui.text.text == "Shuffle up and deal.")
+Check("Hold'em has the dealer too", D:IsShown() and ui.name.text == "Fizzlecog" and ui.text.text == "Press Deal to start.")
 local HEV = { "holdemDeal", "holdemFlop", "holdemTurn", "holdemRiver", "holdemAllIn", "holdemYouAllIn", "holdemWin", "holdemYouWin",
               "holdemFoldWin", "holdemYouFoldWin", "holdemSplit", "holdemKnockout", "holdemYouBust" }
 for _, e in ipairs(HEV) do Check("Fizzlecog has Hold'em lines for " .. e, type(G[e]) == "table" and G[e][1] ~= nil) end
@@ -292,7 +292,7 @@ D:Say(BJ, "Psst.")
 Check("...and Blackjack, off screen, can't bring it back", not D:IsShown())
 ns:OpenGame("blackjack")
 Check("back at Blackjack it starts fresh", D:IsShown() and ui.name.text == "Fizzlecog" and ui.image.shown
-  and ui.text.text == "Place your bet and I'll deal.")
+  and ui.text.text == "Place your bet.")
 
 -- dealer packs: the built-in two, one from another addon, the picker in Options
 Check("CowCasino has a goblin and a human dealer", ns.dealers.goblin ~= nil and ns.dealers.human ~= nil

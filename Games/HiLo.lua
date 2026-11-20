@@ -372,7 +372,7 @@ function HiLo:Build(panel)
     ui.options = BuildOptions(panel)
 
     if db.active then
-        SetStatus("Welcome back - your game is still going.")
+        SetStatus("Your game is still going.")
     else
         SetStatus("Set your bet and press Bet to deal a card.")
     end

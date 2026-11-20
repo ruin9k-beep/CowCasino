@@ -303,7 +303,7 @@ local function StartGame()
     db.active = { bet = db.bet, mines = db.mines, board = board, revealed = {}, picks = 0 }
     db.stats.games = db.stats.games + 1
     last = nil
-    SetStatus("Pick a tile. Any tile.")
+    SetStatus("Pick a tile.")
     Refresh()
 end
 
@@ -514,7 +514,7 @@ function Mines:Build(panel)
     ui.options = BuildOptions(panel)
 
     if db.active then
-        SetStatus("Welcome back - your game is still going.")
+        SetStatus("Your game is still going.")
     else
         SetStatus(StatsText())
     end

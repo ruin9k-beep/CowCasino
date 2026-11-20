@@ -27,7 +27,7 @@ local DEFAULT_STATS = { runs = 0, cashouts = 0, busts = 0, bestCashout = 0, bigg
 local Crash = {
     id = "crash",
     name = "Crash",
-    description = "Watch the multiplier climb. Cash out before it crashes!",
+    description = "Watch the multiplier climb. Cash out before it crashes.",
     icon = "Interface\\AddOns\\CowCasino\\Art\\CrashIcon",   -- painted (dev/art-src/make_game_icons.py)
 }
 
@@ -224,7 +224,7 @@ local function Launch()
     end
     run = { bet = db.bet, crash = Crash.NewCrashPoint(), start = GetTime(), auto = db.auto or 0 }
     db.live = run.bet
-    SetStatus("Climbing... cash out before it crashes!")
+    SetStatus("Climbing. Cash out before it crashes.")
     ui.mult:SetTextColor(1, 1, 1)
     ns:PlayGameSound(db, "newHand")
     driver:Show()

@@ -33,7 +33,7 @@ local TCP = {
     name = "Three Card Poker",
     description = "Three cards against the dealer's three. Play or fold, with a Pair Plus side bet.",
     icon = "Interface\\AddOns\\CowCasino\\Art\\ThreeCardIcon",   -- painted (dev/art-src/make_game_icons.py)
-    dealer = { idle = "Ante up! I play with Queen high or better." },
+    dealer = { idle = "The dealer needs Queen high or better." },
 }
 
 local db
@@ -250,7 +250,7 @@ local function Finish(play)
         else
             SetStatus("Folded. The dealer had " .. theirs .. ".", 0.85, 0.85, 0.85)
         end
-        Say("tcpFold", vars, "Folded. On to the next one.")
+        Say("tcpFold", vars, "Folded.")
         ns:PlayGameSound(db, "lose")
     elseif out.result == "noQualify" then
         s.wins = s.wins + 1
@@ -272,7 +272,7 @@ local function Finish(play)
     end
     if out.pairPlus and out.pairPlus >= h.pp * 30 then
         ns:Sound("UI_EPICLOOT_TOAST")
-        Say("tcpBigPairPlus", vars, "Pair Plus pays big!")
+        Say("tcpBigPairPlus", vars, "Pair Plus pays.")
     end
     if ns.db.chips < NeedFor(ANTES[1], 0) then
         SetStatus(ns:LowChipsText(NeedFor(ANTES[1], 0)), 1, 0.35, 0.35)
@@ -399,7 +399,7 @@ function TCP:Build(panel)
     ui.options = BuildOptions(panel)
 
     if db.hand then
-        SetStatus("Welcome back - your hand is still dealt. Play or Fold?")
+        SetStatus("Your hand is still dealt. Play or Fold?")
     else
         SetStatus("Set your Ante (and Pair Plus, if you like) and Deal.")
     end

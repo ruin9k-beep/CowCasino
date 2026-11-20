@@ -1731,7 +1731,7 @@ local function BuyIn(i)
     SB, BB = sb, bb
     SitDown({ amount })
     SaveSeat(false)
-    SetStatus("You sit down with " .. Fmt(amount) .. ". Good luck!")
+    SetStatus("You sit down with " .. Fmt(amount) .. ".")
     Refresh()
     StartHand()
 end
@@ -2916,7 +2916,7 @@ function Poker:Build(panel)
         if interrupted then
             SetStatus("Your last hand was interrupted, so it was canceled and everyone has their chips back.")
         else
-            SetStatus("Welcome back. Press Deal for the next hand.")
+            SetStatus("Press Deal for the next hand.")
         end
     else
         SetStatus("")

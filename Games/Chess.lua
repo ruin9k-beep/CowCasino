@@ -9,7 +9,7 @@ local Chess = ns.BoardKit.New({
     name = "Chess",
     description = "The full game, vs the computer or a friend.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\ChessIcon",   -- painted (dev/art-src/make_game_icons.py)
-    dealer = { idle = "Chess? Take on the machine, or a friend in your group." },
+    dealer = { idle = "Play the computer, or someone in your group." },
     tag = "CS",
     rules = R,
     atlas = { wK = 0, wQ = 1, wR = 2, wB = 3, wN = 4, wP = 5, bK = 6, bQ = 7, bR = 8, bB = 9, bN = 10, bP = 11 },
@@ -22,8 +22,8 @@ local Chess = ns.BoardKit.New({
         .. "Vs the computer: pick a stake, Easy, Medium or Hard, and your side. A win pays double, a draw gives "
         .. "your stake back. Easy makes mistakes; Hard looks three moves ahead and never leaves a trade half "
         .. "done.\n\n"
-        .. "Party game: against someone in your party or raid (both of you need CowCasino). It's free: just for "
-        .. "bragging rights. Challenge your group and pick your side (or random); the first player to accept is "
+        .. "Party game: against someone in your party or raid (both of you need CowCasino). It's free. "
+        .. "Challenge your group and pick your side (or random); the first player to accept is "
         .. "your opponent.\n\n"
         .. "To move, click a piece, then where it goes. To castle, move the king two squares. A pawn reaching the "
         .. "far rank asks what to promote to.\n\n"

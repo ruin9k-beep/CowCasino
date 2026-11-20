@@ -503,7 +503,7 @@ local function Settle(quiet)
         if msg then
             SetStatus(msg, 0.4, 0.8, 1)
         else
-            SetStatus(quiet and "Your last spin didn't pay." or "No win. Spin again?", 0.8, 0.8, 0.8)
+            SetStatus(quiet and "Your last spin didn't pay." or "No win.", 0.8, 0.8, 0.8)
         end
         if started and not quiet then Sound("UI_EPICLOOT_TOAST") end
     end
@@ -1140,7 +1140,7 @@ function Slots:Build(panel)
         if InFree() then Continue(BIG_DELAY) end
     elseif InFree() then
         ui.win:SetText("")
-        SetStatus("Welcome back - you have " .. db.free.left .. " free spins to play.", 0.4, 0.8, 1)
+        SetStatus("You have " .. db.free.left .. " free spins to play.", 0.4, 0.8, 1)
         Continue(BIG_DELAY)
     else
         ui.win:SetText("")

@@ -176,9 +176,9 @@ function Kit:Start(kind, me, opp, id, stake, level)
     local first = self:Turn(g) == "me" and "You move first." or (kind == "solo" and "The computer moves first." or (opp .. " moves first."))
     self:SetStatus("You play " .. self:SideName(me) .. ". " .. first)
     if kind == "solo" then
-        self:Say(self.id .. "Start", { stake = Fmt(stake) }, "Good luck!")
+        self:Say(self.id .. "Start", { stake = Fmt(stake) }, "Your game begins.")
     else
-        self:Say(self.id .. "Party", { name = opp }, "A friendly game. Good luck to you both!")
+        self:Say(self.id .. "Party", { name = opp }, "A free game against " .. opp .. ".")
     end
     if kind == "solo" and self:Turn(g) == "them" then g.thinkAt = GetTime() + THINK_PAUSE end
     self:Refresh()
@@ -210,7 +210,7 @@ function Kit:Finish(winner, why)
             s.won = s.won + g.stake
         end
         text, r, gr, b = "A draw: " .. (why or "agreed") .. "." .. (solo and (" Your " .. Fmt(g.stake) .. " is back.") or ""), 0.85, 0.85, 0.85
-        self:Say(self.id .. "Draw", nil, "A draw. Well played, both of you.")
+        self:Say(self.id .. "Draw", nil, "A draw.")
     elseif winner == g.me then
         s.wins = s.wins + 1
         if solo then
@@ -220,12 +220,12 @@ function Kit:Finish(winner, why)
         end
         text, r, gr, b = "You win" .. (why and (": " .. why) or "") .. "!" .. (solo and (" You take " .. Fmt(g.stake * 2) .. ".") or ""), 0.25, 1, 0.25
         ns:PlayGameSound(self.db, "win")
-        self:Say(self.id .. "Win", { name = opp }, "Victory! Nicely played.")
+        self:Say(self.id .. "Win", { name = opp }, "You win.")
     else
         s.losses = s.losses + 1
         text, r, gr, b = (solo and "The computer wins" or (opp .. " wins")) .. (why and (": " .. why) or "") .. ".", 1, 0.4, 0.4
         ns:PlayGameSound(self.db, "lose")
-        self:Say(self.id .. "Lose", { name = opp }, "That's the game. Better luck next time.")
+        self:Say(self.id .. "Lose", { name = opp }, "You lose.")
     end
     if ns.Dealer and not solo then ns.Dealer:SetImage(self, nil) end
     self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me, taken = g.taken }
@@ -1266,7 +1266,7 @@ function Kit:Build(panel)
         db.party.moves = g.moves
         self.S.game = g
         self:Ping(g)
-        self:SetStatus("Welcome back - your game with " .. tostring(p.opp) .. " is still on.")
+        self:SetStatus("Your game with " .. tostring(p.opp) .. " is still on.")
     elseif db.solo and R.ChooseMove then
         local p = db.solo
         local g = { kind = "solo", me = p.me, stake = p.stake, level = p.level or 2, moves = p.moves or {} }
@@ -1274,7 +1274,7 @@ function Kit:Build(panel)
         db.solo.moves = g.moves
         self.S.game = g
         g.thinkAt = GetTime() + THINK_PAUSE
-        self:SetStatus("Welcome back - your game is still on.")
+        self:SetStatus("Your game is still on.")
         if self:CheckEnd() then return end
     else
         self:Welcome()

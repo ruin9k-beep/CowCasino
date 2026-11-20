@@ -151,7 +151,7 @@ ns2:OpenGame("craps")
 local db2 = ns2.db.craps
 Check("after a reload the bets and the point are still there", db2.point == 10 and db2.bets.pass == 25 and db2.bets.odds == 25
   and ns2.db.chips == chipsNow)
-Check("...and it says so", string.find(ns2.games.craps.ui.status.text or "", "Welcome back", 1, true) ~= nil)
+Check("...and it says so", string.find(ns2.games.craps.ui.status.text or "", "still on the table", 1, true) ~= nil)
 
 ---------------------------------------------------------------------------
 -- A fresh stack resets the stats

@@ -36,7 +36,7 @@ local Deathroll = {
     name = "Deathroll",
     description = "Roll lower and lower. Roll a 1 and you lose.\n|cff66ccffSupports Multiplayer|r",
     icon = "Interface\\AddOns\\CowCasino\\Art\\DeathrollIcon",   -- painted (dev/art-src/make_game_icons.py)
-    dealer = { idle = "Fancy a deathroll? Roll a 1 and you lose." },
+    dealer = { idle = "Roll a 1 and you lose." },
 }
 
 local db
@@ -238,14 +238,14 @@ local function StartDuel(kind, stake, start, first, opp, id)
     if kind == "party" then db.stats.partyDuels = db.stats.partyDuels + 1 end
     if kind == "solo" then db.stats.wagered = db.stats.wagered + stake end   -- party duels are free
     AddLog(d, string.format(kind == "solo" and "|cffffd100Deathroll from %s, %s each.|r"
-        or "|cffffd100Deathroll from %s, for %s (just for bragging rights).|r", Fmt(start), Fmt(stake)))
+        or "|cffffd100Deathroll from %s, for %s (free).|r", Fmt(start), Fmt(stake)))
     ns:PlayGameSound(db, "newHand")
     local who = first == "me" and "You roll" or (OppName(d) .. " rolls")
-    SetStatus(who .. " first. Roll a 1 and you lose!")
+    SetStatus(who .. " first. Roll a 1 and you lose.")
     if kind == "solo" then
-        Say("deathrollStart", { stake = Fmt(stake), start = Fmt(start) }, "Deathroll! You roll first.")
+        Say("deathrollStart", { stake = Fmt(stake), start = Fmt(start) }, "You roll first.")
     else
-        Say("deathrollParty", { name = OppName(d), stake = Fmt(stake), start = Fmt(start) }, "A deathroll duel! Roll a 1 and you lose.")
+        Say("deathrollParty", { name = OppName(d), stake = Fmt(stake), start = Fmt(start) }, "Roll a 1 and you lose.")
         if ns.Dealer then ns.Dealer:SetPlayer(Deathroll, opp) end
     end
     Refresh()
@@ -370,7 +370,7 @@ local function PostChallenge()
     if S.duel or S.posted or not Net:InGroup() then return end
     S.posted = { id = NewId(), stake = db.stake, start = db.start }
     SendOffer()
-    SetStatus("Challenge sent: for " .. Fmt(db.stake) .. ", from " .. Fmt(db.start) .. " (free, for bragging rights). Waiting for someone to take it...")
+    SetStatus("Challenge sent: for " .. Fmt(db.stake) .. ", from " .. Fmt(db.start) .. " (free). Waiting for someone to take it...")
     Refresh()
 end
 
@@ -570,7 +570,7 @@ local function BuildOptions(panel)
             .. "each roll after that is 1 to the last roll. Whoever rolls a 1 loses, and the other takes both "
             .. "stakes. It's an even game: neither side has the edge.\n\n"
             .. "Vs the dealer: you roll first and the dealer answers.\n\n"
-            .. "Party duel: free to play, for bragging rights only (your chips are never touched). Challenge the "
+            .. "Party duel: free (your chips are never touched). Challenge the "
             .. "group, and the first player with CowCasino to accept is your opponent. The challenger rolls first. "
             .. "Party rolls are real /rolls everyone can see. Forfeit gives up the duel; if the other player goes "
             .. "quiet for a minute you can call it off instead. A reload calls a party duel off too.",
@@ -670,7 +670,7 @@ function Deathroll:Build(panel)
     elseif db.duel then
         S.duel = db.duel
         S.duel.pending = nil
-        SetStatus("Welcome back - your duel with " .. DealerName() .. " is still on.")
+        SetStatus("Your duel with " .. DealerName() .. " is still on.")
     elseif db.mode == "party" then
         Net:Send(Msg({ "Q" }))
         SetStatus(Net:InGroup() and "Challenge your group, or take a challenge below."

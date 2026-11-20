@@ -383,7 +383,7 @@ local function Settle(afterReload)
             SetStatus(prefix .. names .. " hit - you get " .. Fmt(back) .. " back.", 0.85, 0.85, 0.85)
         end
     else
-        SetStatus(prefix .. "No luck - you lose " .. Fmt(staked) .. ".", 1, 0.35, 0.35)
+        SetStatus(prefix .. "You lose " .. Fmt(staked) .. ".", 1, 0.35, 0.35)
     end
     if ns.db.chips < 1 then SetStatus(ns:LowChipsText(1), 1, 0.35, 0.35) end
     DrawStrip()

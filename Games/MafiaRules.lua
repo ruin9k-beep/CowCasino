@@ -24,15 +24,15 @@ R.ROLES = {
     H = { name = "Doctor", team = "town", act = "save", color = "40ff40",
         desc = "Each night, protect one player from being killed (not the same one two nights running)." },
     V = { name = "Vigilante", team = "town", act = "shoot", color = "ffaa33",
-        desc = "Once a game, shoot someone at night. Choose wisely." },
+        desc = "Once a game, shoot someone at night." },
     B = { name = "Bodyguard", team = "town", act = "guard", color = "aaaaff",
         desc = "Each night, guard another player: if the Mafia attack them, you die in their place." },
     Y = { name = "Mayor", team = "town", color = "ffd100",
-        desc = "Your vote counts twice. Keep it quiet, or the Mafia will come for you." },
+        desc = "Your vote counts twice." },
     T = { name = "Townsfolk", team = "town", color = "ffffff",
         desc = "Find the Mafia and vote them out." },
     J = { name = "Jester", team = "jester", color = "ff66ff",
-        desc = "You win if the town votes you out. Act suspicious!" },
+        desc = "You win if the town votes you out." },
 }
 -- The special roles a host can turn on or off (one of each), in the order
 -- they're handed out when seats are short.
