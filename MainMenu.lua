@@ -7,14 +7,21 @@ local FRAME_W, FRAME_H = 436, 440
 local INSET = 42            -- the menu and game pages sit this far in from the sides (clear of the totem poles)
 local GAME_INSET = 28       -- a game's area reaches closer, up to the poles' inner edge (380 across)
 local GAME_W = 352          -- the width most games are laid out for (centered in the wider area)
-local ROW_H, ROW_GAP = 56, 6
 local LIST_H = 318          -- room for the game list under the header
 local PAGER_H = 24          -- page buttons under the list, when the games need more than one page
+-- The game list is a grid of tiles (icon and name), 5 across and 4 down a
+-- page; the hovered game's description shows in a line under the grid (and
+-- in a tooltip). Multiplayer games have a blue border, the rest gold.
+local COLS, GRID_ROWS = 5, 4
+local TILE_W, TILE_H, TILE_GAP = 66, 62, 5
+local DESC_H = 28            -- the description line under the grid
+local SP_BORDER = { 0.8, 0.65, 0.2 }
+local MP_BORDER = { 0.35, 0.65, 1 }
 
-local ROW_BACKDROP = {
+local TILE_BACKDROP = {
     bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 14,
+    tile = true, tileSize = 16, edgeSize = 12,
     insets = { left = 3, right = 3, top = 3, bottom = 3 },
 }
 
@@ -71,8 +78,18 @@ function ns:SetScale(scale)
 end
 
 ---------------------------------------------------------------------------
--- Game order: your saved order, then any games added since.
+-- Game order: your saved order, then any games added since (with the
+-- multiplayer games first, if that's set in Options).
 ---------------------------------------------------------------------------
+-- A game is multiplayer if it says so (game.multiplayer), or its description
+-- does ("Supports Multiplayer", "Party game").
+function ns:IsMultiplayer(game)
+    if not game then return false end
+    if game.multiplayer ~= nil then return game.multiplayer and true or false end
+    local d = game.description or ""
+    return string.find(d, "Multiplayer", 1, true) ~= nil or string.find(d, "Party game", 1, true) ~= nil
+end
+
 function ns:MenuOrder()
     local out, seen = {}, {}
     for _, id in ipairs(self.db.order or {}) do
@@ -83,6 +100,14 @@ function ns:MenuOrder()
     end
     for _, id in ipairs(self.gameOrder) do
         if not seen[id] then table.insert(out, id) end
+    end
+    if self.db.mpFirst then
+        local mp, sp = {}, {}
+        for _, id in ipairs(out) do
+            if self:IsMultiplayer(self.games[id]) then table.insert(mp, id) else table.insert(sp, id) end
+        end
+        for _, id in ipairs(sp) do table.insert(mp, id) end
+        out = mp
     end
     return out
 end
@@ -97,59 +122,83 @@ function ns:MoveGame(index, dir)
 end
 
 ---------------------------------------------------------------------------
--- Menu rows
+-- Menu tiles
 ---------------------------------------------------------------------------
-local function CreateGameRow(parent, game, rowH)
-    local row = ns.CreateFrame("Button", nil, parent)
-    row:SetHeight(rowH)
-    row:SetBackdrop(ROW_BACKDROP)
-    row:SetBackdropColor(0.08, 0.08, 0.08, 0.9)
-    row:SetBackdropBorderColor(0.8, 0.65, 0.2, 1)
+local LEGEND = "|cffcca633Gold|r: single player     |cff59a6ffBlue|r: multiplayer     (hover a game for more)"
 
-    local hl = row:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetPoint("TOPLEFT", row, "TOPLEFT", 4, -4)
-    hl:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -4, 4)
-    hl:SetTexture(1, 0.82, 0, 0.12)
+-- The description, on one line ("Supports Multiplayer" goes: the border says it).
+local function ShortDescription(game)
+    local d = string.gsub(game.description or "", "\n?|cff%x%x%x%x%x%xSupports Multiplayer|r", "")
+    d = string.gsub(d, "\n", "  ")
+    return d
+end
 
-    local icon = row:CreateTexture(nil, "ARTWORK")
-    local iconSize = math.min(40, rowH - 10)
-    icon:SetWidth(iconSize); icon:SetHeight(iconSize)
-    icon:SetPoint("LEFT", row, "LEFT", 8, 0)
+local function CreateGameTile(parent, game)
+    local tile = ns.CreateFrame("Button", nil, parent)
+    tile:SetWidth(TILE_W); tile:SetHeight(TILE_H)
+    tile:SetBackdrop(TILE_BACKDROP)
+    tile:SetBackdropColor(0.08, 0.08, 0.08, 0.9)
+    local border = ns:IsMultiplayer(game) and MP_BORDER or SP_BORDER
+    tile:SetBackdropBorderColor(border[1], border[2], border[3], 1)
+    tile.multiplayer, tile.border = ns:IsMultiplayer(game), border
+
+    local hl = tile:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetPoint("TOPLEFT", tile, "TOPLEFT", 3, -3)
+    hl:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -3, 3)
+    hl:SetTexture(1, 0.82, 0, 0.15)
+
+    local icon = tile:CreateTexture(nil, "ARTWORK")
+    icon:SetWidth(34); icon:SetHeight(34)
+    icon:SetPoint("TOP", tile, "TOP", 0, -5)
     icon:SetTexture(game.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    tile.icon = icon
 
-    local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    name:SetPoint("TOPLEFT", row, "TOPLEFT", iconSize + 18, -7)
+    local name = tile:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    name:SetPoint("TOP", icon, "BOTTOM", 0, -1)
+    name:SetWidth(TILE_W - 4)
+    name:SetHeight(20)
+    name:SetJustifyH("CENTER")
+    name:SetJustifyV("TOP")
     name:SetText(game.name or game.id)
+    tile.name = name
 
-    -- the description gets two lines
-    local desc = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    desc:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
-    desc:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-    desc:SetHeight(24)
-    desc:SetJustifyH("LEFT")
-    desc:SetJustifyV("TOP")
-    desc:SetText(game.description or "")
-    row.desc = desc
+    -- marks a game that's still holding chips: an orange dot in the corner
+    local dot = tile:CreateTexture(nil, "OVERLAY")
+    dot:SetTexture("Interface\\AddOns\\CowCasino\\Art\\Dot")
+    dot:SetWidth(10); dot:SetHeight(10)
+    dot:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -4, -4)
+    dot:SetVertexColor(1, 0.55, 0.1, 1)
+    dot:Hide()
+    tile.inPlay = dot
 
-    -- marks a game that's still holding chips
-    row.inPlay = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.inPlay:SetPoint("TOPRIGHT", row, "TOPRIGHT", -10, -8)
-    row.inPlay:SetTextColor(1, 0.6, 0.2)
-    row.inPlay:SetText("In progress")
-    row.inPlay:Hide()
-
-    row:SetScript("OnClick", function()
+    tile:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(tile, "ANCHOR_RIGHT")
+        GameTooltip:SetText(game.name or game.id, 1, 0.82, 0)
+        GameTooltip:AddLine(ShortDescription(game), 1, 1, 1, 1)
+        if tile.multiplayer then GameTooltip:AddLine("Supports Multiplayer", 0.4, 0.8, 1) else GameTooltip:AddLine("Single player", 0.8, 0.65, 0.2) end
+        if tile.inPlay:IsShown() then GameTooltip:AddLine("In progress", 1, 0.6, 0.2) end
+        GameTooltip:Show()
+        local menu = ns.frame and ns.frame.menu
+        if menu and menu.desc then menu.desc:SetText("|cffffd100" .. (game.name or game.id) .. ":|r " .. ShortDescription(game)) end
+    end)
+    tile:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+        local menu = ns.frame and ns.frame.menu
+        if menu and menu.desc then menu.desc:SetText(LEGEND) end
+    end)
+    tile:SetScript("OnClick", function()
+        GameTooltip:Hide()
         ns:Sound("IG_MAINMENU_OPTION")
         ns:OpenGame(game.id)
     end)
 
-    return row
+    return tile
 end
 
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
--- Rows in menu order, a page at a time.
+-- Tiles in menu order, across then down, a page at a time.
 function ns:LayoutMenu()
     local menu = self.frame and self.frame.menu
     if not menu or not menu.list then return end
@@ -157,15 +206,18 @@ function ns:LayoutMenu()
     local per = menu.perPage
     local pages = math.ceil(ns.getn(order) / per)
     menu.page = math.max(1, math.min(menu.page or 1, pages))
+    local left = math.floor((menu.list:GetWidth() - (COLS * TILE_W + (COLS - 1) * TILE_GAP)) / 2)
+    if left < 0 then left = 0 end
     for i, id in ipairs(order) do
-        local row = self.menuRows[id]
+        local tile = self.menuRows[id]
         local page = math.floor((i - 1) / per) + 1
-        local y = -(i - 1 - (page - 1) * per) * (ROW_H + ROW_GAP)
-        row.menuPage = page
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", menu.list, "TOPLEFT", 0, y)
-        row:SetPoint("TOPRIGHT", menu.list, "TOPRIGHT", 0, y)
-        ns.SetShown(row, page == menu.page)
+        local at = i - 1 - (page - 1) * per
+        local x = left + ns.Mod(at, COLS) * (TILE_W + TILE_GAP)
+        local y = -math.floor(at / COLS) * (TILE_H + TILE_GAP)
+        tile.menuPage = page
+        tile:ClearAllPoints()
+        tile:SetPoint("TOPLEFT", menu.list, "TOPLEFT", x, y)
+        ns.SetShown(tile, page == menu.page)
     end
     if menu.pager then
         ns.SetShown(menu.pager, pages > 1)
@@ -279,6 +331,18 @@ function ns:BuildOptionsPage(frame)
         down:SetScript("OnClick", function() ns:MoveGame(i, 1) end)
         slots[i] = { text = text, up = up, down = down }
     end
+    local mpFirst = ns.CreateFrame("CheckButton", ns:NewName(), games, "UICheckButtonTemplate")
+    mpFirst:SetWidth(24); mpFirst:SetHeight(24)
+    mpFirst:SetPoint("TOPLEFT", o, "TOPLEFT", 8, ROWS_Y - perColumn * 21 - 4)
+    mpFirst:SetScript("OnClick", function()
+        ns.db.mpFirst = this:GetChecked() and true or nil
+        ns:Sound("IG_MAINMENU_OPTION")
+        ns:LayoutMenu()
+    end)
+    local mpLabel = games:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    mpLabel:SetPoint("LEFT", mpFirst, "RIGHT", 2, 0)
+    mpLabel:SetText("Multiplayer games first")
+    o.mpFirst = mpFirst
 
     -- Card art, shared by every card game (Cards.lua), with a small preview
     local artY = -82
@@ -510,6 +574,7 @@ function ns:BuildOptionsPage(frame)
         slider:SetValue(ns.db.scale or 1)
         o.updating = nil
         scaleValue:SetText(math.floor((ns.db.scale or 1) * 100 + 0.5) .. "%")
+        o.mpFirst:SetChecked(ns.db.mpFirst and true or nil)
         local order = ns:MenuOrder()
         local n = ns.getn(order)
         for i, slot in ipairs(slots) do
@@ -618,16 +683,21 @@ function ns:BuildMainFrame()
     list:SetPoint("TOPLEFT", list:GetParent(), "TOPLEFT", 0, -72)
     list:SetPoint("BOTTOMRIGHT", list:GetParent(), "BOTTOMRIGHT", 0, 0)
 
-    -- Every row is full height (room for two lines about the game). When the
-    -- games don't all fit, the list turns into pages.
-    local count = ns.getn(self.gameOrder)
-    local perPage = math.floor((LIST_H + ROW_GAP) / (ROW_H + ROW_GAP))
-    if count > perPage then perPage = math.floor((LIST_H - PAGER_H + ROW_GAP) / (ROW_H + ROW_GAP)) end
+    -- A grid of tiles (5 x 4 a page), the hovered game's description under
+    -- it, and page buttons below when the games don't all fit.
+    list:SetWidth(FRAME_W - 2 * INSET)
     self.menuRows = {}
     for _, id in ipairs(self.gameOrder) do
-        self.menuRows[id] = CreateGameRow(list, self.games[id], ROW_H)
+        self.menuRows[id] = CreateGameTile(list, self.games[id])
     end
-    menu.list, menu.perPage, menu.page = list, perPage, 1
+    menu.list, menu.perPage, menu.page = list, COLS * GRID_ROWS, 1
+    menu.desc = menu:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    menu.desc:SetPoint("TOPLEFT", list, "TOPLEFT", 4, -(GRID_ROWS * (TILE_H + TILE_GAP)) - 2)
+    menu.desc:SetWidth(FRAME_W - 2 * INSET - 8)
+    menu.desc:SetHeight(DESC_H)
+    menu.desc:SetJustifyH("CENTER")
+    menu.desc:SetJustifyV("TOP")
+    menu.desc:SetText(LEGEND)
 
     local pager = ns.CreateFrame("Frame", nil, menu)
     pager:SetHeight(PAGER_H)

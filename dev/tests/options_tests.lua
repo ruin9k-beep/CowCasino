@@ -9,8 +9,9 @@ local function Press(b) assert(b, "missing button"); assert(b.enabled, "disabled
 local function MenuOrder(e, n)
   local rows = {}
   -- page by page, top to bottom
-  for id, row in pairs(n.menuRows) do table.insert(rows, { id = id, y = row.anchor[5] - 10000 * row.menuPage }) end
-  table.sort(rows, function(a, b) return a.y > b.y end)
+  -- page by page, then row by row, then left to right
+  for id, row in pairs(n.menuRows) do table.insert(rows, { id = id, key = row.menuPage * 100000 - row.anchor[5] * 100 + row.anchor[4] }) end
+  table.sort(rows, function(a, b) return a.key < b.key end)
   local out = {}
   for _, r in ipairs(rows) do table.insert(out, r.id) end
   return table.concat(out, ",")
@@ -130,36 +131,69 @@ Press(Find("Options"))
 ns:OpenGame("blackjack")
 Check("opening a game closes the options", not ns.optionsPage:IsShown())
 
--- the game list: two lines for every description, four games a page
+-- the game list: a grid of tiles, 5 x 4 a page, blue borders for multiplayer
 do
   local menu = env.CowCasinoFrame.menu
   ns:ShowMenu()
   ns.db.order = nil
   ns:LayoutMenu()
-  local shown, descOk = 0, true
-  for _, row in pairs(ns.menuRows) do
-    if row:IsShown() then shown = shown + 1 end
-    if row.h ~= 56 or row.desc.h ~= 24 then descOk = false end
+  local shown, xs, ys, fits = 0, {}, {}, true
+  for _, tile in pairs(ns.menuRows) do
+    if tile:IsShown() then
+      shown = shown + 1
+      xs[tile.anchor[4]] = true
+      ys[tile.anchor[5]] = true
+      if tile.anchor[4] + 66 > 352 or -tile.anchor[5] + 62 > 318 - 28 - 24 then fits = false end
+    end
   end
-  Check("menu rows are full height with two lines for the description", descOk)
-  local pages = math.ceil(table.getn(ns.gameOrder) / 4)
-  Check("four games a page, with page buttons", shown == 4 and menu.pager:IsShown() and menu.pageText.text == "Page 1 of " .. pages, menu.pageText.text)
-  Check("...Prev is off on page 1", not menu.prevPage.enabled and menu.nextPage.enabled)
-  local seen = {}
-  for p = 1, pages do
-    for id, row in pairs(ns.menuRows) do if row:IsShown() then seen[id] = true end end
-    if p < pages then env.Fire(menu.nextPage, "OnClick", "LeftButton") end
+  local cols, rows = 0, 0
+  for _ in pairs(xs) do cols = cols + 1 end
+  for _ in pairs(ys) do rows = rows + 1 end
+  local n = table.getn(ns.gameOrder)
+  Check("the games are a grid: 5 across, up to 4 down", cols == math.min(5, n) and rows == math.min(4, math.ceil(n / 5))
+    and shown == math.min(20, n), cols .. "x" .. rows)
+  Check("...that fits the window, with room for the description and page buttons", fits)
+  Check("one page for 20 games, page buttons beyond", (n <= 20) == (not menu.pager:IsShown()))
+  local bj, mines = ns.menuRows.blackjack, ns.menuRows.mines
+  Check("multiplayer games have a blue border, single player gold", bj.multiplayer and not mines.multiplayer
+    and bj.border[3] == 1 and mines.border[3] < 0.5)
+  Check("Sketch & Guess, Hangman and Mafia count as multiplayer", ns.menuRows.sketch.multiplayer
+    and ns.menuRows.hangman.multiplayer and ns.menuRows.mafia.multiplayer)
+  Check("under the grid, a key to the borders", string.find(menu.desc.text, "multiplayer") ~= nil)
+  env.Fire(mines, "OnEnter")
+  Check("hovering a game: its description under the grid", string.find(menu.desc.text, "dodge the mines", 1, true) ~= nil)
+  Check("...and in a tooltip", env.GameTooltip:IsShown())
+  env.Fire(mines, "OnLeave")
+  Check("leaving it puts the key back", string.find(menu.desc.text, "multiplayer") ~= nil and not env.GameTooltip:IsShown())
+  env.Fire(bj, "OnEnter")
+  Check("a multiplayer game's line drops the Supports Multiplayer tag (the border says it)",
+    string.find(menu.desc.text, "Beat the dealer", 1, true) ~= nil and not string.find(menu.desc.text, "Supports", 1, true))
+  env.Fire(bj, "OnLeave")
+
+  -- Multiplayer games first (Options > Games)
+  Press(Find("Options"))
+  Press(Find("Games"))
+  local box = ns.optionsPage.mpFirst
+  Check("Options > Games has a Multiplayer games first box, off", box ~= nil and Visible(box) and not box.checked)
+  box.checked = true            -- (a real click ticks the box before OnClick)
+  env.Fire(box, "OnClick", "LeftButton")
+  local order = ns:MenuOrder()
+  local firstSP
+  for i, id in ipairs(order) do if not ns:IsMultiplayer(ns.games[id]) then firstSP = firstSP or i end end
+  local after = true
+  for i, id in ipairs(order) do if i > (firstSP or 999) and ns:IsMultiplayer(ns.games[id]) then after = false end end
+  Check("ticked: every multiplayer game comes before the single player ones", ns.db.mpFirst and firstSP and firstSP > 1 and after)
+  local mpIds, spIds = {}, {}
+  for _, id in ipairs(ns.gameOrder) do
+    if ns:IsMultiplayer(ns.games[id]) then table.insert(mpIds, id) else table.insert(spIds, id) end
   end
-  local all = true
-  for _, id in ipairs(ns.gameOrder) do if not seen[id] then all = false end end
-  Check("Next pages through every game", menu.page == pages and all and not menu.nextPage.enabled, menu.page)
-  env.Fire(menu.list, "OnMouseWheel", 1)
-  Check("the mouse wheel turns back a page", menu.page == pages - 1)
-  local lowest = 0
-  for _, row in pairs(ns.menuRows) do
-    if row:IsShown() then local bottom = -row.anchor[5] + 56; if bottom > lowest then lowest = bottom end end
-  end
-  Check("the page fits above the page buttons", lowest <= 318 - 24, lowest)
+  for _, id in ipairs(spIds) do table.insert(mpIds, id) end
+  Check("...each group keeping its own order, and the grid follows", table.concat(order, ",") == table.concat(mpIds, ",")
+    and MenuOrder(env, ns) == table.concat(mpIds, ","))
+  box.checked = nil
+  env.Fire(box, "OnClick", "LeftButton")
+  Check("unticked: back to the plain order", not ns.db.mpFirst and MenuOrder(env, ns) == table.concat(ns.gameOrder, ","))
+  ns:OpenGame("blackjack")
 end
 -- every game on the menu has its own painted icon, a 64x64 32-bit TGA in the addon
 do
@@ -178,19 +212,20 @@ do
   end
   Check("every game has its own painted icon (64x64, 32-bit TGA)", table.getn(bad) == 0, table.concat(bad, "; "))
 end
--- party games say so on the menu, on a line of their own
+-- multiplayer games say so (the menu turns it into a blue border); every
+-- description fits the line under the grid
 do
   local mp, bad = {}, {}
   for _, id in ipairs(ns.gameOrder) do
     local d = ns.games[id].description or ""
-    local s, e = string.find(d, "\n|cff66ccffSupports Multiplayer|r", 1, true)
-    if s then mp[id] = true; if string.len(string.sub(d, 1, s - 1)) > 50 then table.insert(bad, id .. " first line too long") end end
+    local s = string.find(d, "\n|cff66ccffSupports Multiplayer|r", 1, true)
+    if s then mp[id] = true end
+    local first = string.sub(d, 1, (s or (string.find(d, "\n", 1, true) or 0)) - 1)
+    if s == nil and not string.find(d, "\n", 1, true) then first = d end
+    if string.len(first) > 90 then table.insert(bad, id .. " description too long") end
   end
-  Check("Blackjack, Hold'em and Craps say Supports Multiplayer on line two", mp.blackjack and mp.holdem and mp.craps
-    and not mp.slots and not mp.hilo and table.getn(bad) == 0, table.concat(bad, "; "))
-  local shownOnMenu = false
-  for _, f in ipairs(env.all) do if f.kind == "FontString" and f.text and string.find(f.text, "Supports Multiplayer", 1, true) then shownOnMenu = true end end
-  Check("...and the menu rows show it", shownOnMenu)
+  Check("Blackjack, Hold'em, Craps and Hangman say Supports Multiplayer on line two", mp.blackjack and mp.holdem and mp.craps
+    and mp.hangman and not mp.slots and not mp.hilo and table.getn(bad) == 0, table.concat(bad, "; "))
 end
 -- Tabs: each page splits into Settings / Rules / Sounds, only the ones it has
 do

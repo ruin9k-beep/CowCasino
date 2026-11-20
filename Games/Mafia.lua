@@ -143,6 +143,7 @@ local function Push()
     -- the host's own screen shows votes as everyone else's does
     G.votes = {}
     for seat, v in pairs(HS.votes or {}) do G.votes[seat] = (G.set.secret and G.phase == "d") and "x" or v end
+    G.shotUsed, G.lastSave = HS.shotUsed, HS.lastSave
     room:SendState()
     Refresh()
 end
