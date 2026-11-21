@@ -17,6 +17,15 @@ local Chess = ns.BoardKit.New({
     taken = { wQ = 9, wR = 5, wB = 3, wN = 3, wP = 1, bQ = 9, bR = 5, bB = 3, bN = 3, bP = 1 },
     light = { 0.91, 0.84, 0.69 },
     dark = { 0.55, 0.37, 0.22 },
+    -- other piece sets (Options > Settings), painted by dev/art-src/make_board_sets.py
+    sets = {
+        { key = "faction", name = "Horde vs Alliance", texture = "Interface\\AddOns\\CowCasino\\Art\\BoardPiecesFaction", rows = 4,
+            light = { 0.77, 0.74, 0.66 }, dark = { 0.29, 0.30, 0.33 },
+            names = { w = "Alliance", b = "Horde" }, note = "The Alliance plays White (moves first), the Horde Black." },
+        { key = "goblin", name = "Goblins vs Gnomes", texture = "Interface\\AddOns\\CowCasino\\Art\\BoardPiecesGoblin", rows = 4,
+            light = { 0.84, 0.71, 0.46 }, dark = { 0.36, 0.26, 0.17 },
+            names = { w = "Gnomes", b = "Goblins" }, note = "The Gnomes play White (move first), the Goblins Black." },
+    },
     felt = { 0.10, 0.07, 0.05, 0.94 },
     rulesText = "Chess, the full game. White moves first.\n\n"
         .. "Vs the computer: pick a stake, Easy, Medium or Hard, and your side. A win pays double, a draw gives "

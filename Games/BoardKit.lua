@@ -16,6 +16,13 @@
 --   rulesText  the Rules tab
 --   noun       what a single game is called in messages ("game")
 --   taken      piece -> value: show the captured pieces beside the board
+--   sets       other piece sets to pick from in Options > Settings (the first
+--              choice is always "Classic": atlas, light and dark above). Each:
+--              key, name, texture (an atlas laid out like atlas's cells),
+--              rows (the texture's rows of cells, 4 or 8), light, dark,
+--              names (side -> name, in place of the rules' names), note (a
+--              line under the picker), emblems (piece -> { texture, l, r, t,
+--              b }: a picture drawn over that piece, e.g. a faction emblem)
 --
 -- Party games are free (bragging rights): nobody's chips move. A game
 -- against the computer has a stake: a win pays double, a draw gives it back.
@@ -145,7 +152,39 @@ function Kit:SetStatus(text, r, g, b)
     self.ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
 end
 
-function Kit:SideName(side) return self.def.rules.names[side] or "?" end
+function Kit:SideName(side)
+    local set = self:PieceSet()
+    return (set.names and set.names[side]) or self.def.rules.names[side] or "?"
+end
+
+-- The piece set in use (Options > Settings), and where a piece's picture is in it.
+function Kit:PieceSets()
+    local def = self.def
+    if not self.sets then
+        self.sets = { { key = "classic", name = "Classic", texture = ATLAS, rows = 8, light = def.light, dark = def.dark } }
+        for _, set in ipairs(def.sets or {}) do table.insert(self.sets, set) end
+    end
+    return self.sets
+end
+
+function Kit:PieceSet()
+    local sets = self:PieceSets()
+    local key = self.db and self.db.pieceSet
+    for _, set in ipairs(sets) do if set.key == key then return set end end
+    return sets[1]
+end
+
+-- Puts piece's picture from the set on texture t (false: there's none).
+function Kit:PaintPiece(t, piece, set)
+    local cell = piece and self.def.atlas[piece]
+    if not cell then return false end
+    set = set or self:PieceSet()
+    local rows = set.rows or 8
+    local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / rows
+    t:SetTexture(set.texture)
+    t:SetTexCoord(u, u + 0.25, v, v + 1 / rows)
+    return true
+end
 
 function Kit:OppName(g)
     if g.kind == "solo" then return "the computer" end
@@ -449,6 +488,37 @@ Kit.RESIGN_WAITS = { 0, 1, 2, 3, 5, 10 }
 function Kit:ResignDelay()
     local d = self.db and tonumber(self.db.resignDelay)
     return d or RESIGN_DELAY
+end
+
+-- Options > Settings: the piece set (def.sets). Returns the bottom-most
+-- region, for what goes under it.
+function Kit:BuildPieceOption(o)
+    local game = self
+    local s = o.settings
+    local head = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    head:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -48)
+    head:SetText("Pieces")
+    local keys = {}
+    for _, set in ipairs(self:PieceSets()) do table.insert(keys, set.key) end
+    local note = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    o.pieceStep = ns.UI.Stepper(s, {
+        list = keys, width = 150,
+        label = function(v)
+            local set = game:PieceSet()
+            for _, x in ipairs(game:PieceSets()) do if x.key == v then set = x end end
+            note:SetText(set.note or " ")
+            return "|cffffffff" .. set.name .. "|r"
+        end,
+        get = function() return game:PieceSet().key end,
+        set = function(v) game.db.pieceSet = v end,
+        onChange = function() game:Refresh() end,
+    })
+    o.pieceStep:SetPoint("TOPLEFT", head, "BOTTOMLEFT", 0, -6)
+    note:SetPoint("TOPLEFT", o.pieceStep, "BOTTOMLEFT", 4, -6)
+    note:SetWidth(320)
+    note:SetJustifyH("LEFT")
+    o.pieceNote = note
+    return note
 end
 
 -- Options > Settings: the Resign wait. Hangs under `above` (a region on the
@@ -755,6 +825,7 @@ end
 
 -- show: { paths = {...}, threat = {sq = true}, can = {sq = true} }
 function Kit:DrawBoard(pos, me, last, sel, targets, show)
+    local set = self:PieceSet()
     local R, ui, def = self.def.rules, self.ui, self.def
     local flipped = me ~= R.sides[1]
     show = show or {}
@@ -768,16 +839,17 @@ function Kit:DrawBoard(pos, me, last, sel, targets, show)
         local x, y = Place(s, flipped)
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", ui.board, "TOPLEFT", x * SQ, -y * SQ)
-        local c = R.Dark(s) and def.dark or def.light
+        local c = R.Dark(s) and (set.dark or def.dark) or (set.light or def.light)
         b.bg:SetTexture(c[1], c[2], c[3], 1)
         local piece = pos and R.PieceAt(pos, s)
-        local cell = piece and def.atlas[piece]
-        if cell then
-            local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 8
-            b.piece:SetTexCoord(u, u + 0.25, v, v + 0.125)
-            b.piece:Show()
+        ns.SetShown(b.piece, self:PaintPiece(b.piece, piece, set))
+        local em = piece and set.emblems and set.emblems[piece]
+        if em then
+            b.emblem:SetTexture(em[1])
+            b.emblem:SetTexCoord(em[2], em[3], em[4], em[5])
+            b.emblem:Show()
         else
-            b.piece:Hide()
+            b.emblem:Hide()
         end
         if s == check then
             b.mark:SetTexture(0.9, 0.1, 0.1, 0.55); b.mark:Show()
@@ -818,17 +890,8 @@ function Kit:DrawTaken(g)
             return a < b
         end)
         local row, sum = self.ui.taken[k], 0
-        for i, t in ipairs(row.icons) do
-            local p = list[i]
-            local cell = p and def.atlas[p]
-            if cell then
-                local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 8
-                t:SetTexCoord(u, u + 0.25, v, v + 0.125)
-                t:Show()
-            else
-                t:Hide()
-            end
-        end
+        local set = self:PieceSet()
+        for i, t in ipairs(row.icons) do ns.SetShown(t, self:PaintPiece(t, list[i], set)) end
         for _, p in ipairs(list) do sum = sum + (def.taken[p] or 0) end
         row:SetHeight(math.max(1, math.ceil(ns.getn(list) / TAKEN_PER_ROW) * TAKEN_SIZE))
         worth[k] = sum
@@ -1054,6 +1117,11 @@ function Kit:BuildBoard(panel)
         b.piece:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
         b.piece:SetTexture(ATLAS)
         b.piece:Hide()
+        -- a picture over the piece (a set's emblems)
+        b.emblem = b:CreateTexture(nil, "OVERLAY")
+        b.emblem:SetWidth(18); b.emblem:SetHeight(18)
+        b.emblem:SetPoint("CENTER", b, "CENTER", 0, 1)
+        b.emblem:Hide()
         b.dot = b:CreateTexture(nil, "OVERLAY")
         b.dot:SetWidth(10); b.dot:SetHeight(10)
         b.dot:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -1223,8 +1291,8 @@ function Kit:BuildBottom(panel)
     row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 50)
     ui.pickers = {}
     ui.side = ns.UI.Stepper(row, {
-        list = { R.sides[1], R.sides[2], "?" }, width = 52,
-        label = function(v) return v == "?" and "|cffffffffRandom|r" or ("|cffffffff" .. R.names[v] .. "|r") end,
+        list = { R.sides[1], R.sides[2], "?" }, width = 60,
+        label = function(v) return v == "?" and "|cffffffffRandom|r" or ("|cffffffff" .. game:SideName(v) .. "|r") end,
         get = function() return game.db.side end,
         set = function(v) game.db.side = v end,
         locked = Locked, onChange = Refresh,
@@ -1300,8 +1368,14 @@ function Kit:Build(panel)
         db = function() return game.db end,
         sounds = EXTRA_SOUNDS,
         settings = true,
-        build = function(o) game:BuildResignOption(o) end,
-        refresh = function(o) o.resignStep:Refresh() end,
+        build = function(o)
+            local above = def.sets and game:BuildPieceOption(o)
+            game:BuildResignOption(o, above)
+        end,
+        refresh = function(o)
+            if o.pieceStep then o.pieceStep:Refresh() end
+            o.resignStep:Refresh()
+        end,
     })
 
     -- a game from before a reload

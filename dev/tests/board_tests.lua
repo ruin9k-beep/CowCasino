@@ -52,6 +52,35 @@ Check("...with the board's 24 pieces showing", (function()
   for s = 1, 64 do if G.ui.squares[s].piece.shown then n = n + 1 end end
   return n == 24
 end)())
+-- piece sets (Options > Settings)
+local function PieceSquare(pc) for q = 1, 64 do if g.pos.sq[q] == pc then return G.ui.squares[q] end end end
+G.ui.options:Show()
+H.Press("Settings")
+local ps = G.ui.options.pieceStep
+Check("Options > Settings: Pieces, Classic to start", ps ~= nil and string.find(ps.text.text, "Classic", 1, true) ~= nil
+  and PieceSquare("bM").piece.tex == ns.BoardKit.ATLAS and not PieceSquare("bM").emblem.shown)
+env.Fire(ps.up, "OnClick", "LeftButton")
+Check("...Horde vs Alliance: its own pieces and squares, saved", G.db.pieceSet == "faction"
+  and string.find(PieceSquare("bM").piece.tex, "BoardPiecesFaction", 1, true) ~= nil
+  and string.find(ps.text.text, "Horde vs Alliance", 1, true) ~= nil
+  and string.find(G.ui.options.pieceNote.text, "Alliance plays Black", 1, true) ~= nil)
+Check("...the men wear their faction's emblem", PieceSquare("bM").emblem.shown
+  and string.find(PieceSquare("bM").emblem.tex, "UI-PVP-Alliance", 1, true) ~= nil
+  and string.find(PieceSquare("rM").emblem.tex, "UI-PVP-Horde", 1, true) ~= nil)
+Check("...and the sides take their names", G.ui.against.text and string.find(G.ui.against.text, "You: Alliance", 1, true) ~= nil
+  and G:SideName("r") == "Horde", G.ui.against.text)
+Check("...the piece set's cells are a quarter of its height (a 4-row atlas)", math.abs(PieceSquare("rM").piece.coords[4]
+  - PieceSquare("rM").piece.coords[3] - 0.25) < 0.001)
+env.Fire(ps.up, "OnClick", "LeftButton")
+Check("...Goblins vs Gnomes: gears and coins, no emblems", G.db.pieceSet == "goblin"
+  and string.find(PieceSquare("rM").piece.tex, "BoardPiecesGoblin", 1, true) ~= nil and not PieceSquare("rM").emblem.shown
+  and G:SideName("b") == "Gnomes" and not ps.up.enabled)
+env.Fire(ps.down, "OnClick", "LeftButton"); env.Fire(ps.down, "OnClick", "LeftButton")
+Check("...and back to Classic", G.db.pieceSet == "classic" and PieceSquare("bM").piece.tex == ns.BoardKit.ATLAS
+  and G:SideName("b") == "Black")
+G.ui.options:Hide()
+Check("chess has the same three sets", table.getn(ns.games.chess:PieceSets()) == 3
+  and ns.games.chess:PieceSets()[2].names.w == "Alliance" and ns.games.chess:PieceSets()[3].names.b == "Goblins")
 Click(KSq(11))
 Check("clicking a piece selects it and marks where it can go", G.S.sel ~= nil and Dots() == 2, Dots())
 Click(KSq(15))
