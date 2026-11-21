@@ -148,6 +148,8 @@ env.Fire(steps[1].up, "OnClick", "LeftButton")
 Check("...navy water on the big board", ns.db.battleship.colors.water == "navy" and Near(G.ui.squares[1].bg.color, 0.06, 0.13, 0.32))
 H.Press("Default colors")
 Check("Default colors puts them back", ns.db.battleship.colors == nil and Near(G.ui.mini[mine].color, 0.25, 0.78, 0.30))
+Check("...and the Resign wait is on the same tab, under the colors", G.ui.options.resignStep ~= nil
+  and G.ui.options.resignStep.text.text == "3 seconds")
 H.Press("Options")
 
 -- a reload carries the game on

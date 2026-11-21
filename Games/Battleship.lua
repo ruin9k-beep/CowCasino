@@ -761,8 +761,11 @@ function B:Build(panel)
         db = function() return game.db end,
         sounds = { { key = "move", label = "The other side fires", default = "tick" } },
         settings = true,
-        build = function(o) game:BuildColorOptions(o) end,
-        refresh = function(o) for _, st in ipairs(o.colorSteps or {}) do st:Refresh() end end,
+        build = function(o) game:BuildColorOptions(o); game:BuildResignOption(o, o.colorNote) end,
+        refresh = function(o)
+            for _, st in ipairs(o.colorSteps or {}) do st:Refresh() end
+            o.resignStep:Refresh()
+        end,
     })
 
     -- a game from before a reload
@@ -842,6 +845,7 @@ function B:BuildColorOptions(o)
     note:SetWidth(330)
     note:SetJustifyH("LEFT")
     note:SetText("The hit and miss marks on the big board are pictures and keep their look.")
+    o.colorNote = note
 end
 
 function B:Welcome()
@@ -884,7 +888,7 @@ local Battleship = Kit.New({
         .. "Party game: free. Each fleet stays secret; at the end both are shown, and CowCasino checks the "
         .. "other player's fleet against every answer they gave (a fingerprint sent at the start keeps it "
         .. "honest).\n\n"
-        .. "Resign asks again: click Confirm once its 3 seconds are up.",
+        .. "Resign asks again: click Confirm once its wait is up (3 seconds; change it in Settings).",
 }, B)
 
 ns:RegisterGame(Battleship)

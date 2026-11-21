@@ -45,7 +45,7 @@ local OFFER_EVERY  = 20
 local OFFER_TIMEOUT = 60
 local PING_EVERY   = 30      -- a party game says "still here" this often
 local QUIET_LIMIT  = 90      -- nothing heard this long: the game can be called off
-local RESIGN_DELAY = 3       -- Resign asks again; the second click only counts after this
+local RESIGN_DELAY = 3       -- Resign asks again; the second click only counts after this (the default; Settings)
 local RESIGN_WINDOW = 5      -- ...and the question goes away this long after that
 -- for games built on the kit with their own screens (Battleship)
 Kit.LAYOUT = { BX = BX, BY = BY, SIDE_X = SIDE_X, SIDE_W = SIDE_W, BOARD = 8 * SQ, PANEL_W = PANEL_W }
@@ -444,12 +444,50 @@ function Kit:Resign()
     self:Finish(self.def.rules.Other(g.me), "you resigned")
 end
 
+-- How long Resign waits before its second click counts (Options > Settings).
+Kit.RESIGN_WAITS = { 0, 1, 2, 3, 5, 10 }
+function Kit:ResignDelay()
+    local d = self.db and tonumber(self.db.resignDelay)
+    return d or RESIGN_DELAY
+end
+
+-- Options > Settings: the Resign wait. Hangs under `above` (a region on the
+-- Settings tab), or at the top of the page.
+function Kit:BuildResignOption(o, above)
+    local game = self
+    local s = o.settings
+    local head = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    if above then head:SetPoint("TOPLEFT", above, "BOTTOMLEFT", -4, -16)
+    else head:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -48) end
+    head:SetText("Resign")
+    local label = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("TOPLEFT", head, "BOTTOMLEFT", 4, -12)
+    label:SetText("Wait before Confirm works")
+    o.resignStep = ns.UI.Stepper(s, {
+        list = Kit.RESIGN_WAITS, width = 80,
+        label = function(v)
+            if v == 0 then return "No wait" end
+            return v .. (v == 1 and " second" or " seconds")
+        end,
+        get = function() return game:ResignDelay() end,
+        set = function(v) game.db.resignDelay = v end,
+        onChange = function() game:ResignButton() end,
+    })
+    o.resignStep:SetPoint("LEFT", label, "LEFT", 178, 0)
+    local note = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    note:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -12)
+    note:SetWidth(320)
+    note:SetJustifyH("LEFT")
+    note:SetText("So a stray double click can't end a game.")
+    o.resignNote = note
+end
+
 -- Resign takes two clicks: the first asks, and the second only works once
--- RESIGN_DELAY seconds have gone by (so a stray double click can't end a game).
+-- the wait (ResignDelay) has gone by (so a stray double click can't end a game).
 function Kit:ResignClick()
     local armed = self.S.resignArmed
     if armed then
-        if GetTime() - armed >= RESIGN_DELAY then
+        if GetTime() - armed >= self:ResignDelay() then
             self.S.resignArmed = nil
             self:Resign()
         end
@@ -466,12 +504,13 @@ function Kit:ResignButton()
     if not g or not ui.resign then return end
     local word = self:Quiet(g) and "Call it off" or "Resign"
     local armed = self.S.resignArmed
+    local delay = self:ResignDelay()
     if armed then
         local waited = GetTime() - armed
-        if waited >= RESIGN_DELAY + RESIGN_WINDOW then
+        if waited >= delay + RESIGN_WINDOW then
             self.S.resignArmed, armed = nil, nil
-        elseif waited < RESIGN_DELAY then
-            ui.resign:SetText(word .. "? " .. math.ceil(RESIGN_DELAY - waited))
+        elseif waited < delay then
+            ui.resign:SetText(word .. "? " .. math.ceil(delay - waited))
             ns.SetEnabled(ui.resign, false)
             return
         else
@@ -1260,6 +1299,9 @@ function Kit:Build(panel)
         onReset = function() game:ResetStats() end,
         db = function() return game.db end,
         sounds = EXTRA_SOUNDS,
+        settings = true,
+        build = function(o) game:BuildResignOption(o) end,
+        refresh = function(o) o.resignStep:Refresh() end,
     })
 
     -- a game from before a reload

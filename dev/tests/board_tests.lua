@@ -82,6 +82,27 @@ Check("the Resign button has a red wash the Play button doesn't", G.ui.resign.wa
   and rawget(G.ui.go, "wash") == nil)
 H.Tick(6)
 Check("left alone, it goes back to Resign", H.Find("Resign") ~= nil and G.S.game ~= nil)
+-- the wait is set in Options > Settings
+G.ui.options:Show()
+H.Press("Settings")
+local rs = G.ui.options.resignStep
+Check("Options > Settings: Resign's wait, 3 seconds to start", rs ~= nil and rs.text.text == "3 seconds")
+env.Fire(rs.down, "OnClick", "LeftButton"); env.Fire(rs.down, "OnClick", "LeftButton")
+Check("...step it down to 1 second (saved)", rs.text.text == "1 second" and G.db.resignDelay == 1)
+env.Fire(rs.down, "OnClick", "LeftButton")
+Check("...or no wait at all, and no lower", rs.text.text == "No wait" and G.db.resignDelay == 0 and not rs.down.enabled)
+env.Fire(rs.up, "OnClick", "LeftButton")
+G.ui.options:Hide()
+H.Press("Resign")
+Check("with 1 second, it asks with a 1", H.Find("Resign? 1") ~= nil)
+H.Tick(1.1)
+Check("...and Confirm works after a second", H.Find("Confirm") ~= nil and H.Find("Confirm").enabled)
+H.Tick(6)
+G.db.resignDelay = 0
+H.Press("Resign")
+Check("with no wait, Confirm works at once", H.Find("Confirm") ~= nil and H.Find("Confirm").enabled and G.S.game ~= nil)
+H.Tick(6)
+G.db.resignDelay = nil
 H.Press("Resign")
 H.Tick(3.1)
 H.Press("Confirm")
