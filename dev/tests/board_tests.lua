@@ -31,7 +31,15 @@ local function Dots()
   return n
 end
 
-Check("checkers shows no captured-pieces rows", G.ui.taken == nil)
+Check("checkers shows the captured-pieces rows, empty to start", G.ui.taken ~= nil
+  and not G.ui.taken[1].icons[1].shown and not G.ui.taken[2].icons[1].shown)
+G:DrawTaken({ me = "b", taken = { b = { "rM", "rK", "rM" }, r = { "bM" } } })
+local function KIcons(k) local n = 0 for _, t in ipairs(G.ui.taken[k].icons) do if t.shown then n = n + 1 end end return n end
+Check("...what you took and what they took, with the lead in pieces", KIcons(2) == 3 and KIcons(1) == 1
+  and string.find(G.ui.taken[2].lead.text, "+2", 1, true) ~= nil and G.ui.taken[1].lead.text == "")
+Check("...kings first", G.ui.taken[2].icons[1].coords[1] == 0.75 and G.ui.taken[2].icons[1].coords[3] == 0.375
+  and G.ui.taken[2].icons[2].coords[3] == 0.375 and G.ui.taken[2].icons[2].coords[1] == 0.5)
+G:DrawTaken(nil)
 Check("Checkers is on the menu, with its icon", ns.games.checkers.icon ~= nil and ns.games.chess ~= nil)
 Check("it opens on Vs the computer, with stake, level and side pickers", G.ui.stake.shown and G.ui.level.shown
   and H.Find("Play for 50") ~= nil)

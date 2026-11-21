@@ -13,6 +13,8 @@ local Checkers = ns.BoardKit.New({
     tag = "CK",
     rules = R,
     atlas = { bM = 12, bK = 13, rM = 14, rK = 15 },
+    -- captured pieces show beside the board (kings first); the lead counts pieces
+    taken = { bK = 1, bM = 1, rK = 1, rM = 1 },
     light = { 0.86, 0.78, 0.62 },
     dark = { 0.24, 0.36, 0.22 },
     felt = { 0.07, 0.13, 0.07, 0.94 },

@@ -772,7 +772,12 @@ function Kit:DrawTaken(g)
     for k, side in ipairs({ them, me }) do
         local list = {}
         for _, p in ipairs(taken[side] or {}) do table.insert(list, p) end
-        table.sort(list, function(a, b) return (def.taken[a] or 0) > (def.taken[b] or 0) end)
+        -- most valuable first; equal values by name (so checkers' kings, "bK", come before men, "bM")
+        table.sort(list, function(a, b)
+            local va, vb = def.taken[a] or 0, def.taken[b] or 0
+            if va ~= vb then return va > vb end
+            return a < b
+        end)
         local row, sum = self.ui.taken[k], 0
         for i, t in ipairs(row.icons) do
             local p = list[i]
