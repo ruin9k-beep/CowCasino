@@ -111,19 +111,11 @@ function ns.PartyKit(K)
 
     -- Host: the turn clock (a newer clock or round cancels an older one) ---
     function P.StartClock(seconds, onExpire)
-        T.deadline = GetTime() + seconds
-        T.clock = (T.clock or 0) + 1
-        local clock, round = T.clock, T.round
-        ns:After(seconds, function()
-            if T.mode ~= "host" or T.clock ~= clock or T.round ~= round then return end
-            onExpire()
-        end)
+        local round = T.round
+        ns.TableKit.StartClock(T, seconds, function() return T.mode == "host" and T.round == round end, onExpire)
     end
 
-    function P.StopClock()
-        T.deadline = nil
-        T.clock = (T.clock or 0) + 1
-    end
+    function P.StopClock() ns.TableKit.StopClock(T) end
 
     -- Free top-ups to the table's stack ------------------------------------
     -- Host: top seat i back up (at once, or when the round ends).

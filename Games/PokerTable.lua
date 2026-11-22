@@ -451,7 +451,6 @@ local ACTION_TIME     = 30    -- seconds a player gets to act at a party table
 local NEXT_HAND_DELAY = 5     -- seconds between hands at a party table
 local HEARTBEAT       = 15    -- the host re-sends the table this often
 local HOST_TIMEOUT    = 40    -- a client gives up on a silent host after this long
-local MAX_TIMEOUTS    = 2     -- missed turns in a row before a player is removed
 local GAME_TAG        = V.tag -- first field of every message ("HE", "DR")
 
 T.mode    = "solo"
@@ -462,6 +461,7 @@ T.offers  = {}      -- client: tables in the group, by host name
 T.fillBots = true
 
 local Net = ns.Net
+local TK = ns.TableKit
 local Refresh, Continue, EndRound, StartHand, SetStatus, Leave, DealerWatch
 
 local STREET_CODE = V.streetCodes          -- street -> one letter in the table message
@@ -1200,19 +1200,14 @@ local function FinishHand()
     end
 
     if T.mode == "host" then
-        local changed = false
-        for i = 2, NUM_SEATS do
-            local p = T.seats[i]
-            if p.kind == "remote" and (p.leaving or p.kicked) then
-                if p.kicked then
-                    Net:Send(Msg({ "K", T.tid, p.name, p.stack }))
-                    ns:Print(p.name .. " was removed from your table for not responding.")
-                end
-                T.seats[i] = NewSeat("empty")
-                T.seats[i].seat = i
-                changed = true
-            end
-        end
+        local changed = TK.ClearLeavers(T, 2, NUM_SEATS, {
+            send = function(parts) Net:Send(Msg(parts)) end,
+            newSeat = function(i)
+                local e = NewSeat("empty")
+                e.seat = i
+                return e
+            end,
+        })
         SeatPending()
         if changed then
             SendRoster()
@@ -1457,8 +1452,7 @@ local function Act(p, action, to)
         end
     end
     p.acted = true
-    T.deadline = nil
-    T.clock = (T.clock or 0) + 1      -- cancels the clock for this turn
+    TK.StopClock(T)                   -- cancels the clock for this turn
     Changed()
     ns:Sound("IG_MAINMENU_OPTION")
 
@@ -1483,8 +1477,7 @@ local function DoDraw(p, positions)
         Net:Send(Msg({ "H", T.tid, T.hand, p.seat, CardsCode(p.hole) }))
     end
     if IsMine(p) then T.discard = {} end
-    T.deadline = nil
-    T.clock = (T.clock or 0) + 1      -- cancels the clock for this turn
+    TK.StopClock(T)                   -- cancels the clock for this turn
     Changed()
     ns:Sound("IG_MAINMENU_OPTION_CHECKBOX_ON")
     T.actor = NextSeat(T.actor)
@@ -1494,14 +1487,10 @@ end
 -- Party tables: every player gets ACTION_TIME to act, then checks or folds
 -- (or, at the draw, stands pat).
 local function StartClock(i)
-    T.deadline = GetTime() + ACTION_TIME
-    T.clock = (T.clock or 0) + 1
-    local hand, clock = T.hand, T.clock
-    ns:After(ACTION_TIME, function()
-        if T.hand ~= hand or T.clock ~= clock or T.actor ~= i or T.street == "idle" then return end
+    local hand = T.hand
+    TK.StartClock(T, ACTION_TIME, function() return T.hand == hand and T.actor == i and T.street ~= "idle" end, function()
         local p = T.seats[i]
-        p.timeouts = (p.timeouts or 0) + 1
-        if p.kind == "remote" and p.timeouts >= MAX_TIMEOUTS then p.kicked = true end
+        TK.Missed(p)
         if T.street == "draw" then DoDraw(p, {})
         elseif T.currentBet - p.bet > 0 then Act(p, "fold") else Act(p, "check") end
     end)
@@ -2065,7 +2054,7 @@ local function OnMessage(sender, f)
             if tonumber(f[4]) ~= T.hand or tonumber(f[5]) ~= T.version then return end
             if T.street == "draw" then
                 if f[6] ~= "d" or not NeedsToDraw(p) then return end
-                p.timeouts = 0
+                p.timeouts = 0    -- (TableKit.Acted)
                 local positions = {}
                 local mask = f[7] or ""
                 for k = 1, string.len(mask) do
@@ -2076,7 +2065,7 @@ local function OnMessage(sender, f)
                 return
             end
             if not NeedsToAct(p) then return end
-            p.timeouts = 0
+            p.timeouts = 0    -- (TableKit.Acted)
             local code, amount = f[6], tonumber(f[7]) or 0
             if code == "f" then
                 Act(p, "fold")
@@ -2230,12 +2219,12 @@ end)
 ---------------------------------------------------------------------------
 local function DoFold()
     if not MyTurn() then return end
-    if T.mode == "client" then ClientAct("f") else Me().timeouts = 0; Act(Me(), "fold") end
+    if T.mode == "client" then ClientAct("f") else TK.Acted(Me()); Act(Me(), "fold") end
 end
 
 local function DoCall()
     if not MyTurn() then return end
-    if T.mode == "client" then ClientAct("c") else Me().timeouts = 0; Act(Me(), "call") end
+    if T.mode == "client" then ClientAct("c") else TK.Acted(Me()); Act(Me(), "call") end
 end
 
 local function DoRaise()
@@ -2244,7 +2233,7 @@ local function DoRaise()
     if T.mode == "client" then
         ClientAct("r", ClampRaise(me, T.raiseTo))
     else
-        me.timeouts = 0
+        TK.Acted(me)
         Act(me, "raise", ClampRaise(me, T.raiseTo))
     end
 end
@@ -2306,7 +2295,7 @@ local function DoDrawCards()
     if T.mode == "client" then
         ClientAct("d", mask == "" and "0" or mask)
     else
-        me.timeouts = 0
+        TK.Acted(me)
         DoDraw(me, positions)
     end
 end

@@ -26,7 +26,6 @@ local INS_TIME     = 15     -- seconds to decide on insurance
 local ACTION_TIME  = 30     -- seconds per decision
 local DEALER_DELAY = 0.7    -- seconds between dealer cards
 local RESULT_DELAY = 6      -- seconds the results stay up before the next round
-local MAX_TIMEOUTS = 2      -- missed turns in a row before a player is removed
 local MAX_SITOUTS  = 5      -- betting rounds sat out in a row before a player is removed
 local GAME_TAG     = "BJ"
 
@@ -212,19 +211,9 @@ end
 
 -- Between rounds: drop players who left or were removed, seat new ones.
 local function TidySeats()
-    local changed = false
-    for i = 2, NUM_SEATS do
-        local p = T.seats[i]
-        if p.kind == "remote" and (p.leaving or p.kicked) then
-            if p.kicked then
-                Net:Send(Msg({ "K", T.tid, p.name, p.stack }))
-                ns:Print(p.name .. " was removed from your blackjack table for not responding.")
-            end
-            T.seats[i] = NewSeat("empty")
-            MarkSeat(i)
-            changed = true
-        end
-    end
+    local changed = ns.TableKit.ClearLeavers(T, 2, NUM_SEATS, { noun = "blackjack table",
+        send = function(parts) Net:Send(Msg(parts)) end,
+        newSeat = function() return NewSeat("empty") end, mark = MarkSeat })
     SeatPending()
     if changed then
         SendRoster()
@@ -339,8 +328,7 @@ function NextTurn()
                     Changed()
                     StartClock(ACTION_TIME, function()
                         local q = T.seats[i]
-                        q.timeouts = (q.timeouts or 0) + 1
-                        if q.kind == "remote" and q.timeouts >= MAX_TIMEOUTS then q.kicked = true end
+                        ns.TableKit.Missed(q)
                         local hh = q.hands[k]
                         if hh then hh.done = true end
                         MarkSeat(i)
@@ -529,7 +517,7 @@ local function HostAct(i, code, amount)
     if T.phase ~= "playing" or T.actor ~= i then return end
     local h = p.hands[T.handIdx]
     if not h or h.done then return end
-    p.timeouts = 0
+    ns.TableKit.Acted(p)
     if code == "h" then
         table.insert(h.cards, shoe:Draw())
         if HandValue(h.cards) >= 21 then h.done = true end
