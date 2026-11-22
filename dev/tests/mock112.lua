@@ -90,7 +90,6 @@ function methods:SetPoint(point, rel, relPoint, x, y)
   assert(relPoint == nil or type(relPoint) == "string", "bad relative point")
   assert(x == nil or type(x) == "number", "bad x"); assert(y == nil or type(y) == "number", "bad y")
 end
-function methods:SetAllPoints(rel) assert(type(rel) == "table", "1.12 SetAllPoints needs a frame") end
 -- Like the real 1.12 client after a drag: no anchor is reported.
 function methods:GetPoint() return nil end
 function methods:GetLeft() return 412.5 end
@@ -101,7 +100,18 @@ function methods:SetPoint(point, rel, relPoint, x, y)
   assert(relPoint == nil or type(relPoint) == "string", "bad relative point")
   assert(x == nil or type(x) == "number", "bad x"); assert(y == nil or type(y) == "number", "bad y")
   self.anchor = { point, rel, relPoint, x, y }
+  -- every anchor, for the layout checks (layout.lua)
+  local pts = rawget(self, "points") or {}
+  for i = table.getn(pts), 1, -1 do if pts[i][1] == point then table.remove(pts, i) end end
+  table.insert(pts, { point, rel, relPoint or point, x or 0, y or 0 })
+  self.points = pts
 end
+function methods:SetAllPoints(rel)
+  assert(type(rel) == "table", "1.12 SetAllPoints needs a frame")
+  self.points = { { "TOPLEFT", rel, "TOPLEFT", 0, 0 }, { "BOTTOMRIGHT", rel, "BOTTOMRIGHT", 0, 0 } }
+end
+function methods:ClearAllPoints() self.points = {} end
+function methods:SetJustifyH(j) self.justifyH = j end
 function methods:CreateTexture(name, layer, ...)
   assert(_select("#", ...) == 0, "CreateTexture takes 2 arguments on 1.12")
   assert(layer == nil or LAYERS[layer], "bad layer " .. tostring(layer))
@@ -109,13 +119,15 @@ function methods:CreateTexture(name, layer, ...)
 end
 function methods:CreateFontString(name, layer, template)
   assert(template == nil or FONT_TEMPLATES[template], "font template missing in 1.12: " .. tostring(template))
-  return newObj("FontString", self)
+  local fs = newObj("FontString", self)
+  fs.font = template
+  return fs
 end
 function methods:SetTexture(a, g, b, al)
   if type(a) == "number" then assert(type(g) == "number" and type(b) == "number") else assert(a == nil or type(a) == "string") end
   self.tex = a; if type(a) == "number" then self.color = { a, g, b, al or 1 } end
 end
-function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0, "bad SetFont") end
+function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0, "bad SetFont"); self.fontSize = size end
 function methods:RegisterForClicks(...)
   for i = 1, _select("#", ...) do assert(CLICKS[_select(i, ...)], "bad click type " .. tostring(_select(i, ...))) end
 end
@@ -123,7 +135,7 @@ function methods:SetFocus() self.focus = true; Fire(self, "OnEditFocusGained") e
 function methods:ClearFocus() if self.focus then self.focus = nil; Fire(self, "OnEditFocusLost") end end
 function methods:SetMaxLetters(n) assert(type(n) == "number" and n > 0); self.maxLetters = n end
 function methods:SetAutoFocus(b) self.autoFocus = b end
-function methods:SetFontObject(f) assert(type(f) == "table" and rawget(f, "fontObject"), "SetFontObject needs a font object") end
+function methods:SetFontObject(f) assert(type(f) == "table" and rawget(f, "fontObject"), "SetFontObject needs a font object"); self.font = f.fontObject end
 function methods:SetTextInsets(l, r, t, b) assert(type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number") end
 function methods:EnableMouseWheel(b) self.wheel = b end
 -- Typing into an edit box (tests): sets the text the way the client would, capped at the max letters.
@@ -185,6 +197,7 @@ function CreateFrame(kind, name, parent, template)
   if name then assert(not usedNames[name], "duplicate frame name " .. name); usedNames[name] = true end
   local o = newObj(kind, parent)
   o.name = name
+  o.template = template
   if name then _G[name] = o end
   if template == "OptionsSliderTemplate" then
     for _, part in ipairs({ "Low", "High", "Text" }) do _G[name .. part] = newObj("FontString", o) end
@@ -194,7 +207,7 @@ end
 
 getglobal = function(n) return _G[n] end
 for f in pairs(FONT_TEMPLATES) do _G[f] = { fontObject = f } end
-UIParent = newObj("Frame"); UISpecialFrames = {}; tinsert = table.insert
+UIParent = newObj("Frame"); UIParent.w, UIParent.h = 1024, 768; UISpecialFrames = {}; tinsert = table.insert
 strlower = string.lower
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
 PlaySound = function(name) assert(type(name) == "string" and SOUNDS[name], "unknown 1.12 sound " .. tostring(name)) end

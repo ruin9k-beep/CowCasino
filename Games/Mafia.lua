@@ -77,10 +77,7 @@ local function Log(text)
     while ns.getn(G.log) > 60 do table.remove(G.log, 1) end
 end
 
-local function Clean(text)
-    text = string.gsub(text or "", "[;~|%c]", " ")
-    return string.sub(text, 1, 120)
-end
+local function Clean(text) return ns.Net.Clean(text, 120) end
 
 ---------------------------------------------------------------------------
 -- What this client may see
@@ -828,8 +825,7 @@ function Game:Build(panel)
     room:Restore(db)
     room:BuildLobby(panel, {
         game = Game, felt = { 0.06, 0.05, 0.06, 1 },
-        info = "Some players are secretly the Mafia. Each night they kill someone; each day everyone votes on who to lynch. "
-            .. "For 5 to 30 players in a raid. Free: no chips are wagered.",
+        info = "The Mafia kill by night; everyone votes by day. 5 to 30 players, free.",
         alone = "Join a raid (or party) to play. Everyone needs CowCasino.",
         stats = function()
             local s = db.stats

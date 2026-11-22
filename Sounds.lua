@@ -79,9 +79,13 @@ end
 -- own moments (as for InitSounds).
 function ns:CreateSoundOptions(tab, getDb, extra)
     local o = tab
-    local sub = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    sub:SetPoint("TOP", o, "TOP", 0, -32)
-    sub:SetText("Sound effects")
+    -- a heading, unless the page has a note of its own on that line
+    local page = o:GetParent()
+    if not (page and rawget(page, "note")) then
+        local sub = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        sub:SetPoint("TOP", o, "TOP", 0, -32)
+        sub:SetText("Sound effects")
+    end
 
     local events = {}
     for _, ev in ipairs(ns.SOUND_EVENTS) do table.insert(events, ev) end
@@ -125,7 +129,7 @@ function ns:CreateSoundOptions(tab, getDb, extra)
     end
 
     local reset = ns.CreateFrame("Button", ns:NewName(), o, "UIPanelButtonTemplate")
-    reset:SetWidth(110); reset:SetHeight(22)
+    reset:SetWidth(90); reset:SetHeight(22)     -- (narrow enough to clear Reset stats and Done)
     reset:SetText("Defaults")
     reset:SetPoint("BOTTOM", o, "BOTTOM", 0, 40)       -- between Reset stats and Done
     reset:SetScript("OnClick", function()

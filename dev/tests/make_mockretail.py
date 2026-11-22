@@ -47,7 +47,7 @@ function methods:SetShown(b) if b then self:Show() else self:Hide() end end
 function methods:SetEnabled(b) self.enabled = b and 1 or nil end
 function methods:SetBackdrop(b) assert(rawget(self, "backdropOK"), "modern client: SetBackdrop needs BackdropTemplate") end
 ''' + s[j:]
-rep('''function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0, "bad SetFont") end''','''function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0 and type(flags) == "string", "bad SetFont (modern client wants flags)") end''')
+rep('''function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0, "bad SetFont"); self.fontSize = size end''','''function methods:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0 and type(flags) == "string", "bad SetFont (modern client wants flags)"); self.fontSize = size end''')
 rep('''function methods:SetModel(m) assert(type(m) == "string"); self.model = m; self.unit = nil end''','''function methods:SetModel(m) assert(type(m) == "string" and string.find(m, "%.m2$"), "modern client models are .m2: " .. tostring(m)); self.model = m; self.unit = nil end''')
 rep('''function methods:RegisterEvent(e) self.events = self.events or {}; self.events[e] = true end''','''local EVENTS = set("ADDON_LOADED CHAT_MSG_ADDON CHAT_MSG_SYSTEM GROUP_ROSTER_UPDATE PLAYER_LOGIN PLAYER_ENTERING_WORLD BAG_UPDATE SPELLS_CHANGED")
 function methods:RegisterEvent(e) assert(EVENTS[e], "modern client has no event " .. tostring(e)); self.events = self.events or {}; self.events[e] = true end''')

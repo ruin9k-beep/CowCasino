@@ -810,8 +810,7 @@ end
 local function BuildLobby(panel)
     local intro = ns:AddIntro(Game, panel, {
         felt = { 0.07, 0.06, 0.05, 1 },
-        blurb = "Take turns drawing a secret word while everyone else races to guess it. The first right guess "
-            .. "scores " .. GUESS_POINTS .. ", and the artist " .. ART_POINTS .. ". Free: no chips are wagered.",
+        blurb = "Draw a secret word while the others race to guess it. Free: no chips are wagered.",
         solo = "On your own", party = "Play with your group", rows = 3, refresh = true,
     })
     ui.intro = intro

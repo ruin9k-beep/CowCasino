@@ -162,4 +162,27 @@ Check("...and Join takes a seat there", guest.ns.Lobby:Busy("holdem"))
 Run(25)
 Check("pop-ups close themselves after a while", Toast(guest) == nil and Toast(stranger) == nil)
 
+---------------------------------------------------------------------------
+-- The network layer's guards (Net.lua)
+---------------------------------------------------------------------------
+local Net = host.ns.Net
+Check("Net.Clean takes the separators out of typed text", Net.Clean("  a;b~c|d\n ", 5) == "a b c")
+local heard
+guest.ns.Net.handlers.ZZ = function(sender, f) heard = f end
+Net:Send("ZZ;one~two;three")
+Run(1)
+Check("a stray ~ in a message can't split it apart on arrival", heard ~= nil and heard[2] == "one-two" and heard[3] == "three",
+  heard and table.concat(heard, "|"))
+Check("...table chat keeps its ~ (it's never unpacked)", (function()
+  local got
+  guest.ns.Net.handlers.CH = function(sender, f) got = f end
+  Net:Send("CH;x;hello~there")
+  Run(1)
+  return got ~= nil and string.find(table.concat(got, ";"), "hello~there", 1, true) ~= nil
+end)())
+local before = Net:Queued()
+Check("a message over the client's limit isn't sent", Net:Send("ZZ;" .. string.rep("x", 260)) == false and Net.tooLong == 1)
+Check("...nothing was queued for it", Net:Queued() == before)
+Net.tooLong, Net.tooLongText = nil, nil     -- (the harness fails a run that has one)
+
 H.Done("LOBBY")

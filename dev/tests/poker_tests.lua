@@ -247,7 +247,7 @@ return function(env)
   local pokerPicker = false
   for _, o in ipairs(env.all) do if o.kind == "FontString" and InPoker(o) and o.text == "Card art" and o.shown then pokerPicker = true end end
   local pointer = false
-  for _, o in ipairs(env.all) do if o.kind == "FontString" and InPoker(o) and o.text and string.find(o.text, "Card art is in the CowCasino Options", 1, true) then pointer = true end end
+  for _, o in ipairs(env.all) do if o.kind == "FontString" and InPoker(o) and o.text and string.find(o.text, "Card art is in the main Options", 1, true) then pointer = true end end
   Press(Find("Done"))
   Check("holdem: Options no longer has a card art picker, just a pointer", not pokerPicker and pointer)
   ns:ShowMenu()

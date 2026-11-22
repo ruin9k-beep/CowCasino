@@ -163,7 +163,9 @@ function UI.Options(panel, spec)
     if spec.note then
         local note = o:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         note:SetPoint("TOP", title, "BOTTOM", 0, -2)
+        note:SetWidth(330)      -- (one line: the tabs' content starts just below it)
         note:SetText(spec.note)
+        o.note = note
     end
 
     local names, keys = {}, {}

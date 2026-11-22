@@ -542,7 +542,7 @@ end
 
 -- Options > Settings: the Resign wait. Hangs under `above` (a region on the
 -- Settings tab), or at the top of the page.
-function Kit:BuildResignOption(o, above)
+function Kit:BuildResignOption(o, above, compact)
     local game = self
     local s = o.settings
     local head = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -563,6 +563,7 @@ function Kit:BuildResignOption(o, above)
         onChange = function() game:ResignButton() end,
     })
     o.resignStep:SetPoint("LEFT", label, "LEFT", 178, 0)
+    if compact then return end     -- (no room for the note under it)
     local note = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     note:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -12)
     note:SetWidth(320)

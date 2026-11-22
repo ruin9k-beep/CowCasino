@@ -678,7 +678,7 @@ local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Blackjack, panel, {
         settings = true,
-        note = "Sounds apply to solo and party play. Card art is in the CowCasino Options.",
+        note = "Sounds cover solo and party play. Card art: the main Options.",
         db = function() return db end,
         refresh = function() o:RefreshExtras() end,
         onReset = function() ResetAll() end,
@@ -707,7 +707,7 @@ local function BuildOptions(panel)
 
     local rules = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     rules:SetPoint("BOTTOM", o, "BOTTOM", 0, 72)
-    rules:SetText("Rules above are for your solo table; party tables use the standard rules.")
+    rules:SetText("Party tables always use the standard rules.")
 
     function o:RefreshExtras()
         for _, r in ipairs(refreshers) do r() end

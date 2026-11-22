@@ -2645,7 +2645,7 @@ local function BuildOptions(panel)
     local o
     o = ns:GameOptions(Poker, panel, {
         settings = true,
-        note = "Card art is in the CowCasino Options, shared by every card game.",
+        note = "Card art is in the main Options (every card game shares it).",
         db = function() return db end,
         refresh = function() o:RefreshExtras() end,
     })

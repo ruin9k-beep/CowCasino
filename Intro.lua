@@ -157,7 +157,7 @@ function Intro.New(panel, spec)
 
     self.stats = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.stats:SetPoint("BOTTOM", f, "BOTTOM", 0, 4)
-    self.stats:SetWidth(W + 20)
+    self.stats:SetWidth(W)
     f:Hide()
     return self
 end

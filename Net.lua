@@ -7,8 +7,18 @@
 --
 -- To send as few addon messages as possible, sends are gathered for a moment
 -- and packed together: everything waiting goes out in as few messages as fit,
--- joined by "~" (which no game message uses), and is unpacked on arrival.
--- Table chat (CH) can contain anything typed, so it always goes out alone.
+-- joined by "~", and is unpacked on arrival. Net:Send makes sure no game
+-- message carries a "~" of its own (one would be turned into "-"), so the
+-- unpacking can never split a message apart. Table chat (CH) can contain
+-- anything typed, so it always goes out alone and is never unpacked.
+--
+-- Anything typed that goes into a game message should pass through
+-- Net.Clean first: it takes out the ";" that separates fields (and "~", "|"
+-- and control characters), so a typed word can't spill into the next field.
+--
+-- The client refuses addon messages over 255 characters (prefix included).
+-- Net:Send won't send one that long: it says so once in chat, counts it in
+-- Net.tooLong (shown by /casino net), and returns false; the tests fail on it.
 
 local ns = CowCasino.ns
 
@@ -18,6 +28,7 @@ local BURST  = 900
 local SEP    = "~"      -- joins packed messages
 local PACKET = 240      -- longest packed message (prefix + message must stay under 255)
 local GATHER = 0.2      -- seconds to collect sends before they go out together
+local LIMIT  = 254      -- the longest addon message (prefix + text) the client takes
 
 local Net = { handlers = {}, groupHandlers = {} }
 ns.Net = Net
@@ -170,8 +181,31 @@ pump:SetScript("OnUpdate", function()
     this:Hide()
 end)
 
+-- Typed text, safe to put in a message field (see the top of this file).
+function Net.Clean(text, maxLen)
+    text = string.gsub(text or "", "[;~|%c]", " ")
+    text = string.gsub(text, "^%s+", "")
+    text = string.gsub(text, "%s+$", "")
+    if maxLen then text = string.sub(text, 1, maxLen) end
+    return text
+end
+
 function Net:Send(text, key)
     if not self:InGroup() then return end
+    -- a "~" would split the message apart on arrival (table chat is never split)
+    if string.sub(text, 1, 3) ~= "CH;" and string.find(text, SEP, 1, true) then
+        text = string.gsub(text, SEP, "-")
+    end
+    if string.len(PREFIX) + string.len(text) > LIMIT then
+        self.tooLong = (self.tooLong or 0) + 1
+        self.tooLongText = text
+        if not self.warnedLong then
+            self.warnedLong = true
+            ns:Print("a party message was too long to send (" .. string.len(text) .. " characters), so it was dropped. "
+                .. "Please report this, with /casino net.")
+        end
+        return false
+    end
     if key then
         -- Drop the older copy and queue the new one at the back, so it never
         -- overtakes messages sent after the old one.
@@ -184,6 +218,7 @@ function Net:Send(text, key)
     end
     table.insert(queue, { text = text, key = key })
     pump:Show()
+    return true
 end
 
 function Net:Queued() return ns.getn(queue) end
@@ -237,6 +272,10 @@ function Net:Report()
         for i = 1, ns.NumParty() do table.insert(names, tostring(UnitName("party" .. i))) end
     end
     ns:Print("party check: members seen: " .. (names[1] and table.concat(names, ", ") or "nobody"))
+    if self.tooLong then
+        ns:Print("party check: " .. self.tooLong .. " message(s) too long to send; the last began: "
+            .. string.sub(self.tooLongText or "", 1, 40))
+    end
     ns:Print("party check: sent " .. self.sentCount .. ", refused " .. (self.refused or 0) .. ", heard " .. (self.heard or 0)
         .. (self.lastFrom and (" (last from " .. tostring(self.lastFrom) .. " on " .. tostring(self.lastFromChannel) .. ")") or "")
         .. ", waiting " .. ns.getn(queue) .. ".")

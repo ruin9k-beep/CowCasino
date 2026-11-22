@@ -14,7 +14,15 @@ function H.Check(name, cond, extra)
 end
 
 -- Prints the verdict and exits with its code.
+H.started = {}
 function H.Done(label)
+  -- every client: no party message was too long to send (Net.lua refuses them)
+  for _, ns in ipairs(H.started) do
+    if ns.Net.tooLong then
+      H.ok = false
+      io.write("a party message was too long to send: " .. tostring(ns.Net.tooLongText) .. "\n")
+    end
+  end
   io.write(label .. (H.ok and " PASS\n" or " FAIL\n"))
   os.exit(H.ok and 0 or 1)
 end
@@ -33,6 +41,7 @@ function H.Start(saved, prep, setup)
     if o.scripts.OnEvent and rawget(o, "events") and o.events.ADDON_LOADED then env.Fire(o, "OnEvent", "CowCasino", "ADDON_LOADED") end
   end
   if prep then prep(env.CowCasino.ns) end
+  table.insert(H.started, env.CowCasino.ns)
   env.CowCasinoFrame:Show()
   if not H.env then H.Use(env) end
   return env, env.CowCasino.ns
@@ -175,6 +184,7 @@ function H.Party(opts)
     end
     if opts.dealer and ns.Dealer.UI() then table.insert(c.updaters, ns.Dealer.UI()) end
     table.insert(P.clients, c)
+    table.insert(H.started, ns)
     P.byName[name] = c
     return c
   end

@@ -56,7 +56,7 @@ FORBIDDEN = [
     r'table\.getn', r'math\.mod\(', r'string\.gfind', r'string\.gmatch', r'\.mdx"', r'\.m2"',
 ]
 
-TESTS_BOTH = ["harness112", "intro_tests", "lobby_tests", "menu_tests", "roulette_tests", "sound_tests", "options_tests", "merge_tests", "party_tests",
+TESTS_BOTH = ["harness112", "intro_tests", "layout_tests", "lobby_tests", "menu_tests", "roulette_tests", "sound_tests", "options_tests", "merge_tests", "party_tests",
               "bj_party_tests", "slots_lines_tests", "rebuy_tests", "slots_machine_tests", "blinds_tests",
               "chat_tests", "whole_chips_tests", "portrait_tests", "tauren_cards_tests", "split_tests",
               "race_cards_tests", "bj_layout_tests", "startup_tests", "craps_tests", "party_craps_tests",

@@ -39,7 +39,7 @@ local Checkers = ns.BoardKit.New({
         .. "no jump and no man moved is a draw.\n\n"
         .. "To move, click a piece, then the square to go to (for a double jump, each landing square in turn).\n\n"
         .. "Vs the computer: pick a stake, Easy, Medium or Hard, and your side. A win pays double, a draw gives "
-        .. "your stake back. Party game: free. Offer a draw or resign at any time (Resign asks again: click Confirm once its wait is up, 3 seconds unless you change it in Settings).",
+        .. "your stake back. Party game: free. Offer a draw or resign at any time (Resign asks again; set its wait in Settings).",
 })
 
 ns:RegisterGame(Checkers)

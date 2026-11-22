@@ -733,7 +733,7 @@ function B:Build(panel)
         db = function() return game.db end,
         sounds = { { key = "move", label = "The other side fires", default = "tick" } },
         settings = true,
-        build = function(o) game:BuildColorOptions(o); game:BuildResignOption(o, o.colorNote) end,
+        build = function(o) game:BuildColorOptions(o); game:BuildResignOption(o, o.colorNote, true) end,
         refresh = function(o)
             for _, st in ipairs(o.colorSteps or {}) do st:Refresh() end
             o.resignStep:Refresh()

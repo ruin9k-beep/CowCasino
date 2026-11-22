@@ -28,18 +28,15 @@ local Chess = ns.BoardKit.New({
     },
     felt = { 0.10, 0.07, 0.05, 0.94 },
     rulesText = "Chess, the full game. White moves first.\n\n"
-        .. "Vs the computer: pick a stake, Easy, Medium or Hard, and your side. A win pays double, a draw gives "
-        .. "your stake back. Easy makes mistakes; Hard looks three moves ahead and never leaves a trade half "
-        .. "done.\n\n"
-        .. "Party game: against someone in your party or raid (both of you need CowCasino). It's free. "
-        .. "Challenge your group and pick your side (or random); the first player to accept is "
-        .. "your opponent.\n\n"
-        .. "To move, click a piece, then where it goes. To castle, move the king two squares. A pawn reaching the "
-        .. "far rank asks what to promote to.\n\n"
-        .. "The game ends in checkmate, or a draw by stalemate, the fifty-move rule, the same position three "
-        .. "times, or too few pieces to mate. You can also offer a draw, or resign (Resign asks again: click Confirm once its wait is up, 3 seconds unless you change it in Settings).\n\n"
-        .. "A reload doesn't end the game: it picks up where you left off. In a party game, if the other player "
-        .. "goes quiet for a while, you can call the game off.",
+        .. "Vs the computer: pick a stake, a level (Easy, Medium or Hard) and your side. A win pays double; "
+        .. "a draw gives your stake back. Hard looks three moves ahead.\n\n"
+        .. "With your group: free. Challenge the group and pick your side (or random); the first to accept "
+        .. "plays you. Both of you need CowCasino.\n\n"
+        .. "To move, click a piece, then where it goes. To castle, move the king two squares. A pawn reaching "
+        .. "the far rank asks what to promote to.\n\n"
+        .. "It ends in checkmate, or a draw: stalemate, the fifty-move rule, the same position three times, or "
+        .. "too few pieces to mate. You can offer a draw, or resign (Resign asks again; set its wait in Settings).\n\n"
+        .. "A reload doesn't end a game. If the other player goes quiet, you can call it off.",
 })
 
 ns:RegisterGame(Chess)
