@@ -30,7 +30,6 @@ local MAX_TIMEOUTS = 2      -- missed turns in a row before a player is removed
 local MAX_SITOUTS  = 5      -- betting rounds sat out in a row before a player is removed
 local HEARTBEAT    = 15     -- the host re-sends the table this often
 local HOST_TIMEOUT = 40
-local OFFER_TIMEOUT = 60
 local GAME_TAG     = "BJ"
 
 local CARD_W, CARD_H   = 46, 64
@@ -70,7 +69,7 @@ local T = {
     myBet = 25,
 }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 -- The party table pieces shared with the other party games (PartyKit.lua).
 local H = {}      -- this game's own pieces the kit calls (filled in at the end)
@@ -943,10 +942,7 @@ end)
 local RESULT_TEXT = { W = "|cff40ff40Win|r", B = "|cffffd100Blackjack!|r", P = "|cffccccccPush|r",
                       L = "|cffff5050Lose|r", S = "|cffccccccSurrender|r" }
 
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, nil) end
 
 local function LayoutCards(widgets, cards, x0, y0, parent, w, h, step)
     for c = 1, ns.getn(widgets) do

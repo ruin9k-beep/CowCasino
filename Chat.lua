@@ -221,29 +221,9 @@ function Chat:Build(frame)
     end)
 
     -- Where you type: its own box, never the game's chat
-    local box = ns.CreateFrame("EditBox", nil, fly)
-    box:SetHeight(22)
+    local box = ns.UI.EditBox(fly, { maxLetters = MAX_LEN, hint = "Say something to the table..." })
     box:SetPoint("BOTTOMLEFT", fly, "BOTTOMLEFT", 8, 8)
     box:SetPoint("BOTTOMRIGHT", fly, "BOTTOMRIGHT", -8, 8)
-    box:SetFontObject(GameFontHighlightSmall)
-    box:SetTextInsets(6, 6, 0, 0)
-    box:SetAutoFocus(false)
-    box:SetMaxLetters(MAX_LEN)
-    box:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    box:SetBackdropColor(0, 0, 0, 0.8)
-    box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
-    local hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    hint:SetPoint("LEFT", box, "LEFT", 7, 0)
-    hint:SetText("Say something to the table...")
-    local function UpdateHint() ns.SetShown(hint, (box:GetText() or "") == "" and not box.focused) end
-    box:SetScript("OnEditFocusGained", function() box.focused = true UpdateHint() end)
-    box:SetScript("OnEditFocusLost", function() box.focused = nil UpdateHint() end)
-    box:SetScript("OnTextChanged", UpdateHint)
     box:SetScript("OnEnterPressed", function()
         Chat:Send(this:GetText())
         this:SetText("")

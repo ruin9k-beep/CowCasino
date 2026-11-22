@@ -763,31 +763,14 @@ local function BuildPlay(t)
     ui.skip:SetPoint("TOPRIGHT", p, "TOPRIGHT", -4, -228)
     ui.log = {}
     for i = 1, LOG_LINES do ui.log[i] = Text(p, "GameFontHighlightSmall", 6, -254 - (i - 1) * 12, 368) end
-    local box = ns.CreateFrame("EditBox", nil, p)
-    box:SetWidth(240); box:SetHeight(20)
+    local box = ns.UI.EditBox(p, { width = 240, height = 20, maxLetters = 120,
+        bg = { 0.25, 0, 0, 0.85 }, edge = { 0.7, 0.2, 0.2, 1 },
+        hint = "Talk to the Mafia (only they see it)",
+        onEnter = function(b)
+            MafiaTalk(b:GetText())
+            b:SetText("")
+        end })
     box:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -318)
-    box:SetFontObject(GameFontHighlightSmall)
-    box:SetTextInsets(6, 6, 0, 0)
-    box:SetAutoFocus(false)
-    box:SetMaxLetters(120)
-    box:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    box:SetBackdropColor(0.25, 0, 0, 0.85)
-    box:SetBackdropBorderColor(0.7, 0.2, 0.2, 1)
-    local hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    hint:SetPoint("LEFT", box, "LEFT", 7, 0)
-    hint:SetText("Talk to the Mafia (only they see it)")
-    box:SetScript("OnEditFocusGained", function() hint:Hide() end)
-    box:SetScript("OnEditFocusLost", function() ns.SetShown(hint, (box:GetText() or "") == "") end)
-    box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    box:SetScript("OnEnterPressed", function()
-        MafiaTalk(box:GetText())
-        box:SetText("")
-    end)
     ui.talk = box
 end
 

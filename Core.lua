@@ -183,6 +183,8 @@ function ns:FormatChips(n)
     s = string.gsub(s, "0$", "")
     return s
 end
+-- The same, as a plain function (every game's local Fmt).
+function ns.Fmt(n) return ns:FormatChips(n) end
 
 function ns:SpendChips(amount)
     if amount <= 0 or self.db.chips < amount then return false end

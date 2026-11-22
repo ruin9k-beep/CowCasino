@@ -84,7 +84,7 @@ local T = {
     discard = {},        -- Draw: the cards you've picked to swap (by position)
 }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 -- The blinds picked in Options, for the next table you sit at or host.
 local function ChosenBlinds()
@@ -451,7 +451,6 @@ local ACTION_TIME     = 30    -- seconds a player gets to act at a party table
 local NEXT_HAND_DELAY = 5     -- seconds between hands at a party table
 local HEARTBEAT       = 15    -- the host re-sends the table this often
 local HOST_TIMEOUT    = 40    -- a client gives up on a silent host after this long
-local OFFER_TIMEOUT   = 60    -- forget a table we haven't heard about for this long
 local MAX_TIMEOUTS    = 2     -- missed turns in a row before a player is removed
 local GAME_TAG        = V.tag -- first field of every message ("HE", "DR")
 
@@ -817,19 +816,16 @@ local function RefreshLobby()
     -- the party tables open in the group
     local intro, inGroup = ui.intro, Net:InGroup()
     local list = {}
-    for name, offer in pairs(T.offers) do
-        if GetTime() - offer.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-            local host, o = name, offer
-            table.insert(list, {
-                host = host,
-                text = string.format("%s: blinds %s/%s, %d seated, %d open", host, Fmt(o.sb), Fmt(o.bb), o.players, o.open)
-                    .. Net:VersionNote(o.ver),
-                enabled = o.open > 0 and not T.joining and not Net:VersionProblem(o.ver),
-                click = function() ui.onJoin(host, o.tid) end,
-            })
-        end
+    for _, offer in ipairs(Net:OpenOffers(T.offers)) do
+        local o = offer
+        table.insert(list, {
+            host = o.host,
+            text = string.format("%s: blinds %s/%s, %d seated, %d open", o.host, Fmt(o.sb), Fmt(o.bb), o.players, o.open)
+                .. Net:VersionNote(o.ver),
+            enabled = o.open > 0 and not T.joining and not Net:VersionProblem(o.ver),
+            click = function() ui.onJoin(o.host, o.tid) end,
+        })
     end
-    table.sort(list, function(a, b) return a.host < b.host end)
     intro:SetOffers(list)
     intro:SetNote(list[1] and "Party tables in your group:"
         or (inGroup and "No party tables yet. Host one, or wait for someone to." or "Join a party or raid to play your friends."))
@@ -2726,34 +2722,19 @@ local function BuildParty(panel)
         local label = o:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("TOPLEFT", o, "TOPLEFT", x, -62)
         label:SetText(labelText)
-        local box = ns.CreateFrame("EditBox", nil, o)
-        box:SetWidth(width); box:SetHeight(20)
-        box:SetPoint("LEFT", label, "RIGHT", 4, 0)
-        box:SetFontObject(GameFontHighlightSmall)
-        box:SetTextInsets(5, 5, 0, 0)
-        box:SetAutoFocus(false)
-        box:SetMaxLetters(7)
-        box:SetBackdrop({
-            bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 16, edgeSize = 12,
-            insets = { left = 3, right = 3, top = 3, bottom = 3 },
-        })
-        box:SetBackdropColor(0, 0, 0, 0.8)
-        box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
-        box:SetScript("OnTextChanged", function()
+        local box
+        box = ns.UI.EditBox(o, { width = width, height = 20, maxLetters = 7, insets = 5, onChange = function()
             if o.filling then return end
-            local text = this:GetText() or ""
+            local text = box:GetText() or ""
             local digits = string.gsub(text, "[^0-9]", "")
-            if digits ~= text then this:SetText(digits) end
+            if digits ~= text then box:SetText(digits) end
             db.hostSettings = db.hostSettings or {}
             local sb, bb, buyin = HostSettings()
             db.hostSettings.sb, db.hostSettings.bb, db.hostSettings.buyin = sb, bb, buyin
             db.hostSettings[key] = tonumber(digits) or 0      -- (empty: 0, which won't do)
             o:Refresh()
-        end)
-        box:SetScript("OnEnterPressed", function() this:ClearFocus() end)
-        box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+        end, onEnter = function(b) b:ClearFocus() end })
+        box:SetPoint("LEFT", label, "RIGHT", 4, 0)
         box:SetScript("OnTabPressed", function()
             local order = { "sb", "bb", "buyin" }
             for n, k in ipairs(order) do
@@ -2788,32 +2769,32 @@ local function BuildParty(panel)
     leaveSolo:SetPoint("TOP", o, "TOP", 0, -118)
 
     local header = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    header:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -168)
+    header:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -180)      -- (below the host line, which runs to two lines)
     header:SetText("Tables in your group")
     local refresh = MakeButton(o, "Refresh", 70, function()
         Net:Send(Msg({ "Q" }))
         o:Refresh()
     end)
-    refresh:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -164)
+    refresh:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -176)
 
     local rows = {}
     for r = 1, 3 do
         local r = r   -- own copy for closures (Lua 5.0)
         local row = {}
         row.text = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.text:SetPoint("TOPLEFT", o, "TOPLEFT", 18, -196 - (r - 1) * 28)
+        row.text:SetPoint("TOPLEFT", o, "TOPLEFT", 18, -208 - (r - 1) * 28)
         row.text:SetWidth(250)
         row.text:SetJustifyH("LEFT")
         row.join = MakeButton(o, "Join", 60, function()
             local offer = rows[r].offer
             if offer then JoinTable(offer.host, offer.tid) end
         end)
-        row.join:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -190 - (r - 1) * 28)
+        row.join:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -202 - (r - 1) * 28)
         rows[r] = row
     end
 
     ui.partyMsg = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.partyMsg:SetPoint("TOP", o, "TOP", 0, -284)
+    ui.partyMsg:SetPoint("TOP", o, "TOP", 0, -296)
     ui.partyMsg:SetWidth(AREA_W - 24)
 
     local close = MakeButton(o, "Close", 90, function() o:Hide() end)
@@ -2853,14 +2834,7 @@ local function BuildParty(panel)
         end
         ns.SetEnabled(host, inGroup and not problem and not T.seats[1])
 
-        local list = {}
-        for name, offer in pairs(T.offers) do
-            if GetTime() - offer.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-                table.insert(list, { host = name, tid = offer.tid, players = offer.players, open = offer.open,
-                    sb = offer.sb, bb = offer.bb, buyin = offer.buyin, ver = offer.ver })
-            end
-        end
-        table.sort(list, function(a, b) return a.host < b.host end)
+        local list = Net:OpenOffers(T.offers)
         for r = 1, 3 do
             local offer = list[r]
             rows[r].offer = offer
@@ -3005,10 +2979,8 @@ ns.Lobby:Register(V.id, {
     noun = "table",
     offers = function()
         local out = {}
-        for name, o in pairs(T.offers) do
-            if GetTime() - o.heard < OFFER_TIMEOUT and (o.open or 0) > 0 and not Net:VersionProblem(o.ver) then
-                table.insert(out, { host = name, key = o.tid })
-            end
+        for _, o in ipairs(Net:OpenOffers(T.offers, function(o) return (o.open or 0) > 0 and not Net:VersionProblem(o.ver) end)) do
+            table.insert(out, { host = o.host, key = o.tid })
         end
         return out
     end,

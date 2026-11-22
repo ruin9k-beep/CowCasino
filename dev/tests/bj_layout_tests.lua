@@ -43,7 +43,7 @@ ns:OpenGame("blackjack")
 local bj = ns.db.blackjack
 Check("old saves get a net stat of 0", bj.stats.net == 0, bj.stats.net)
 local stats
-for _, o in ipairs(env.all) do if o.kind == "FontString" and o.text and string.find(o.text, "^Rounds") then stats = o end end
+for _, o in ipairs(env.all) do if o.kind == "FontString" and o.text and string.find(o.text, "^Rounds") and o ~= ns.games.blackjack.intro.stats then stats = o end end
 Check("stats line shows Net", stats and string.find(stats.text, "Net |cffcccccc0", 1, true) ~= nil, stats and stats.text)
 
 bj.bet = 25

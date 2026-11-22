@@ -12,9 +12,97 @@ local ns = CowCasino.ns
 local UI = {}
 ns.UI = UI
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 -- A standard panel button. onClick gets (button, mouse button).
+-- A text box, the same everywhere: a dark box with a thin gold edge, small
+-- text, Escape to let go of it. opts (all optional):
+--   width, height (22), maxLetters (40), insets (6)
+--   hint      grey text shown while the box is empty and not being typed in
+--   bg, edge  colors { r, g, b, a } for the box and its edge
+--   onEnter(box), onChange(box), onFocus(box, focused)
+-- Returns the box (box.hint is the hint, if there's one).
+function UI.EditBox(parent, opts)
+    opts = opts or {}
+    local box = ns.CreateFrame("EditBox", nil, parent)
+    if opts.width then box:SetWidth(opts.width) end
+    box:SetHeight(opts.height or 22)
+    box:SetFontObject(GameFontHighlightSmall)
+    local inset = opts.insets or 6
+    box:SetTextInsets(inset, inset, 0, 0)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(opts.maxLetters or 40)
+    box:SetBackdrop({
+        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    local bg, edge = opts.bg or { 0, 0, 0, 0.8 }, opts.edge or { 0.6, 0.5, 0.3, 1 }
+    box:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 1)
+    box:SetBackdropBorderColor(edge[1], edge[2], edge[3], edge[4] or 1)
+    local hint
+    if opts.hint then
+        hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        hint:SetPoint("LEFT", box, "LEFT", inset + 1, 0)
+        hint:SetText(opts.hint)
+        box.hint = hint
+    end
+    local function UpdateHint()
+        if hint then ns.SetShown(hint, (box:GetText() or "") == "" and not box.focused) end
+    end
+    box.UpdateHint = UpdateHint
+    box:SetScript("OnEditFocusGained", function()
+        box.focused = true
+        UpdateHint()
+        if opts.onFocus then opts.onFocus(box, true) end
+    end)
+    box:SetScript("OnEditFocusLost", function()
+        box.focused = nil
+        UpdateHint()
+        if opts.onFocus then opts.onFocus(box, false) end
+    end)
+    box:SetScript("OnTextChanged", function()
+        UpdateHint()
+        if opts.onChange then opts.onChange(box) end
+    end)
+    box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+    if opts.onEnter then box:SetScript("OnEnterPressed", function() opts.onEnter(box) end) end
+    return box
+end
+
+-- A checkbox with a label: get() says whether it's ticked, set(on) saves it.
+-- Returns the checkbox (cb:Refresh() ticks it from get()).
+function UI.CheckBox(parent, label, get, set)
+    local cb = ns.CreateFrame("CheckButton", ns:NewName(), parent, "UICheckButtonTemplate")
+    cb:SetWidth(24); cb:SetHeight(24)
+    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+    text:SetText(label)
+    cb.label = text
+    cb:SetScript("OnClick", function()
+        set(this:GetChecked() and true or false)
+        ns:Sound("IG_MAINMENU_OPTION")
+    end)
+    function cb:Refresh() self:SetChecked(get() and true or nil) end
+    return cb
+end
+
+-- A game's status line: the text, in gold unless a color is given; and the
+-- same on the game's intro screen (Intro.lua), so it's waiting there when
+-- the player steps back to it.
+function UI.SetStatus(fs, text, r, g, b, game)
+    if fs then
+        fs:SetText(text or "")
+        fs:SetTextColor(r or 1, g or 0.82, b or 0)
+    end
+    local intro = game and game.intro
+    if intro then
+        intro:SetStatus(text)
+        intro.status:SetTextColor(r or 1, g or 0.82, b or 0)
+    end
+end
+
 function UI.Button(parent, text, width, onClick, height)
     local b = ns.CreateFrame("Button", ns:NewName(), parent, "UIPanelButtonTemplate")
     b:SetWidth(width); b:SetHeight(height or 22)

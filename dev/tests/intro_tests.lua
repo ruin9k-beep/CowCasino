@@ -23,6 +23,7 @@ Check("every game opens on its intro", table.getn(missing) == 0, table.concat(mi
 ns:OpenGame("mines")
 local G = ns.games.mines
 local intro = G.intro
+Check("...with its stats at the foot", (intro.stats.text or "") ~= "", intro.stats.text)
 Check("Mines gets the simple intro: its description and Play", intro:IsShown()
   and intro.blurb.text == G.description and intro.soloGo.text == "Play" and back.text == "< Games")
 env.Fire(intro.soloGo, "OnClick", "LeftButton")
@@ -53,5 +54,33 @@ local P = ns.games.holdem
 Check("Hold'em away from a table: the intro, and it stays", P.intro:IsShown() and ns:IntroState(P) == "intro")
 Back()
 Check("...so back goes straight to the games", ns.currentGame == nil)
+
+-- Blackjack and Craps can skip it (Options > Settings)
+for _, id in ipairs({ "blackjack", "craps" }) do
+  ns:OpenGame(id)
+  local g = ns.games[id]
+  g.options:Show()
+  local function Under(o, root) while o do if o == root then return true end o = o.parent end return false end
+  local cbox
+  for _, o in ipairs(env.all) do
+    if o.kind == "FontString" and Under(o, g.options) and o.text == "Go straight to the table (skip the intro)" then
+      local r = o.points and o.points[1] and o.points[1][2]
+      if r and r.kind == "CheckButton" then cbox = r end
+    end
+  end
+  Check(g.name .. ": Options has Go straight to the table", cbox ~= nil)
+  cbox:SetChecked(1); env.Fire(cbox, "OnClick", "LeftButton")
+  g.options:Hide()
+  ns:ShowMenu()
+  ns:OpenGame(id)
+  Check(g.name .. ": ...ticked, opening it goes straight to the table", not g.intro:IsShown() and back.text == "< Setup")
+  Back()
+  Check(g.name .. ": ...and < Setup still goes to the intro", g.intro:IsShown())
+  cbox:SetChecked(nil); env.Fire(cbox, "OnClick", "LeftButton")
+  ns:ShowMenu()
+  ns:OpenGame(id)
+  Check(g.name .. ": ...unticked, it's the intro again", g.intro:IsShown())
+  ns:ShowMenu()
+end
 
 H.Done("INTRO")

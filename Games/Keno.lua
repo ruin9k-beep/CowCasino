@@ -51,7 +51,7 @@ local S = {
     t = 0,
 }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
@@ -98,10 +98,7 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Keno) end
 
 local function StatsText()
     local s = db.stats
@@ -553,5 +550,8 @@ end
 -- Exposed for tests.
 Keno.PAYS, Keno.Payout, Keno.DrawNumbers, Keno.S, Keno.ui, Keno.recent = PAYS, Payout, DrawNumbers, S, ui, recent
 function Keno.SetDraw(fn) DrawNumbers = fn end
+
+-- The stats line on the game's intro (Intro.lua).
+function Keno:IntroStats() return StatsText() end
 
 ns:RegisterGame(Keno)

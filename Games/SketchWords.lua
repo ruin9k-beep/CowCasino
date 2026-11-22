@@ -228,35 +228,15 @@ function W.NewPicker(parent, spec)
         Changed()
     end)
     local y = -math.floor(n / 2 + 1) * 22
-    local box = ns.CreateFrame("EditBox", nil, f)
-    box:SetWidth(246); box:SetHeight(22)
+    local box = ns.UI.EditBox(f, { width = 246, maxLetters = 2000, hint = "Your words, separated by commas",
+        onEnter = function(b) b:ClearFocus() end,
+        onChange = function(b)
+            if f.filling then return end
+            spec.setText(b:GetText() or "")
+            f:Refresh(true)
+        end })
     box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, y - 2)
-    box:SetFontObject(GameFontHighlightSmall)
-    box:SetTextInsets(6, 6, 0, 0)
-    box:SetAutoFocus(false)
-    box:SetMaxLetters(2000)
-    box:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    box:SetBackdropColor(0, 0, 0, 0.8)
-    box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
-    local hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    hint:SetPoint("LEFT", box, "LEFT", 7, 0)
-    hint:SetText("Your words, separated by commas")
-    local focused = false
-    box:SetScript("OnEditFocusGained", function() focused = true hint:Hide() end)
-    box:SetScript("OnEditFocusLost", function() focused = false ns.SetShown(hint, (box:GetText() or "") == "") end)
-    box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    box:SetScript("OnEnterPressed", function() this:ClearFocus() end)
-    box:SetScript("OnTextChanged", function()
-        if f.filling then return end
-        spec.setText(box:GetText() or "")
-        ns.SetShown(hint, (box:GetText() or "") == "" and not focused)
-        f:Refresh(true)
-    end)
+    local hint = box.hint
     f.box, f.hint = box, hint
     f.count = Label(4, y - 26, "", "GameFontDisableSmall")
     f.height = -(y - 40)
@@ -264,7 +244,7 @@ function W.NewPicker(parent, spec)
     f.filling = true
     box:SetText(spec.text() or "")
     f.filling = nil
-    ns.SetShown(hint, (spec.text() or "") == "")
+    box.UpdateHint()
 
     function f:Refresh(editable)
         local s = spec.get()

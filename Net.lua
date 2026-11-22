@@ -56,7 +56,7 @@ end
 -- whenever a party game changes in a way older copies can't follow.
 --   1: before 0.13.1 (offers carry no number)
 --   2: 0.13.1: free seats with the host's stack; Hold'em sends base-36 amounts
-Net.PARTY_VERSION = 2
+Net.PARTY_VERSION = 3
 
 -- Nothing if a table from a copy at version v can be played, or why not.
 function Net:VersionProblem(v)
@@ -180,6 +180,25 @@ pump:SetScript("OnUpdate", function()
     gathered = 0
     this:Hide()
 end)
+
+-- The tables and challenges open in the group: offers is { [host] = offer },
+-- each offer with .heard (GetTime() when last heard). Those heard within
+-- OFFER_TIMEOUT from members of the group (and that keep(offer) likes, if
+-- given) come back as copies with .host set, sorted by host.
+Net.OFFER_TIMEOUT = 60
+function Net:OpenOffers(offers, keep)
+    local out, now = {}, GetTime()
+    for name, o in pairs(offers or {}) do
+        if now - (o.heard or 0) < self.OFFER_TIMEOUT and self:IsMember(name) and (not keep or keep(o)) then
+            local c = {}
+            for k, v in pairs(o) do c[k] = v end
+            c.host = name
+            table.insert(out, c)
+        end
+    end
+    table.sort(out, function(a, b) return a.host < b.host end)
+    return out
+end
 
 -- Typed text, safe to put in a message field (see the top of this file).
 function Net.Clean(text, maxLen)

@@ -32,7 +32,7 @@ local db
 local ui = {}
 local last          -- how the last game ended, for the screen: { bust = true } or { cashed = chips }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
@@ -68,10 +68,7 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, HiLo) end
 
 -- The last few games along a line, newest on the left: what each one won or
 -- lost after its bet.
@@ -413,5 +410,8 @@ end
 -- Exposed for tests.
 HiLo.Choices, HiLo.StepMult, HiLo.Pay, HiLo.ui, HiLo.recent = Choices, StepMult, Pay, ui, recent
 function HiLo.SetDraw(fn) Draw = fn end
+
+-- The stats line on the game's intro (Intro.lua).
+function HiLo:IntroStats() return StatsText() end
 
 ns:RegisterGame(HiLo)

@@ -37,7 +37,7 @@ local ui = {}
 local run
 local history = {}    -- recent crash points, newest first
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
@@ -61,10 +61,7 @@ local function SecondsFor(mult) return math.log(mult) / GROWTH end
 -- Whole chips: half a chip or more rounds up.
 local function Pay(bet, mult) return math.floor(bet * mult + 0.5) end
 
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Crash) end
 
 local function StatsText()
     local s = db.stats
@@ -411,5 +408,8 @@ end
 function Crash.Run() return run end
 Crash.ui, Crash.history = ui, history
 Crash.MultAt, Crash.SecondsFor = MultAt, SecondsFor
+
+-- The stats line on the game's intro (Intro.lua).
+function Crash:IntroStats() return StatsText() end
 
 ns:RegisterGame(Crash)

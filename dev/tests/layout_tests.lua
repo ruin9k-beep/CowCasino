@@ -94,6 +94,73 @@ H.Tick(0.3)
 Screen("Deathroll mid-duel", ns.games.deathroll.panel, { ns.games.deathroll.intro.frame })
 ns:ShowMenu()
 
+-- party lobby pages
+local function Under(o, root) while o do if o == root then return true end o = o.parent end return false end
+local function ShownIn(o, root)
+  while o do
+    if not o.shown then return false end
+    if o == root then return true end
+    o = o.parent
+  end
+  return false
+end
+local function PressIn(root, prefix)
+  for _, o in ipairs(env.all) do
+    if o.kind == "Button" and type(o.text) == "string" and string.sub(o.text, 1, string.len(prefix)) == prefix
+      and ShownIn(o, root) and o.enabled then
+      env.Fire(o, "OnClick", "LeftButton")
+      return true
+    end
+  end
+  return false
+end
+for _, id in ipairs({ "blackjack", "craps" }) do
+  ns:OpenGame(id)
+  local g = ns.games[id]
+  g:ShowParty()
+  -- (the party screen covers the table with its own felt: just what's on it)
+  local party = id == "blackjack" and ns.PartyBlackjack or ns.PartyCraps
+  Screen(g.name .. "'s party lobby", party.panel)
+  PressIn(g.panel, "< Back")
+  ns:ShowMenu()
+end
+for _, id in ipairs({ "holdem", "draw" }) do
+  ns:OpenGame(id)
+  local g = ns.games[id]
+  env.Fire(g.intro.hostGo, "OnClick", "LeftButton")
+  Screen(g.name .. "'s party page", g.panel, { g.intro.frame, g.options })
+  PressIn(g.panel, "Close")
+  ns:ShowMenu()
+end
+
+-- card tables in the middle of a hand
+ns.db.chips = 50000
+local function Hand(id, steps)
+  ns:OpenGame(id)
+  local g = ns.games[id]
+  if g.intro:IsShown() and g.intro.soloGo and g.intro.soloGo.shown then env.Fire(g.intro.soloGo, "OnClick", "LeftButton") end
+  for _, step in ipairs(steps) do
+    if type(step) == "number" then H.Tick(step) else PressIn(g.panel, step) end
+  end
+  Check(g.name .. ": a hand is really on (for the next check)", ns:IntroState(g) == "busy" and not g.intro:IsShown())
+  Screen(g.name .. " mid-hand", g.panel, { g.intro.frame, g.options })
+  ns:ShowMenu()
+end
+Hand("blackjack", { "Deal", 0.5 })
+Hand("videopoker", { "Deal", 0.5 })
+Hand("threecard", { "Deal", 0.5 })
+Hand("hilo", { "25", "Bet", 0.5 })
+-- the poker tables: buy in at a table against the computer and let a hand get going
+for _, id in ipairs({ "holdem", "draw" }) do
+  ns:OpenGame(id)
+  local g = ns.games[id]
+  PressIn(g.intro.soloRow, "")     -- the first buy-in
+  H.Tick(3)
+  Check(g.name .. ": seated at a table (for the next check)", ns:IntroState(g) == "busy")
+  Screen(g.name .. " at a table", g.panel, { g.intro.frame, g.options })
+  ns:ShowMenu()
+end
+
 -- the invite page and the pop-up
 ns:OpenGame("chess")
 ns.Lobby:ToggleInvitePage()

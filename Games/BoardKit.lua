@@ -51,7 +51,6 @@ local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
 local THINK_PAUSE  = 0.6     -- seconds before the computer starts thinking
 local THINK_STEPS  = 3       -- search slices per frame
 local OFFER_EVERY  = 20
-local OFFER_TIMEOUT = 60
 local PING_EVERY   = 30      -- a party game says "still here" this often
 local QUIET_LIMIT  = 90      -- nothing heard this long: the game can be called off
 local RESIGN_DELAY = 3       -- Resign asks again; the second click only counts after this (the default; Settings)
@@ -64,7 +63,7 @@ local DEFAULT_STATS = { games = 0, wins = 0, losses = 0, draws = 0, partyGames =
 
 local Fill = ns.UI.Fill
 local MakeButton = ns.UI.Button
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 local function NewId() return tostring(math.random(100000, 999999)) end
 
 ---------------------------------------------------------------------------
@@ -150,12 +149,7 @@ end
 function Kit:SetStatus(text, r, g, b)
     self.S.statusText = text
     if not self.ui.status then return end
-    self.ui.status:SetText(text or "")
-    self.ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-    if self.ui.intro then
-        self.ui.intro:SetStatus(text)
-        self.ui.intro.status:SetTextColor(r or 1, g or 0.82, b or 0)
-    end
+    ns.UI.SetStatus(self.ui.status, text, r, g, b, self)
 end
 
 function Kit:SideName(side)
@@ -428,16 +422,7 @@ end
 ---------------------------------------------------------------------------
 -- Party games
 ---------------------------------------------------------------------------
-function Kit:OpenOffers()
-    local list = {}
-    for name, o in pairs(self.S.offers) do
-        if GetTime() - o.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-            table.insert(list, { host = name, id = o.id, side = o.side, ver = o.ver })
-        end
-    end
-    table.sort(list, function(a, b) return a.host < b.host end)
-    return list
-end
+function Kit:OpenOffers() return Net:OpenOffers(self.S.offers) end
 
 function Kit:SendOffer()
     local p = self.S.posted

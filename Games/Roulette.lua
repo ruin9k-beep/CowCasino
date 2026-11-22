@@ -70,12 +70,9 @@ local S = {
     pos = 0,          -- wheel strip position, in pockets
 }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Game) end
 
 ---------------------------------------------------------------------------
 -- Bets
@@ -820,5 +817,8 @@ function Game:ResetStats()
     d.stats = { counts = {} }
     for k, v in pairs(DEFAULT_STATS) do d.stats[k] = v end
 end
+
+-- The stats line on the game's intro (Intro.lua).
+function Game:IntroStats() return StatsText() end
 
 ns:RegisterGame(Game)

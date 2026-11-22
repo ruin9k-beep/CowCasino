@@ -40,7 +40,7 @@ local db
 local ui = {}
 local last          -- the last hand, for the screen: { cards, dealer, result text }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
@@ -143,10 +143,7 @@ local function NewDeck() return ns:NewShoe(1) end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, TCP) end
 
 local function StatsText()
     local s = db.stats
@@ -439,5 +436,8 @@ end
 TCP.Evaluate, TCP.Qualifies, TCP.Compare, TCP.Settle, TCP.HandName, TCP.ui = Evaluate, Qualifies, Compare, Settle, HandName, ui
 TCP.CAT = { HIGH = HIGH, PAIR = PAIR, FLUSH = FLUSH, STRAIGHT = STRAIGHT, TRIPS = TRIPS, SFLUSH = SFLUSH }
 function TCP.SetDeck(fn) NewDeck = fn end
+
+-- The stats line on the game's intro (Intro.lua).
+function TCP:IntroStats() return StatsText() end
 
 ns:RegisterGame(TCP)

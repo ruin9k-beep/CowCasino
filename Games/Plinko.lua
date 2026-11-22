@@ -61,7 +61,7 @@ local ui = {}
 local balls = {}      -- in the air: { bet, rows, risk, path = {0/1...}, slot, t, tex }
 local last = {}       -- recent results, newest first: { mult = }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
@@ -97,10 +97,7 @@ local function BallPos(rows, row, rights)
     return (rights - row / 2) * dx, BOARD_TOP - 8 - row * dy
 end
 
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Plinko) end
 
 local function StatsText()
     local s = db.stats
@@ -580,5 +577,8 @@ end
 
 -- Exposed for tests.
 Plinko.PAYOUTS, Plinko.balls, Plinko.ui, Plinko.last = PAYOUTS, balls, ui, last
+
+-- The stats line on the game's intro (Intro.lua).
+function Plinko:IntroStats() return StatsText() end
 
 ns:RegisterGame(Plinko)

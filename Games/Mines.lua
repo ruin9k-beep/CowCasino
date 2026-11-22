@@ -94,7 +94,7 @@ local function Round2(n)
     return math.floor(n * 100 + 0.5) / 100
 end
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local function FmtMult(m)
     return string.format("x%.2f", m)
@@ -120,10 +120,7 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text)
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Mines) end
 
 local function StatsText()
     local s = db.stats
@@ -554,5 +551,8 @@ function Mines:ResetStats()
     d.stats = {}
     Fill(d.stats, DEFAULT_STATS)
 end
+
+-- The stats line on the game's intro (Intro.lua).
+function Mines:IntroStats() return StatsText() end
 
 ns:RegisterGame(Mines)

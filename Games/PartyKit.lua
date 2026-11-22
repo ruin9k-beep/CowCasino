@@ -18,7 +18,6 @@
 local ns = CowCasino.ns
 local Net = ns.Net
 
-local OFFER_TIMEOUT = 60      -- an offer not heard again for this long is dropped from the list
 local ROWS = 3                -- tables listed in the lobby
 
 function ns.PartyKit(K)
@@ -26,7 +25,7 @@ function ns.PartyKit(K)
     local TAG, NUM_SEATS = K.tag, K.seats
     local P = {}
 
-    local function Fmt(n) return ns:FormatChips(n) end
+    local Fmt = ns.Fmt
     local function Msg(parts) return TAG .. ";" .. table.concat(parts, ";") end
     P.Msg = Msg
 
@@ -188,11 +187,9 @@ function ns.PartyKit(K)
             noun = "table",
             offers = function()
                 local out = {}
-                for name, o in pairs(T.offers) do
-                    if GetTime() - o.heard < OFFER_TIMEOUT and (o.open or 0) > 0 and not Net:VersionProblem(o.ver) then
-                        table.insert(out, { host = name, key = o.tid,
-                            text = string.format("%s: %d seated, %d open", name, o.players or 0, o.open or 0) })
-                    end
+                for _, o in ipairs(Net:OpenOffers(T.offers, function(o) return (o.open or 0) > 0 and not Net:VersionProblem(o.ver) end)) do
+                    table.insert(out, { host = o.host, key = o.tid,
+                        text = string.format("%s: %d seated, %d open", o.host, o.players or 0, o.open or 0) })
                 end
                 return out
             end,
@@ -337,14 +334,7 @@ function ns.PartyKit(K)
         ui.buyIn:Refresh()
         ns.SetEnabled(ui.host, inGroup)
 
-        local list = {}
-        for name, offer in pairs(T.offers) do
-            if GetTime() - offer.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-                table.insert(list, { host = name, tid = offer.tid, players = offer.players, open = offer.open,
-                    buyin = offer.buyin, ver = offer.ver })
-            end
-        end
-        table.sort(list, function(a, b) return a.host < b.host end)
+        local list = Net:OpenOffers(T.offers)
         for r = 1, ROWS do
             local row, offer = ui.rows[r], list[r]
             row.offer = offer

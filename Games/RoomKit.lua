@@ -32,7 +32,7 @@
 local ns = CowCasino.ns
 local Net = ns.Net
 
-local RK = { HEARTBEAT = 8, HOST_TIMEOUT = 35, OFFER_TIMEOUT = 60 }
+local RK = { HEARTBEAT = 8, HOST_TIMEOUT = 35 }   -- (offers time out in Net:OpenOffers)
 ns.RoomKit = RK
 
 local Room = {}
@@ -156,6 +156,7 @@ function Room:Broadcast()
     self.nextBeat = GetTime() + RK.HEARTBEAT
     self:SendRoster()
     self:SendState()
+    Call(self.spec.onBroadcast)
 end
 
 function Room:Host()
@@ -232,10 +233,8 @@ function Room:RegisterLobby(id, enter)
         noun = "game",
         offers = function()
             local out = {}
-            for name, o in pairs(room.offers) do
-                if GetTime() - o.heard < RK.OFFER_TIMEOUT and o.players < room.max and not Net:VersionProblem(o.ver) then
-                    table.insert(out, { host = name, key = o.tid })
-                end
+            for _, o in ipairs(Net:OpenOffers(room.offers, function(o) return o.players < room.max and not Net:VersionProblem(o.ver) end)) do
+                table.insert(out, { host = o.host, key = o.tid })
             end
             return out
         end,
@@ -424,13 +423,7 @@ function Room:RefreshLobby()
     if not intro then return end
     local inGroup = Net:InGroup()
     ns.SetEnabled(intro.hostGo, inGroup)
-    local r, list = self, {}
-    for name, o in pairs(self.offers) do
-        if GetTime() - o.heard < RK.OFFER_TIMEOUT and Net:IsMember(name) then
-            table.insert(list, { host = name, tid = o.tid, players = o.players, phase = o.phase, ver = o.ver })
-        end
-    end
-    table.sort(list, function(a, b) return a.host < b.host end)
+    local r, list = self, Net:OpenOffers(self.offers)
     local rows = {}
     for _, o in ipairs(list) do
         local offer = o

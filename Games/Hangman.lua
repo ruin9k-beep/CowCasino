@@ -716,25 +716,10 @@ local function BuildPlay(t)
         b:SetPoint("TOPLEFT", p, "TOPLEFT", 4 + col * 28.5, -216 - row * 26)
         ui.letters[i] = b
     end
-    local box = ns.CreateFrame("EditBox", nil, p)
-    box:SetWidth(270); box:SetHeight(22)
+    local box = ns.UI.EditBox(p, { width = 270,
+        onFocus = function(_, on) ui.solveFocus = on or nil end,
+        onEnter = function() SolveNow() end })
     box:SetPoint("TOPLEFT", p, "TOPLEFT", 6, -272)
-    box:SetFontObject(GameFontHighlightSmall)
-    box:SetTextInsets(6, 6, 0, 0)
-    box:SetAutoFocus(false)
-    box:SetMaxLetters(40)
-    box:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    box:SetBackdropColor(0, 0, 0, 0.8)
-    box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
-    box:SetScript("OnEditFocusGained", function() ui.solveFocus = true end)
-    box:SetScript("OnEditFocusLost", function() ui.solveFocus = nil end)
-    box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    box:SetScript("OnEnterPressed", function() SolveNow() end)
     ui.solveBox = box
     ui.solve = ns.UI.Button(p, "Solve", 90, function() SolveNow() end, 22)
     ui.solve:SetPoint("LEFT", box, "RIGHT", 6, 0)

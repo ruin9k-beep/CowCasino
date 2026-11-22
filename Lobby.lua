@@ -325,23 +325,8 @@ function Lobby:BuildWindow(frame)
     local label = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     label:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -42)
     label:SetText("Name")
-    local box = ns.CreateFrame("EditBox", nil, o)
-    box:SetWidth(150); box:SetHeight(22)
+    local box = ns.UI.EditBox(o, { width = 150, onEnter = function() Lobby:InviteTyped() end })
     box:SetPoint("LEFT", label, "RIGHT", 8, 0)
-    box:SetFontObject(GameFontHighlightSmall)
-    box:SetTextInsets(6, 6, 0, 0)
-    box:SetAutoFocus(false)
-    box:SetMaxLetters(40)
-    box:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    box:SetBackdropColor(0, 0, 0, 0.8)
-    box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
-    box:SetScript("OnEnterPressed", function() Lobby:InviteTyped() end)
-    box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
     o.box = box
     local MakeButton = ns.UI.Button
     local send = MakeButton(o, "Invite", 64, function() Lobby:InviteTyped() end)

@@ -68,7 +68,7 @@ local function Paint(key)
     return PALETTE[1]
 end
 local CELL = { left = 16, right = 17, top = 18, bottom = 19, across = 20, down = 21, miss = 22, hit = 23 }
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local function Cell(t, cell)
     local u, v = ns.Mod(cell, 4) / 4, math.floor(cell / 4) / 8

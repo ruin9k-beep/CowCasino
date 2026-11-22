@@ -27,7 +27,6 @@ local FACE         = 0.6     -- how far each turns toward the other (radians)
 local DEALER_PAUSE = 1.1     -- seconds before the dealer rolls back
 local ROLL_WAIT    = 3       -- seconds to wait for a /roll to show before rolling here
 local OFFER_EVERY  = 20      -- an open challenge is sent again this often
-local OFFER_TIMEOUT = 60
 local QUIET_LIMIT  = 60      -- after this long without the other player's roll, a duel can be called off
 local GAME_TAG     = "DT"
 
@@ -50,7 +49,7 @@ local S = {
     accepting = nil,    -- a challenge we asked to take: { host, id }
 }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 local function Msg(parts) return GAME_TAG .. ";" .. table.concat(parts, ";") end
 
 local Fill = ns.UI.Fill
@@ -94,14 +93,7 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-    if ui.intro then
-        ui.intro:SetStatus(text)
-        ui.intro.status:SetTextColor(r or 1, g or 0.82, b or 0)
-    end
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Deathroll) end
 
 local function StatsText()
     local s = db.stats
@@ -116,16 +108,7 @@ local function OppName(d)
     return d.opp or "?"
 end
 
-local function OpenOffers()
-    local list = {}
-    for name, o in pairs(S.offers) do
-        if GetTime() - o.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-            table.insert(list, { host = name, id = o.id, stake = o.stake, start = o.start, ver = o.ver })
-        end
-    end
-    table.sort(list, function(a, b) return a.host < b.host end)
-    return list
-end
+local function OpenOffers() return Net:OpenOffers(S.offers) end
 
 -- what's riding on a duel: chips against the dealer, bragging rights in a party
 local function StakeText(d)

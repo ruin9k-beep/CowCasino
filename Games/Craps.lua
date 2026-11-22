@@ -333,14 +333,11 @@ local db
 local ui = {}
 local S = { rolling = false, results = {} }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Craps) end
 
 local function StatsText()
     local s = db.stats
@@ -551,8 +548,13 @@ local function BuildOptions(panel)
 
 
 
+    local skip = ns.UI.CheckBox(s, "Go straight to the table (skip the intro)",
+        function() return db.skipIntro end, function(on) db.skipIntro = on or nil end)
+    skip:SetPoint("TOPLEFT", o, "TOPLEFT", 12, -82)
+
     function o:RefreshExtras()
         value:SetText(db.oddsMax .. "x")
+        skip:Refresh()
     end
     return o
 end
@@ -735,5 +737,11 @@ end
 
 -- Exposed for tests.
 Craps.S, Craps.ui = S, ui
+
+-- Go straight to the table when the game's opened (Options > Settings).
+function Craps:SkipIntro() return db and db.skipIntro end
+
+-- The stats line on the game's intro (Intro.lua).
+function Craps:IntroStats() return StatsText() end
 
 ns:RegisterGame(Craps)

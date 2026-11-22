@@ -40,7 +40,7 @@ local db
 local ui = {}
 local last          -- the last hand drawn, for the screen: { cards, row (PAYS index or nil), paid }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
@@ -105,10 +105,7 @@ local deck
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, VideoPoker) end
 
 local function StatsText()
     local s = db.stats
@@ -431,5 +428,8 @@ end
 -- Exposed for tests.
 VideoPoker.Classify, VideoPoker.Payout, VideoPoker.PAYS, VideoPoker.ui = Classify, Payout, PAYS, ui
 function VideoPoker.SetDeck(fn) NewDeck = fn end
+
+-- The stats line on the game's intro (Intro.lua).
+function VideoPoker:IntroStats() return StatsText() end
 
 ns:RegisterGame(VideoPoker)

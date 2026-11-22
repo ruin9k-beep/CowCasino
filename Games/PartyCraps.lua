@@ -21,7 +21,6 @@ local BET_TIME      = 25     -- seconds of betting before the dice roll themselv
 local RESULT_TIME   = 3      -- seconds the result stays up before betting opens again
 local HEARTBEAT     = 15     -- the host re-sends the table this often
 local HOST_TIMEOUT  = 40
-local OFFER_TIMEOUT = 60
 local GAME_TAG      = "CR"
 
 local AREA_W        = 352
@@ -57,7 +56,7 @@ local T = {
     round = 0,          -- bumps when the table changes, so stale timers stop
 }
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 -- The party table pieces shared with the other party games (PartyKit.lua).
 local H = {}      -- this game's own pieces the kit calls (filled in at the end)
@@ -593,10 +592,7 @@ end)
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text or "")
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, nil) end
 
 local function NetText(n)
     if n == nil then return "" end

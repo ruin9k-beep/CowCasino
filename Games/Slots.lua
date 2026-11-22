@@ -194,7 +194,7 @@ local function Sound(key) ns:Sound(key) end
 
 local Fill = ns.UI.Fill
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local function LineBet() return LINE_BETS[db.betIndex] end
 local function TotalBet() return LineBet() * ns.getn(LINES) end
@@ -276,10 +276,7 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text)
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Slots) end
 
 -- What the status line says between spins.
 local function StatsText()
@@ -1220,5 +1217,8 @@ function Slots:ChipsInPlay()
     local d = ns.db.slots
     return S.spinning or (d ~= nil and (d.pending ~= nil or d.free ~= nil))
 end
+
+-- The stats line on the game's intro (Intro.lua).
+function Slots:IntroStats() return StatsText() end
 
 ns:RegisterGame(Slots)

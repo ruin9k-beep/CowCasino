@@ -19,6 +19,8 @@
 --            goes to the field, and the window's back button (< Setup) comes
 --            back to the intro
 --   "intro"  nothing to show on the field (no table to sit at): the intro stays
+-- A game can also offer to skip its intro: game:SkipIntro() true opens it
+-- straight onto the field when it's idle (the back button still goes there).
 -- The back button steps back a screen: the field, then the intro, then the
 -- game list.
 --
@@ -265,7 +267,10 @@ function ns:OpenIntro(game)
     if not game.intro and game.panel and not game.noIntro then self:DefaultIntro(game) end
     if not game.intro then return end
     if game.IntroStats and game.intro.stats then game.intro:SetStats(game:IntroStats()) end
-    if self:IntroState(game) ~= "busy" then game.introUp = true end
+    local state = self:IntroState(game)
+    if state ~= "busy" then game.introUp = true end
+    -- (a player who'd rather go straight to the field: game:SkipIntro())
+    if state == "idle" and game.SkipIntro and game:SkipIntro() then game.introUp = false end
     self:UpdateIntro(game)
 end
 

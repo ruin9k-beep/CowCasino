@@ -32,9 +32,6 @@ local MAX_PLAYERS  = 10
 local TIMES        = { 30, 45, 60, 80, 100, 120, 150, 180 }
 local EACH         = { 1, 2, 3, 4 }
 local REVEAL_TIME  = 5       -- seconds the word stays up after a turn
-local HEARTBEAT    = 8       -- the host sends the game again this often
-local HOST_TIMEOUT = 35
-local OFFER_TIMEOUT = 60
 local LOG_LINES    = 10
 local ROWS         = 4       -- games listed in the lobby
 local GUESS_POINTS, ART_POINTS = 2, 1
@@ -54,32 +51,36 @@ local Game = {
 local db
 local ui = {}
 local S = {
+    -- the room (players, host, joining, offers) is RoomKit's (room, below);
+    -- S.mode, S.players and S.host mirror it for the display (Sync)
     mode = "lobby",     -- lobby | host | client | practice
-    players = {},       -- { name, score, drew }, in the order they joined
+    practice = nil,     -- doodling alone (no room)
+    players = {},
     phase = "w",        -- w waiting to start, d drawing, r the word revealed, o game over
     turn = 0,
-    offers = {},
     log = {},
     set = {},           -- the game's settings (the host's, or as the host sent them)
 }
-local HS = {}           -- the host's own: word, used, revealed, hints, nextBeat, revealUntil
+local HS = {}           -- the host's own: word, used, revealed, hints, revealUntil
 
-local function Msg(parts) return TAG .. ";" .. table.concat(parts, ";") end
-local function Send(parts, key) Net:Send(Msg(parts), key) end
+local room              -- the party room (Games\RoomKit.lua), made below once its hooks are
 local function Me() return Net:Me() end
-local function Ctx() return (S.tid or "") .. "." .. S.turn end
+local function Ctx() return (room and room.tid or "") .. "." .. S.turn end
 local function Fill(t, d) ns.UI.Fill(t, d) end
 
 local Refresh   -- (below)
 
+-- S's copies of the room, for the display.
+local function Sync()
+    S.mode = S.practice and "practice" or room.mode
+    S.players, S.host = room.players, room.host
+end
+
 ---------------------------------------------------------------------------
 -- Players and settings
 ---------------------------------------------------------------------------
-local function Player(name)
-    for i, p in ipairs(S.players) do if p.name == name then return p, i end end
-end
-
-local function HostName() return S.mode == "host" and Me() or S.host end
+local function Player(name) return room:Player(name) end
+local function HostName() return room:HostName() end
 
 local function NeedPlayers() return S.set.custom and 3 or 2 end
 
@@ -88,23 +89,6 @@ local function CanGuess(name)
     if S.phase ~= "d" or name == S.drawer or not Player(name) then return false end
     if S.set.custom and name == HostName() then return false end
     return true
-end
-
-local function RosterText()
-    local t = {}
-    for _, p in ipairs(S.players) do table.insert(t, p.name .. ":" .. p.score .. ":" .. p.drew) end
-    return table.concat(t, ",")
-end
-
-local function ParseRoster(text)
-    local out = {}
-    for _, part in ipairs(Net.Split(text or "", ",")) do
-        local bits = Net.Split(part, ":")
-        if bits[1] and bits[1] ~= "" then
-            table.insert(out, { name = bits[1], score = tonumber(bits[2] or "") or 0, drew = tonumber(bits[3] or "") or 0 })
-        end
-    end
-    return out
 end
 
 local function PackNames(packs)
@@ -132,12 +116,12 @@ end
 ---------------------------------------------------------------------------
 -- The drawing (one canvas and its sync, made in Build)
 ---------------------------------------------------------------------------
-local function IDraw() return (S.mode == "practice") or (S.phase == "d" and S.drawer == Me() and S.mode ~= "lobby") end
+local function IDraw() return S.practice or (S.phase == "d" and S.drawer == Me() and room:InRoom()) end
 
 local function NewTurn(turn, drawer)
     S.turn, S.drawer = turn, drawer
     S.log, S.winner, S.myGuess = {}, nil, nil
-    if S.mode ~= "host" then S.word = nil end
+    if not room:IsHost() then S.word = nil end
     if ui.sync then ui.sync:Begin(Ctx(), { [drawer or ""] = true }) end
     if ui.canvas then ui.canvas:SetDrawing(IDraw()) end
     if drawer == Me() then
@@ -146,49 +130,37 @@ local function NewTurn(turn, drawer)
 end
 
 ---------------------------------------------------------------------------
--- Host: telling the group
+-- Host: telling the group (the room sends the roster and state; the artist
+-- also gets the word, disguised, with every one)
 ---------------------------------------------------------------------------
 local function StateParts()
     local left = S.deadline and math.max(0, math.floor(S.deadline - GetTime() + 0.5)) or 0
     local reveal = (S.phase == "r" or S.phase == "o") and (HS.word or "") or ""
-    return { "S", S.tid, S.phase, S.turn, S.drawer or "", left, S.mask or "", S.set.time, S.set.each,
+    return { S.phase, S.turn, S.drawer or "", left, S.mask or "", S.set.time, S.set.each,
         S.set.packs or "", S.set.custom and "1" or "", reveal, S.winner or "" }
 end
 
-local function SendOffer()
-    if S.mode ~= "host" then return end
-    Send({ "O", S.tid, ns.getn(S.players), S.phase, Net.PARTY_VERSION }, TAG .. "-O")
-end
-
 local function SendWord()
-    if S.phase == "d" and HS.word then Send({ "K", S.tid, S.turn, Words.Hide(HS.word, S.drawer .. Ctx()) }, TAG .. "-K") end
+    if S.phase == "d" and HS.word then room:Send({ "K", room.tid, S.turn, Words.Hide(HS.word, S.drawer .. Ctx()) }, TAG .. "-K") end
 end
 
-local function Broadcast()
-    if S.mode ~= "host" then return end
-    HS.nextBeat = GetTime() + HEARTBEAT
-    Send({ "R", S.tid, RosterText() }, TAG .. "-R")
-    Send(StateParts(), TAG .. "-S")
-    SendWord()
-end
+local function Broadcast() room:Broadcast() end
+local function SendOffer() room:Offer() end
 
 ---------------------------------------------------------------------------
 -- Host: running the game
 ---------------------------------------------------------------------------
 local function HostRoom()
-    if S.mode ~= "lobby" or not Net:InGroup() then return end
-    S.mode, S.host = "host", nil
-    S.tid = tostring(math.random(10000, 99999))
-    S.players = { { name = Me(), score = 0, drew = 0 } }
+    if S.practice then return end
+    if room:Host() then ns:Sound("IG_MAINMENU_OPTION") end
+end
+
+-- (the room just opened)
+local function OnHost()
     S.phase, S.turn, S.drawer, S.deadline, S.mask, S.winner = "w", 0, nil, nil, nil, nil
     S.set = db.settings
     S.log = {}
     HS.used = {}
-    db.hosting = true
-    ns:Sound("IG_MAINMENU_OPTION")
-    Broadcast()
-    SendOffer()
-    Refresh()
 end
 
 local function GameOver()
@@ -201,12 +173,12 @@ end
 
 -- The next artist: whoever has drawn least, going round from the last one.
 local function NextArtist()
-    local n = ns.getn(S.players)
+    local n = ns.getn(room.players)
     local _, last = Player(S.drawer or "")
     last = last or n
     local best
     for step = 1, n do
-        local p = S.players[ns.Mod(last - 1 + step, n) + 1]
+        local p = room.players[ns.Mod(last - 1 + step, n) + 1]
         if p.drew < (S.set.each or 2) and (not best or p.drew < best.drew) then best = p end
     end
     return best
@@ -226,8 +198,8 @@ local function PickWord()
 end
 
 local function NextTurn()
-    if S.mode ~= "host" then return end
-    local artist = ns.getn(S.players) >= NeedPlayers() and NextArtist()
+    if not room:IsHost() then return end
+    local artist = ns.getn(room.players) >= NeedPlayers() and NextArtist()
     local word = artist and PickWord()
     if not artist or not word then
         GameOver()
@@ -247,10 +219,10 @@ local function NextTurn()
 end
 
 local function HostStart()
-    if S.mode ~= "host" or (S.phase ~= "w" and S.phase ~= "o") then return end
+    if not room:IsHost() or (S.phase ~= "w" and S.phase ~= "o") then return end
     HS.pool = Words.Pool(S.set.packs, S.set.custom and db.custom or nil)
-    if ns.getn(HS.pool) == 0 or ns.getn(S.players) < NeedPlayers() then return end
-    for _, p in ipairs(S.players) do p.score, p.drew = 0, 0 end
+    if ns.getn(HS.pool) == 0 or ns.getn(room.players) < NeedPlayers() then return end
+    for _, p in ipairs(room.players) do p.score, p.drew = 0, 0 end
     S.turn, S.drawer = 0, nil
     ns:Sound("IG_MAINMENU_OPTION")
     NextTurn()
@@ -283,7 +255,7 @@ local function Hint()
     if ns.getn(hidden) < 3 then return end
     HS.revealed[hidden[math.random(1, ns.getn(hidden))]] = true
     S.mask = Words.Mask(HS.word, HS.revealed)
-    Send(StateParts(), TAG .. "-S")
+    room:SendState()
     Refresh()
 end
 
@@ -293,53 +265,33 @@ local function HostGuess(name, text)
     if text == "" then return end
     local g, w = Words.Norm(text), Words.Norm(HS.word)
     if g == w then
-        Send({ "W", S.tid, S.turn, name, "", "y" })
+        room:Send({ "W", room.tid, S.turn, name, "", "y" })
         Game.ShowGuess(name, "", "y")
         EndTurn(name)
     elseif Words.Close(g, w) then
-        Send({ "W", S.tid, S.turn, name, "", "c" })
+        room:Send({ "W", room.tid, S.turn, name, "", "c" })
         Game.ShowGuess(name, text, "c")
     else
-        Send({ "W", S.tid, S.turn, name, text, "x" })
+        room:Send({ "W", room.tid, S.turn, name, text, "x" })
         Game.ShowGuess(name, text, "x")
     end
 end
 
-local function HostDrop(name)
-    local p, i = Player(name)
-    if not p or name == Me() then return end
-    table.remove(S.players, i)
+-- (someone left; the room has taken them off the roster and tells the group)
+local function OnDrop(name)
     if S.phase == "d" and S.drawer == name then EndTurn(nil, name .. " left")
-    elseif S.phase == "d" and ns.getn(S.players) < NeedPlayers() then EndTurn(nil) end
-    Broadcast()
-    SendOffer()
-    Refresh()
+    elseif S.phase == "d" and ns.getn(room.players) < NeedPlayers() then EndTurn(nil) end
 end
 
-local function HostJoin(name, ver)
-    if Net:VersionProblem(ver) then return end
-    if not Player(name) then
-        if ns.getn(S.players) >= MAX_PLAYERS then
-            Send({ "F", S.tid, name, "The game is full." })
-            return
-        end
-        -- joining partway: they draw as often as everyone else still will
-        local least
-        for _, p in ipairs(S.players) do if not least or p.drew < least then least = p.drew end end
-        table.insert(S.players, { name = name, score = 0, drew = (S.phase == "w" or S.phase == "o") and 0 or (least or 0) })
-        Log(name .. " joined.")
-    end
-    Broadcast()
-    SendOffer()
-    Refresh()
+-- (someone joined partway: they draw as often as everyone else still will)
+local function OnJoin(name, p)
+    local least
+    for _, q in ipairs(room.players) do if q ~= p and (not least or q.drew < least) then least = q.drew end end
+    p.drew = (S.phase == "w" or S.phase == "o") and 0 or (least or 0)
+    Log(name .. " joined.")
 end
 
-local function HostClose(message)
-    if S.mode ~= "host" then return end
-    Send({ "X", S.tid })
-    db.hosting = nil
-    Game.ToLobby(message or "You closed your game.")
-end
+local function HostClose(message) room:Close(message) end
 
 local function HostTick(now)
     if S.phase == "d" then
@@ -357,40 +309,37 @@ local function HostTick(now)
     elseif S.phase == "r" and now >= (HS.revealUntil or now) then
         NextTurn()
     end
-    if now >= (HS.nextBeat or 0) then
-        Broadcast()
-        SendOffer()
-    end
 end
 
 ---------------------------------------------------------------------------
 -- Clients
 ---------------------------------------------------------------------------
-function Game.ToLobby(message)
-    S.mode, S.tid, S.host, S.joining = "lobby", nil, nil, nil
-    S.players, S.phase, S.turn, S.drawer, S.deadline, S.mask, S.word, S.winner = {}, "w", 0, nil, nil, nil, nil, nil
+-- (back in the lobby: the room left, closed or lost touch)
+local function OnLobby()
+    S.phase, S.turn, S.drawer, S.deadline, S.mask, S.word, S.winner = "w", 0, nil, nil, nil, nil, nil
     S.log = {}
-    S.lobbyMsg = message
     if ui.sync then ui.sync:Begin(nil, {}) end
     if ui.canvas then ui.canvas:SetDrawing(false) end
-    Refresh()
 end
 
-local function Join(host, tid)
-    if S.mode ~= "lobby" then return end
-    S.joining = { host = host, tid = tid }
-    S.lobbyMsg = "Asking " .. host .. " to join..."
-    Send({ "J", tid, Net.PARTY_VERSION })
-    Refresh()
+-- To the lobby: out of practice, or out of a room.
+function Game.ToLobby(message)
+    S.practice = nil
+    if room.mode ~= "lobby" then
+        room:ToLobby(message)
+    else
+        OnLobby()
+        room.lobbyMsg = message
+        Refresh()
+    end
 end
 
-local function ClientLeave()
-    if S.mode ~= "client" then return end
-    Send({ "L", S.tid })
-    Game.ToLobby("You left " .. (S.host or "the") .. "'s game.")
-end
+local function Join(host, tid) room:Join(host, tid) end
+local function ClientLeave() room:Leave() end
 
+-- The host's state (S;tid;...: fields from f[4]).
 local function ClientState(f)
+    if room.fresh then S.phase, S.turn, S.log = "?", 0, {} end    -- (just joined)
     local phase, turn, drawer = f[4] or "w", tonumber(f[5] or "") or 0, f[6] ~= "" and f[6] or nil
     local wasPhase = S.phase
     S.set = { time = tonumber(f[9] or "") or 80, each = tonumber(f[10] or "") or 2, packs = f[11] or "", custom = f[12] == "1" }
@@ -413,92 +362,37 @@ local function ClientState(f)
     Refresh()
 end
 
-local function OnMessage(sender, f)
+room = ns.RoomKit.New({
+    tag = TAG, id = "sketch", max = MAX_PLAYERS, fields = { "score", "drew" },
+    phase = function() return S.phase end,
+    state = StateParts,
+    onBroadcast = SendWord,
+    onState = ClientState,
+    onHost = OnHost,
+    onJoin = OnJoin,
+    onDrop = OnDrop,
+    onLobby = OnLobby,
+    -- a guess, to the host
+    onHostMessage = function(sender, f)
+        if f[2] == "G" and tonumber(f[4] or "") == S.turn then HostGuess(sender, f[5]) end
+    end,
+    -- the artist's word (disguised) and the guesses, from the host
+    onClientMessage = function(f)
+        if f[2] == "K" then
+            if tonumber(f[4] or "") == S.turn and S.drawer == Me() then
+                S.word = Words.Reveal(f[5], Me() .. Ctx())
+                Refresh()
+            end
+        elseif f[2] == "W" then
+            if tonumber(f[4] or "") == S.turn then Game.ShowGuess(f[5], f[6], f[7]) end
+        end
+    end,
+    refresh = function() Refresh() end,
+})
+-- the drawing kit's strokes first (they carry the same tag), then the room
+Net.handlers[TAG] = function(sender, f)
     if ui.sync and ui.sync:Handle(sender, f) then return end
-    local kind, tid = f[2], f[3]
-    if kind == "Q" then
-        if S.mode == "host" then SendOffer() end
-        return
-    elseif kind == "O" then
-        S.offers[sender] = { tid = tid, players = tonumber(f[4] or "") or 0, phase = f[5], ver = tonumber(f[6] or ""), heard = GetTime() }
-        if S.mode == "lobby" then Refresh() end
-        return
-    end
-
-    if S.mode == "host" and tid == S.tid then
-        if kind == "J" then HostJoin(sender, f[4])
-        elseif kind == "L" then HostDrop(sender)
-        elseif kind == "G" and tonumber(f[4] or "") == S.turn then HostGuess(sender, f[5]) end
-        return
-    end
-
-    if kind == "X" then
-        S.offers[sender] = nil
-        if S.joining and S.joining.host == sender then
-            S.joining = nil
-            S.lobbyMsg = sender .. " closed the game."
-        elseif S.mode == "client" and sender == S.host and tid == S.tid then
-            Game.ToLobby(sender .. " closed the game.")
-            return
-        end
-        Refresh()
-        return
-    end
-
-    if S.joining and sender == S.joining.host and tid == S.joining.tid then
-        if kind == "F" and f[4] == Me() then
-            S.joining = nil
-            S.lobbyMsg = f[5] or "Couldn't join."
-            Refresh()
-            return
-        elseif kind == "R" then
-            local roster = ParseRoster(f[4])
-            local mine = false
-            for _, p in ipairs(roster) do if p.name == Me() then mine = true end end
-            if not mine then return end
-            S.mode, S.host, S.tid, S.joining = "client", sender, tid, nil
-            S.players, S.phase, S.turn, S.log = roster, "?", 0, {}
-            S.heard = GetTime()
-            db.joined = { host = sender, tid = tid }
-            ns:Sound("IG_MAINMENU_OPTION")
-            Refresh()
-            return
-        end
-    end
-
-    if S.mode ~= "client" or sender ~= S.host or tid ~= S.tid then return end
-    S.heard = GetTime()
-    if kind == "R" then
-        S.players = ParseRoster(f[4])
-        if not Player(Me()) then Game.ToLobby("You're no longer in " .. sender .. "'s game.") return end
-        Refresh()
-    elseif kind == "S" then
-        ClientState(f)
-    elseif kind == "K" then
-        if tonumber(f[4] or "") == S.turn and S.drawer == Me() then
-            S.word = Words.Reveal(f[5], Me() .. Ctx())
-            Refresh()
-        end
-    elseif kind == "W" then
-        if tonumber(f[4] or "") == S.turn then Game.ShowGuess(f[5], f[6], f[7]) end
-    end
-end
-
-Net.handlers[TAG] = OnMessage
-
-Net.groupHandlers.sketch = function()
-    if S.mode == "host" then
-        local gone = {}
-        for _, p in ipairs(S.players) do if not Net:IsMember(p.name) then table.insert(gone, p.name) end end
-        for _, name in ipairs(gone) do HostDrop(name) end
-        if not Net:InGroup() then HostClose("You left the group, so your game closed.") end
-    elseif S.mode == "client" and not Net:IsMember(S.host) then
-        Game.ToLobby((S.host or "The host") .. " left the group.")
-    end
-    for name in pairs(S.offers) do
-        if not Net:IsMember(name) then S.offers[name] = nil end
-    end
-    if S.mode == "lobby" and ui.lobby then Refresh() end
+    room:OnMessage(sender, f)
 end
 
 -- Guessing: the host checks it (a guess goes nowhere else).
@@ -506,7 +400,7 @@ local function Guess(text)
     text = Words.Clean(text)
     if text == "" or not CanGuess(Me()) then return end
     S.myGuess = text
-    if S.mode == "host" then HostGuess(Me(), text) else Send({ "G", S.tid, S.turn, text }) end
+    if room:IsHost() then HostGuess(Me(), text) else room:Send({ "G", room.tid, S.turn, text }) end
     Refresh()
 end
 
@@ -537,7 +431,7 @@ function Game.CountGame()
     local s = db.stats
     s.games = s.games + 1
     local me, top = Player(Me()), 0
-    for _, p in ipairs(S.players) do if p.score > top then top = p.score end end
+    for _, p in ipairs(room.players) do if p.score > top then top = p.score end end
     if me then
         s.points = s.points + me.score
         if top > 0 and me.score == top then
@@ -559,7 +453,8 @@ ticker:SetScript("OnUpdate", function()
     if acc < 0.2 then return end
     acc = 0
     local now = GetTime()
-    if S.mode == "host" then
+    room:Tick(now)
+    if room:IsHost() then
         HostTick(now)
         if S.phase == "o" and S.wasOver ~= true then
             S.wasOver = true
@@ -567,8 +462,6 @@ ticker:SetScript("OnUpdate", function()
         elseif S.phase ~= "o" then
             S.wasOver = nil
         end
-    elseif S.mode == "client" and now - (S.heard or now) > HOST_TIMEOUT then
-        Game.ToLobby("Lost touch with " .. (S.host or "the host") .. ".")
     end
     if shown >= 0.5 then
         shown = 0
@@ -589,39 +482,6 @@ end
 
 function Game.RefreshClock()
     if ui.timer then ui.timer:SetText(Clock()) end
-end
-
-local function RefreshLobby()
-    local intro = ui.intro
-    local inGroup = Net:InGroup()
-    ns.SetEnabled(intro.hostGo, inGroup)
-    local list = {}
-    for name, o in pairs(S.offers) do
-        if GetTime() - o.heard < OFFER_TIMEOUT and Net:IsMember(name) then
-            table.insert(list, { host = name, tid = o.tid, players = o.players, phase = o.phase, ver = o.ver })
-        end
-    end
-    table.sort(list, function(a, b) return a.host < b.host end)
-    local rows = {}
-    for _, o in ipairs(list) do
-        local offer = o
-        local doing = (o.phase == "w" and "waiting to start") or (o.phase == "o" and "between games") or "playing"
-        table.insert(rows, {
-            host = o.host, tid = o.tid,
-            text = string.format("%s's game - %d player%s, %s", o.host, o.players, o.players == 1 and "" or "s", doing)
-                .. Net:VersionNote(o.ver),
-            enabled = o.players < MAX_PLAYERS and not S.joining and not Net:VersionProblem(o.ver),
-            click = function() ui.onJoin(offer.host, offer.tid) end,
-        })
-    end
-    intro:SetOffers(rows)
-    intro:SetNote((rows[1] and "Games in your group:")
-        or (inGroup and ("You're in a group of " .. Net:GroupSize() .. ". No games yet: host one, or ask someone to.")
-        or "Join a party or raid to play with friends (or practice on your own)."))
-    intro:SetStatus(S.lobbyMsg or "")
-    local s = db.stats
-    intro:SetStats(string.format("Games %d   Wins %d   Right guesses %d   Drawings guessed %d",
-        s.games, s.wins, s.guessed, s.drawn))
 end
 
 local function RefreshWait()
@@ -749,16 +609,17 @@ end
 
 Refresh = function()
     if not ui.lobby then return end
+    Sync()
     local lobby = S.mode == "lobby"
     ns:UpdateIntro(Game)
     ns.SetShown(ui.room, not lobby)
-    if lobby then RefreshLobby() else RefreshRoom() end
+    if lobby then room:RefreshLobby() else RefreshRoom() end
 end
 Game.Refresh = function() Refresh() end
 
 -- For the core's intro (Intro.lua): a game or practice on is "busy"; in the
 -- lobby the intro is all there is.
-function Game:IntroState() return S.mode == "lobby" and "intro" or "busy" end
+function Game:IntroState() return (S.practice or room.mode ~= "lobby") and "busy" or "intro" end
 
 ---------------------------------------------------------------------------
 -- Building
@@ -781,49 +642,26 @@ local function Check(parent, x, y, label, onClick)
     return c
 end
 
-local function EditBox(parent, width, maxLetters)
-    local box = ns.CreateFrame("EditBox", nil, parent)
-    box:SetWidth(width); box:SetHeight(22)
-    box:SetFontObject(GameFontHighlightSmall)
-    box:SetTextInsets(6, 6, 0, 0)
-    box:SetAutoFocus(false)
-    box:SetMaxLetters(maxLetters)
-    box:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    box:SetBackdropColor(0, 0, 0, 0.8)
-    box:SetBackdropBorderColor(0.6, 0.5, 0.3, 1)
-    box:SetScript("OnEditFocusGained", function() box.focused = true if rawget(box, "hint") then box.hint:Hide() end end)
-    box:SetScript("OnEditFocusLost", function()
-        box.focused = nil
-        if rawget(box, "hint") then ns.SetShown(box.hint, (box:GetText() or "") == "") end
-    end)
-    box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    return box
+local function EditBox(parent, width, maxLetters, hint)
+    return ns.UI.EditBox(parent, { width = width, maxLetters = maxLetters, hint = hint })
 end
 
--- The lobby is the game's intro screen (Intro.lua): Practice, Host a game,
--- and the games open in the group.
+-- The lobby is the game's intro screen (Intro.lua, through the room kit):
+-- Practice, Host a game, and the games open in the group.
 local function BuildLobby(panel)
-    local intro = ns:AddIntro(Game, panel, {
-        felt = { 0.07, 0.06, 0.05, 1 },
-        blurb = "Draw a secret word while the others race to guess it. Free: no chips are wagered.",
-        solo = "On your own", party = "Play with your group", rows = 3, refresh = true,
+    room:BuildLobby(panel, {
+        game = Game, felt = { 0.07, 0.06, 0.05, 1 },
+        info = "Draw a secret word while the others race to guess it. Free: no chips are wagered.",
+        alone = "Join a party or raid to play with friends (or practice on your own).",
+        buttons = { { "Practice", function() Game.Practice() end } },
+        stats = function()
+            local s = db.stats
+            return string.format("Games %d   Wins %d   Right guesses %d   Drawings guessed %d",
+                s.games, s.wins, s.guessed, s.drawn)
+        end,
     })
-    ui.intro = intro
-    ui.lobby = intro.frame
-    intro.soloGo:SetText("Practice")
-    intro.onSolo = function() Game.Practice() end
-    intro.hostGo:SetText("Host a game")
-    intro.onHost = function() HostRoom() end
-    intro.onRefresh = function()
-        Send({ "Q" })
-        Refresh()
-    end
-    ui.onJoin = function(host, tid) Join(host, tid) end
+    ui.intro = room.intro
+    ui.lobby = room.lobby
 end
 
 local function TogglePack(key)
@@ -835,13 +673,13 @@ end
 
 local function SettingsChanged()
     ns:Sound("IG_MAINMENU_OPTION")
-    if S.mode == "host" then Send(StateParts(), TAG .. "-S") end
+    if room:IsHost() then room:SendState() end
     Refresh()
 end
 
-local function BuildWait(room)
-    local w = ns.CreateFrame("Frame", nil, room)
-    w:SetPoint("TOPLEFT", room, "TOPLEFT", 2, -26)
+local function BuildWait(field)
+    local w = ns.CreateFrame("Frame", nil, field)
+    w:SetPoint("TOPLEFT", field, "TOPLEFT", 2, -26)
     w:SetWidth(256); w:SetHeight(320)
     local bg = w:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(w)
@@ -865,15 +703,12 @@ local function BuildWait(room)
         SettingsChanged()
     end)
     local rowsY = -22 - math.floor(n / 2 + 1) * 22
-    ui.customBox = EditBox(w, 246, 2000)
+    ui.customBox = ns.UI.EditBox(w, { width = 246, maxLetters = 2000, hint = "Your words, separated by commas",
+        onChange = function(b)
+            db.custom = b:GetText() or ""
+            Refresh()
+        end })
     ui.customBox:SetPoint("TOPLEFT", w, "TOPLEFT", 4, rowsY - 2)
-    ui.customBox.hint = Text(ui.customBox, "GameFontDisableSmall", 7, -5)
-    ui.customBox.hint:SetText("Your words, separated by commas")
-    ui.customBox:SetScript("OnTextChanged", function()
-        db.custom = ui.customBox:GetText() or ""
-        ns.SetShown(ui.customBox.hint, db.custom == "" and not rawget(ui.customBox, "focused"))
-        Refresh()
-    end)
     ui.customBox:SetScript("OnEnterPressed", function() this:ClearFocus() end)
     ui.customCount = Text(w, "GameFontDisableSmall", 8, rowsY - 26, 240)
 
@@ -907,16 +742,16 @@ local function BuildWait(room)
 end
 
 local function BuildRoom(panel)
-    local room = ns.CreateFrame("Frame", nil, panel)
-    room:SetAllPoints(panel)
-    ui.room = room
-    ui.word = Text(room, "GameFontNormalLarge", 4, -5, 254)
-    ui.timer = room:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    ui.timer:SetPoint("TOPRIGHT", room, "TOPRIGHT", -6, -5)
+    local field = ns.CreateFrame("Frame", nil, panel)
+    field:SetAllPoints(panel)
+    ui.room = field
+    ui.word = Text(field, "GameFontNormalLarge", 4, -5, 254)
+    ui.timer = field:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    ui.timer:SetPoint("TOPRIGHT", field, "TOPRIGHT", -6, -5)
 
     -- the drawing, and what everyone sees of it
-    local canvas = Kit.NewCanvas(room, { size = 256 })
-    canvas.frame:SetPoint("TOPLEFT", room, "TOPLEFT", 2, -26)
+    local canvas = Kit.NewCanvas(field, { size = 256 })
+    canvas.frame:SetPoint("TOPLEFT", field, "TOPLEFT", 2, -26)
     ui.canvas = canvas
     ui.sync = Kit.NewSync({ tag = TAG, canvas = canvas })
     canvas.onEvent = (function(chain)
@@ -925,10 +760,10 @@ local function BuildRoom(panel)
             if ui.tools and ui.tools:IsShown() then ui.tools:Refresh() end
         end
     end)(canvas.onEvent)
-    ui.tools = Kit.NewTools(room, canvas)
-    ui.tools:SetPoint("TOPLEFT", room, "TOPLEFT", 2, -288)
+    ui.tools = Kit.NewTools(field, canvas)
+    ui.tools:SetPoint("TOPLEFT", field, "TOPLEFT", 2, -288)
 
-    ui.banner = ns.CreateFrame("Frame", nil, room)
+    ui.banner = ns.CreateFrame("Frame", nil, field)
     ui.banner:SetPoint("TOPLEFT", canvas.frame, "TOPLEFT", 16, -40)
     ui.banner:SetPoint("BOTTOMRIGHT", canvas.frame, "BOTTOMRIGHT", -16, 40)
     ui.banner:SetFrameLevel(canvas.frame:GetFrameLevel() + 5)
@@ -942,34 +777,32 @@ local function BuildRoom(panel)
     ui.again:SetPoint("BOTTOM", ui.banner, "BOTTOM", 0, 10)
 
     -- guessing
-    ui.guess = EditBox(room, 256, 40)
-    ui.guess:SetPoint("TOPLEFT", room, "TOPLEFT", 2, -290)
-    ui.guess.hint = Text(ui.guess, "GameFontDisableSmall", 7, -5)
-    ui.guess.hint:SetText("Type your guess and press Enter")
+    ui.guess = EditBox(field, 256, 40, "Type your guess and press Enter")
+    ui.guess:SetPoint("TOPLEFT", field, "TOPLEFT", 2, -290)
     ui.guess:SetScript("OnEnterPressed", function()
         Guess(this:GetText())
         this:SetText("")
     end)
-    ui.status = Text(room, "GameFontHighlightSmall", 4, -342, 256)
-    ui.info = Text(room, "GameFontDisableSmall", 4, -362, 180)
+    ui.status = Text(field, "GameFontHighlightSmall", 4, -342, 256)
+    ui.info = Text(field, "GameFontDisableSmall", 4, -362, 180)
 
-    BuildWait(room)
+    BuildWait(field)
 
     -- the side: players and guesses (or, practicing, how lines are drawn)
     local x = 266
     ui.players = {}
     for i = 1, MAX_PLAYERS do
         ui.players[i] = {
-            name = Text(room, "GameFontHighlightSmall", x, -30 - (i - 1) * 14, 92),
-            score = Text(room, "GameFontNormalSmall", x + 92, -30 - (i - 1) * 14, 20, "RIGHT"),
+            name = Text(field, "GameFontHighlightSmall", x, -30 - (i - 1) * 14, 92),
+            score = Text(field, "GameFontNormalSmall", x + 92, -30 - (i - 1) * 14, 20, "RIGHT"),
         }
     end
-    ui.logHeader = Text(room, "GameFontNormal", x, -176)
+    ui.logHeader = Text(field, "GameFontNormal", x, -176)
     ui.log = {}
-    for i = 1, LOG_LINES do ui.log[i] = Text(room, "GameFontHighlightSmall", x, -192 - (i - 1) * 13, 112) end
+    for i = 1, LOG_LINES do ui.log[i] = Text(field, "GameFontHighlightSmall", x, -192 - (i - 1) * 13, 112) end
 
-    local ps = ns.CreateFrame("Frame", nil, room)
-    ps:SetPoint("TOPLEFT", room, "TOPLEFT", x, -30)
+    local ps = ns.CreateFrame("Frame", nil, field)
+    ps:SetPoint("TOPLEFT", field, "TOPLEFT", x, -30)
     ps:SetWidth(112); ps:SetHeight(200)
     ui.practiceSide = ps
     local note = Text(ps, "GameFontHighlightSmall", 0, 0, 112)
@@ -984,17 +817,17 @@ local function BuildRoom(panel)
     ui.testButton = ns.UI.Button(ps, "Test pattern", 110, function() canvas:TestPattern() end)
     ui.testButton:SetPoint("TOPLEFT", ps, "TOPLEFT", 0, -122)
 
-    ui.leave = ns.UI.Button(room, "Leave game", 110, function()
-        if S.mode == "practice" then Game.ToLobby(nil)
-        elseif S.mode == "host" then HostClose()
+    ui.leave = ns.UI.Button(field, "Leave game", 110, function()
+        if S.practice then Game.ToLobby(nil)
+        elseif room:IsHost() then HostClose()
         else ClientLeave() end
     end)
-    ui.leave:SetPoint("BOTTOMRIGHT", room, "BOTTOMRIGHT", -2, 4)
+    ui.leave:SetPoint("BOTTOMRIGHT", field, "BOTTOMRIGHT", -2, 4)
 end
 
 function Game.Practice()
-    if S.mode ~= "lobby" then return end
-    S.mode, S.phase, S.lobbyMsg = "practice", "w", nil
+    if S.practice or room.mode ~= "lobby" then return end
+    S.practice, S.phase, room.lobbyMsg = true, "w", nil
     ui.sync:Begin(nil, {})
     ui.canvas:SetDrawing(true)
     ns:Sound("IG_MAINMENU_OPTION")
@@ -1015,6 +848,7 @@ function Game:Build(panel)
     Fill(db.settings, DEFAULT_SETTINGS)
     db.custom = db.custom or ""
     self.panel = panel
+    room:Restore(db)
     BuildLobby(panel)
     BuildRoom(panel)
     ui.customBox:SetText(db.custom)
@@ -1040,21 +874,11 @@ function Game:Build(panel)
         refresh = function(o) if o.lineStep then o.lineStep:Refresh() end end,
     })
 
-    -- A game can't survive a reload.
-    if db.hosting then
-        db.hosting = nil
-        S.lobbyMsg = "Your game closed when the game reloaded."
-    end
-    if db.joined then
-        if Net:IsMember(db.joined.host) then Send({ "L", db.joined.tid }) end
-        S.lobbyMsg = "You left " .. (db.joined.host or "the") .. "'s game when the game reloaded."
-        db.joined = nil
-    end
     Refresh()
 end
 
 function Game:OnShow()
-    if S.mode == "lobby" and Net:InGroup() then Send({ "Q" }) end
+    room:Ask()
     Refresh()
 end
 
@@ -1062,15 +886,8 @@ function Game:OnHide()
     if ui.guess and rawget(ui.guess, "focused") then ui.guess:ClearFocus() end
 end
 
-function Game:IsSeated() return S.mode == "host" or S.mode == "client" end
-
-function Game:ChatTable()
-    if S.mode ~= "host" and S.mode ~= "client" then return nil end
-    local members = {}
-    for _, p in ipairs(S.players) do members[p.name] = true end
-    members[HostName()] = true
-    return { game = TAG, host = HostName(), tid = S.tid, members = members }
-end
+function Game:IsSeated() return room:InRoom() end
+function Game:ChatTable() return room:ChatTable() end
 
 function Game:ResetStats()
     local d = ns.db.sketch
@@ -1081,31 +898,12 @@ function Game:ResetStats()
 end
 
 -- Exposed for tests (and for other games that want to look).
-Game.S, Game.HS, Game.ui = S, HS, ui
+Game.S, Game.HS, Game.ui, Game.room = S, HS, ui, room
 ns.Sketch = Game
 
 ns:RegisterGame(Game)
 
 -- The lobby hub (Lobby.lua): pop-ups, badges and invites.
-ns.Lobby:Register("sketch", {
-    noun = "game",
-    offers = function()
-        local out = {}
-        for name, o in pairs(S.offers) do
-            if GetTime() - o.heard < OFFER_TIMEOUT and o.players < MAX_PLAYERS and not Net:VersionProblem(o.ver) then
-                table.insert(out, { host = name, key = o.tid })
-            end
-        end
-        return out
-    end,
-    ask = function() Send({ "Q" }) end,
-    join = function(host)
-        if S.mode == "practice" then Game.ToLobby() end
-        if S.mode ~= "lobby" then return "You're already in a game." end
-        local o = S.offers[host]
-        if not o then return host .. "'s game is gone." end
-        Join(host, o.tid)
-    end,
-    hosting = function() return S.mode == "host" end,
-    busy = function() return (S.mode ~= "lobby" and S.mode ~= "practice") or S.joining ~= nil end,
-})
+room:RegisterLobby("sketch", function()
+    if S.practice then Game.ToLobby() end
+end)

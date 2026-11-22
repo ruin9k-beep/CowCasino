@@ -59,7 +59,7 @@ local S = {
 
 local function Sound(key) ns:Sound(key) end
 
-local function Fmt(n) return ns:FormatChips(n) end
+local Fmt = ns.Fmt
 
 local Fill = ns.UI.Fill
 
@@ -149,10 +149,7 @@ local function HandInfoText(h)
     return "Bet " .. Fmt(h.bet) .. (h.doubled and " (doubled)" or "")
 end
 
-local function SetStatus(text, r, g, b)
-    ui.status:SetText(text)
-    ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
-end
+local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Blackjack) end
 
 local function UpdateStats()
     local s = db.stats
@@ -704,6 +701,7 @@ local function BuildOptions(panel)
     refreshers[ns.getn(refreshers) + 1] = MakeCheck(s, -84, "Dealer hits soft 17", "hitSoft17")
     refreshers[ns.getn(refreshers) + 1] = MakeCheck(s, -110, "Allow surrender", "surrender")
     refreshers[ns.getn(refreshers) + 1] = MakeCheck(s, -136, "Allow double after split", "doubleAfterSplit")
+    refreshers[ns.getn(refreshers) + 1] = MakeCheck(s, -176, "Go straight to the table (skip the intro)", "skipIntro")
 
     local rules = s:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     rules:SetPoint("BOTTOM", o, "BOTTOM", 0, 72)
@@ -942,5 +940,11 @@ function Blackjack:ResetStats()
     d.stats.best = ns.db.chips
     if ui.status then UpdateStats() end
 end
+
+-- Go straight to the table when the game's opened (Options > Settings).
+function Blackjack:SkipIntro() return db and db.settings and db.settings.skipIntro end
+
+-- The stats line on the game's intro (Intro.lua): the table's own.
+function Blackjack:IntroStats() return ui.stats and ui.stats:GetText() or "" end
 
 ns:RegisterGame(Blackjack)
