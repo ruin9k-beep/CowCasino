@@ -176,6 +176,12 @@ math.random = function(a, b) if b and rig[1] then return table.remove(rig, 1) en
 Press(host, "Duel", true)
 Check("the duel takes the stake (100)", host.ns.db.chips == 900, host.ns.db.chips)
 Check("you roll first: Roll 1-1,000", Enabled(host, "Roll 1-1,000"))
+local ui = host.G.ui
+Check("the two of you at the top: your 3D portrait on the left, the dealer's picture on the right",
+  ui.youPic.shown and ui.youPic.unitId == "player" and ui.oppImage.shown and not ui.oppPic.shown
+  and ui.youName.text == "You" and ui.oppName.text ~= "")
+Check("...turned to face each other", ui.youPic.facing > 0 and ui.oppPic.facing < 0)
+Check("...and your name lit up on your roll", ui.youName.color[2] == 1 and ui.oppName.color[1] == 1)
 Press(host, "Roll 1-1,000")
 Check("your roll sets the dealer's range", host.S.duel.max == 400 and host.S.duel.turn == "them")
 Check("you can't roll on the dealer's turn", not Enabled(host, "Waiting", true))
@@ -248,6 +254,9 @@ Check("...the other is told someone was quicker", cid.S.duel == nil and cid.S.ac
   and string.find(cid.G.ui.status.text or "", "Bob took", 1, true) ~= nil, cid.G.ui.status.text)
 Check("party duels are free: no chips taken", host.ns.db.chips == 1000 and bob.ns.db.chips == 1000 and cid.ns.db.chips == 1000)
 Check("the challenger rolls first", Enabled(host, "Roll 1-1,000") and not Enabled(bob, "Roll", true))
+Check("in a party duel, the opponent's 3D portrait faces you", host.G.ui.oppPic.shown and not host.G.ui.oppImage.shown
+  and host.G.ui.oppPic.unitId == host.ns.Net:UnitFor("Bob") and host.G.ui.oppName.text == "Bob"
+  and bob.G.ui.oppName.text == "Host")
 
 ROLLS = { 640 }
 Press(host, "Roll 1-1,000")

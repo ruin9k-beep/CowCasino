@@ -86,6 +86,14 @@ for _, id in ipairs({ "chess", "checkers", "battleship" }) do
   ns:ShowMenu()
 end
 
+-- Deathroll in the middle of a duel (the portraits, the range and the rolls)
+ns:OpenGame("deathroll")
+ns.db.chips = 5000
+env.Fire(ns.games.deathroll.intro.soloGo, "OnClick", "LeftButton")
+H.Tick(0.3)
+Screen("Deathroll mid-duel", ns.games.deathroll.panel, { ns.games.deathroll.intro.frame })
+ns:ShowMenu()
+
 -- the invite page and the pop-up
 ns:OpenGame("chess")
 ns.Lobby:ToggleInvitePage()

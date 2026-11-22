@@ -1,7 +1,9 @@
 -- CowCasino: player portraits
 -- A 3D head-and-shoulders model of a player, for seats at the card tables.
---   local p = ns:CreatePortrait(parent, width, height)
+--   local p = ns:CreatePortrait(parent, width, height, facing)
 --   p:ShowUnit("party2")    -- or nil to hide it
+-- facing (optional, radians) turns the model: positive to the viewer's
+-- right, negative to the left (two portraits can face each other).
 -- The game only has a model for players near you; anyone out of range (or
 -- offline) gets a floating question mark until they're close enough. Every
 -- portrait rechecks that every two seconds.
@@ -20,12 +22,18 @@ local QUESTION_MARK = ns.QUESTION_MARK_MODEL
 local SETTLE = 1.5      -- seconds to keep setting the face camera after choosing a model
 local portraits = {}
 
+-- the face close-up, turned the portrait's way
+local function Frame(m)
+    ns.FaceCamera(m)
+    if m.facing then m:SetFacing(m.facing) end
+end
+
 local function Apply(m)
     if m.inRange then
         m:SetModelScale(1)
         m:SetPosition(0, 0, 0)
         m:SetUnit(m.unitId)
-        ns.FaceCamera(m)
+        Frame(m)
         m.settle = SETTLE
     else
         m.settle = nil
@@ -49,9 +57,10 @@ local function ShowUnit(m, unit, force)
     Apply(m)
 end
 
-function ns:CreatePortrait(parent, width, height)
+function ns:CreatePortrait(parent, width, height, facing)
     local m = ns.CreateFrame("PlayerModel", nil, parent)
     m:SetWidth(width); m:SetHeight(height)
+    m.facing = facing
     m:SetFrameLevel(parent:GetFrameLevel() + 2)
     -- models forget their unit and camera while hidden
     m:SetScript("OnShow", function() if this.unitId then Apply(this) end end)
@@ -59,7 +68,7 @@ function ns:CreatePortrait(parent, width, height)
     m:SetScript("OnUpdate", function()
         if not this.settle then return end
         this.settle = this.settle - (arg1 or 0)
-        if this.inRange then ns.FaceCamera(this) end
+        if this.inRange then Frame(this) end
         if this.settle <= 0 then this.settle = nil end
     end)
     m:Hide()
@@ -78,7 +87,7 @@ ticker:SetScript("OnUpdate", function()
     for _, m in ipairs(portraits) do
         if m.unitId and m:IsVisible() then
             ShowUnit(m, m.unitId)
-            if m.inRange then ns.FaceCamera(m) end   -- in case the game reset it
+            if m.inRange then Frame(m) end   -- in case the game reset it
         end
     end
 end)

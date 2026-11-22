@@ -21,7 +21,9 @@ local Net = ns.Net
 local AREA_W       = 352
 local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
 local STARTS       = { 100, 1000, 10000, 100000 }
-local LOG_LINES    = 12      -- (setting up a duel happens on the intro screen, so the rolls get the room)
+local LOG_LINES    = 10      -- (setting up a duel happens on the intro screen, so the rolls get the room)
+local PIC          = 70      -- the two portraits at the top, facing each other
+local FACE         = 0.6     -- how far each turns toward the other (radians)
 local DEALER_PAUSE = 1.1     -- seconds before the dealer rolls back
 local ROLL_WAIT    = 3       -- seconds to wait for a /roll to show before rolling here
 local OFFER_EVERY  = 20      -- an open challenge is sent again this often
@@ -190,6 +192,36 @@ local function Refresh()
         ui.whose:SetText("")
     end
 
+    -- the two of you (the last duel's opponent after it)
+    local opp = d and { kind = d.kind, name = d.opp } or db.lastOpp
+    ui.youPic:ShowUnit("player")
+    ui.youName:SetText("You")
+    if not opp then
+        ui.oppPic:ShowUnit(nil)
+        ui.oppImage:Hide()
+        ui.oppName:SetText("")
+    elseif opp.kind == "solo" then
+        ui.oppPic:ShowUnit(nil)
+        local image = ns:GetDealer().image
+        if type(image) == "table" then
+            ui.oppImage:SetTexture(image[1])
+            ui.oppImage:SetTexCoord(image[2] or 0, image[3] or 1, image[4] or 0, image[5] or 1)
+        else
+            ui.oppImage:SetTexture(image)
+            ui.oppImage:SetTexCoord(0, 1, 0, 1)
+        end
+        ui.oppImage:Show()
+        ui.oppName:SetText(DealerName())
+    else
+        ui.oppImage:Hide()
+        ui.oppPic:ShowUnit(Net:UnitFor(opp.name))
+        ui.oppName:SetText(opp.name or "?")
+    end
+    -- whose roll it is: their name lit up
+    local mine, theirs = d and d.turn == "me", d and d.turn ~= "me"
+    ui.youName:SetTextColor(mine and 0.4 or 1, mine and 1 or 0.82, mine and 0.4 or 0)
+    ui.oppName:SetTextColor(theirs and 0.4 or 1, theirs and 1 or 0.82, theirs and 0.4 or 0)
+
     -- the rolls so far
     local log = (d and d.log) or db.lastLog or {}
     local n = ns.getn(log)
@@ -229,6 +261,7 @@ local function StartDuel(kind, stake, start, first, opp, id)
     local d = { kind = kind, stake = stake, start = start, max = start, turn = first, opp = opp, id = id,
         turnNo = 1, log = {}, heard = GetTime() }
     S.duel = d
+    db.lastOpp = { kind = kind, name = opp }     -- (who the portraits show after the duel)
     if kind == "solo" then db.duel = d else db.partyDuel = { id = id, stake = stake, opp = opp } end
     db.stats.duels = db.stats.duels + 1
     if kind == "party" then db.stats.partyDuels = db.stats.partyDuels + 1 end
@@ -612,26 +645,54 @@ function Deathroll:Build(panel)
     end
     ui.stats = intro.stats
 
-    ui.range = ns:BigFont(panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 30)
-    ui.range:SetPoint("TOP", panel, "TOP", 0, -14)
+    -- the two of you at the top, facing each other across the range: your
+    -- portrait on the left, theirs on the right (the dealer's picture in a
+    -- duel with the dealer)
+    local function Frame(point, x)
+        local f = panel:CreateTexture(nil, "BORDER")
+        f:SetWidth(PIC + 4); f:SetHeight(PIC + 4)
+        f:SetPoint(point, panel, point, x, -8)
+        f:SetTexture(0, 0, 0, 0.45)
+        return f
+    end
+    local youBox, oppBox = Frame("TOPLEFT", 8), Frame("TOPRIGHT", -8)
+    ui.youPic = ns:CreatePortrait(panel, PIC, PIC, FACE)
+    ui.youPic:SetPoint("CENTER", youBox, "CENTER", 0, 0)
+    ui.oppPic = ns:CreatePortrait(panel, PIC, PIC, -FACE)
+    ui.oppPic:SetPoint("CENTER", oppBox, "CENTER", 0, 0)
+    ui.oppImage = panel:CreateTexture(nil, "ARTWORK")
+    ui.oppImage:SetWidth(PIC); ui.oppImage:SetHeight(PIC)
+    ui.oppImage:SetPoint("CENTER", oppBox, "CENTER", 0, 0)
+    ui.oppImage:Hide()
+    ui.youName = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ui.youName:SetPoint("TOP", youBox, "BOTTOM", 0, -3)
+    ui.youName:SetWidth(PIC + 16)
+    ui.oppName = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ui.oppName:SetPoint("TOP", oppBox, "BOTTOM", 0, -3)
+    ui.oppName:SetWidth(PIC + 16)
+
+    ui.range = ns:BigFont(panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 28)
+    ui.range:SetPoint("TOP", panel, "TOP", 0, -16)
     ui.range:SetTextColor(1, 0.85, 0.1)
     ui.whose = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     ui.whose:SetPoint("TOP", panel, "TOP", 0, -52)
+    ui.whose:SetWidth(AREA_W - 2 * (PIC + 20))
 
     -- the rolls so far
+    local LOG_Y = -104
     local logBg = panel:CreateTexture(nil, "BORDER")
-    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, -72)
+    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, LOG_Y)
     logBg:SetWidth(AREA_W - 40); logBg:SetHeight(LOG_LINES * 14 + 8)
     logBg:SetTexture(0, 0, 0, 0.4)
     ui.log = {}
     for i = 1, LOG_LINES do
         local t = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        t:SetPoint("TOP", panel, "TOP", 0, -76 - (i - 1) * 14)
+        t:SetPoint("TOP", panel, "TOP", 0, LOG_Y - 4 - (i - 1) * 14)
         ui.log[i] = t
     end
 
     ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.status:SetPoint("TOP", panel, "TOP", 0, -72 - LOG_LINES * 14 - 18)
+    ui.status:SetPoint("TOP", panel, "TOP", 0, LOG_Y - LOG_LINES * 14 - 18)
     ui.status:SetWidth(AREA_W - 8)
 
     -- the field's buttons: Roll (and Forfeit) in a duel; Play again and Setup after one
