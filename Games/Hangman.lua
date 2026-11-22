@@ -869,3 +869,10 @@ end)
 Game.G, Game.HS, Game.ui, Game.room = G, HS, ui, room
 ns.Hangman = Game
 ns:RegisterGame(Game)
+room:RegisterLobby("hangman", function()
+    if ui.mode == "solo" then
+        if db.solo.active then return "Finish your solo word first, then join from the Hangman lobby." end
+        ui.mode, ui.soloMsg = "lobby", nil
+    end
+    Refresh()
+end)

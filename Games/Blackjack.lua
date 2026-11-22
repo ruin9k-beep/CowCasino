@@ -760,6 +760,15 @@ local function BuildParty(panel)
     ui.partyButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- Party play on screen (a lobby pop-up was clicked), or why it can't be.
+function Blackjack:ShowParty()
+    if not ui.partyFrame then return "Open Blackjack first." end
+    if ui.partyFrame:IsShown() then return end
+    if S.phase ~= "betting" then return "Finish your hand first, then join from Party play." end
+    ui.partyFrame:Show()
+    ns.PartyBlackjack:OnShow()
+end
+
 -- Options, sounds and party play: the screens that open over the table.
 local function BuildOverlays(panel)
     ui.options = BuildOptions(panel)

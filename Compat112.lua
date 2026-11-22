@@ -21,6 +21,7 @@ function ns.PlaySound(name) return PlaySound(name) end
 function ns.NumParty() return GetNumPartyMembers() end
 function ns.AddonVersion() return GetAddOnMetadata("CowCasino", "Version") or "?" end
 function ns.NumRaid() return GetNumRaidMembers() end
+function ns.InviteToGroup(name) InviteByName(name) end
 
 -- The 1.12 client sends everything it is given (it never refuses).
 function ns.SendAddonMessage(prefix, text, channel)

@@ -152,6 +152,9 @@ local SOUND_NAMES = { [852] = "igMainMenuOption", [856] = "igMainMenuOptionCheck
   [684] = "INTERFACESOUND_LOSTTARGETUNIT", [829] = "igSpellBookOpen", [841] = "igCharacterInfoTab", [8510] = "TalentScreenOpen" }
 function SoundName(id) return SOUND_NAMES[id] or id end
 ''')
+# party invites: no InviteByName on the modern client
+rep('''InviteByName = function(name) assert(type(name) == "string" and name ~= ""); table.insert(GROUP_INVITES, name) end''',
+    '''C_PartyInfo = { InviteUnit = function(name) assert(type(name) == "string" and name ~= ""); table.insert(GROUP_INVITES, name) end }''')
 # the modern client reads the Mainline .toc
 s = s.replace('io.lines(ADDON .. "/CowCasino.toc")', 'io.lines(ADDON .. "/CowCasino_Mainline.toc")')
 rep('''  PlayerModel = set(FRAME .. " SetUnit SetCamera SetModel SetModelScale SetPosition ClearModel SetFacing"),''',

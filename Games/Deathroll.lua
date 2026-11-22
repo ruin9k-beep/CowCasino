@@ -722,3 +722,29 @@ end
 Deathroll.S, Deathroll.ui, Deathroll.ParseRoll = S, ui, ParseRoll
 
 ns:RegisterGame(Deathroll)
+
+-- The lobby hub (Lobby.lua): pop-ups, badges and invites.
+ns.Lobby:Register("deathroll", {
+    noun = "challenge",
+    offers = function()
+        local out = {}
+        for _, o in ipairs(OpenOffers()) do
+            if not Net:VersionProblem(o.ver) then table.insert(out, { host = o.host, key = o.id }) end
+        end
+        return out
+    end,
+    ask = function() Net:Send(Msg({ "Q" })) end,
+    join = function(host)
+        if S.duel then return "You're already in a duel." end
+        if db and db.mode ~= "party" then SetMode("party") end
+        for _, o in ipairs(OpenOffers()) do
+            if o.host == host then
+                Accept(o)
+                return
+            end
+        end
+        return host .. "'s challenge is gone."
+    end,
+    hosting = function() return S.posted ~= nil end,
+    busy = function() return S.duel ~= nil or S.posted ~= nil or S.accepting ~= nil end,
+})

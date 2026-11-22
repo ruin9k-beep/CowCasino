@@ -112,6 +112,7 @@ local SOUNDS = {
     UI_EPICLOOT_TOAST               = "LEVELUPSOUND",
     RAID_WARNING                    = "RaidWarning",
     IG_QUEST_FAILED                 = "igQuestFailed",
+    IG_PLAYER_INVITE                = "igPlayerInvite",
 }
 
 function ns:Sound(key)

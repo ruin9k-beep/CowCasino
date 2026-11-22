@@ -874,6 +874,7 @@ table.insert(ns.partyGames, Game)
 -- The pieces the shared party code (PartyKit.lua) calls back into.
 H.Refresh, H.SeatMsg, H.StateMsg, H.NewSeat = Refresh, SeatMsg, StateMsg, NewSeat
 H.ResetToLobby, H.HostTable = ResetToLobby, HostTable
+P.RegisterLobby("craps", function() return ns.games.craps:ShowParty() end)
 H.LobbyStats = function()
         local s = db.stats
         local net = s.net

@@ -112,6 +112,73 @@ function ns:MenuOrder()
     return out
 end
 
+-- The menu's filters (the tabs over the grid), and each game's kind.
+ns.MENU_FILTERS = {
+    { key = "all", label = "All", width = 34 },
+    { key = "fav", label = "Favorites", width = 62 },
+    { key = "recent", label = "Recent", width = 50 },
+    { key = "mp", label = "Multiplayer", width = 72 },
+    { key = "cards", label = "Cards", width = 44 },
+    { key = "board", label = "Board", width = 44 },
+    { key = "luck", label = "Luck", width = 40 },
+}
+local CATEGORY = {
+    blackjack = "cards", holdem = "cards", draw = "cards", hilo = "cards", videopoker = "cards", threecard = "cards",
+    checkers = "board", chess = "board", battleship = "board",
+    mines = "luck", slots = "luck", roulette = "luck", craps = "luck", plinko = "luck", crash = "luck", keno = "luck",
+    deathroll = "luck",
+}
+function ns:GameCategory(game) return game and (game.category or CATEGORY[game.id]) end
+
+local RECENT_MAX = 10
+function ns:NoteRecent(id)
+    local recent = self.db.recent or {}
+    for i = ns.getn(recent), 1, -1 do if recent[i] == id then table.remove(recent, i) end end
+    table.insert(recent, 1, id)
+    while ns.getn(recent) > RECENT_MAX do table.remove(recent) end
+    self.db.recent = recent
+end
+
+function ns:IsFavorite(id) return self.db.favorites ~= nil and self.db.favorites[id] == true end
+
+function ns:ToggleFavorite(id)
+    self.db.favorites = self.db.favorites or {}
+    self.db.favorites[id] = (not self.db.favorites[id]) and true or nil
+    ns:Sound("IG_MAINMENU_OPTION")
+    self:LayoutMenu()
+end
+
+-- The games the grid shows, in order: the filter picked (favorites first
+-- under All; Recent is newest first).
+function ns:MenuList()
+    local order, filter, out = self:MenuOrder(), self.db.menuFilter or "all", {}
+    if filter == "recent" then
+        for _, id in ipairs(self.db.recent or {}) do if self.games[id] then table.insert(out, id) end end
+        return out
+    end
+    if filter == "all" then
+        for _, id in ipairs(order) do if self:IsFavorite(id) then table.insert(out, id) end end
+        for _, id in ipairs(order) do if not self:IsFavorite(id) then table.insert(out, id) end end
+        return out
+    end
+    for _, id in ipairs(order) do
+        local g = self.games[id]
+        if (filter == "fav" and self:IsFavorite(id)) or (filter == "mp" and self:IsMultiplayer(g))
+            or self:GameCategory(g) == filter then
+            table.insert(out, id)
+        end
+    end
+    return out
+end
+
+function ns:SetMenuFilter(key)
+    self.db.menuFilter = key
+    local menu = self.frame and self.frame.menu
+    if menu then menu.page = 1 end
+    ns:Sound("IG_MAINMENU_OPTION")
+    self:LayoutMenu()
+end
+
 function ns:MoveGame(index, dir)
     local order = self:MenuOrder()
     local j = index + dir
@@ -136,6 +203,7 @@ end
 local function CreateGameTile(parent, game)
     local tile = ns.CreateFrame("Button", nil, parent)
     tile:SetWidth(TILE_W); tile:SetHeight(TILE_H)
+    tile:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     tile:SetBackdrop(TILE_BACKDROP)
     tile:SetBackdropColor(0.08, 0.08, 0.08, 0.9)
     local border = ns:IsMultiplayer(game) and MP_BORDER or SP_BORDER
@@ -171,12 +239,24 @@ local function CreateGameTile(parent, game)
     dot:Hide()
     tile.inPlay = dot
 
+    -- a favorite (right-click): a gold star by the icon
+    local fav = tile:CreateTexture(nil, "OVERLAY")
+    fav:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+    fav:SetTexCoord(0, 0.25, 0, 0.25)
+    fav:SetWidth(12); fav:SetHeight(12)
+    fav:SetPoint("TOPLEFT", tile, "TOPLEFT", 4, -22)
+    fav:Hide()
+    tile.fav = fav
+
     tile:SetScript("OnEnter", function()
         GameTooltip:SetOwner(tile, "ANCHOR_RIGHT")
         GameTooltip:SetText(game.name or game.id, 1, 0.82, 0)
         GameTooltip:AddLine(ShortDescription(game), 1, 1, 1, 1)
         if tile.multiplayer then GameTooltip:AddLine("Supports Multiplayer", 0.4, 0.8, 1) else GameTooltip:AddLine("Single player", 0.8, 0.65, 0.2) end
         if tile.inPlay:IsShown() then GameTooltip:AddLine("In progress", 1, 0.6, 0.2) end
+        if ns.Lobby then ns.Lobby:AddTooltipLines(game.id) end
+        GameTooltip:AddLine(ns:IsFavorite(game.id) and "In Favorites (right-click to take it out)"
+            or "Right-click to add to Favorites", 0.6, 0.6, 0.6)
         GameTooltip:Show()
         local menu = ns.frame and ns.frame.menu
         if menu and menu.desc then menu.desc:SetText("|cffffd100" .. (game.name or game.id) .. ":|r " .. ShortDescription(game)) end
@@ -188,6 +268,10 @@ local function CreateGameTile(parent, game)
     end)
     tile:SetScript("OnClick", function()
         GameTooltip:Hide()
+        if arg1 == "RightButton" then
+            ns:ToggleFavorite(game.id)
+            return
+        end
         ns:Sound("IG_MAINMENU_OPTION")
         ns:OpenGame(game.id)
     end)
@@ -202,10 +286,31 @@ end
 function ns:LayoutMenu()
     local menu = self.frame and self.frame.menu
     if not menu or not menu.list then return end
-    local order = self:MenuOrder()
+    local order = self:MenuList()
     local per = menu.perPage
-    local pages = math.ceil(ns.getn(order) / per)
+    local pages = math.max(1, math.ceil(ns.getn(order) / per))
     menu.page = math.max(1, math.min(menu.page or 1, pages))
+    local listed = {}
+    for _, id in ipairs(order) do listed[id] = true end
+    for id, tile in pairs(self.menuRows) do
+        if not listed[id] then tile:Hide() end
+        ns.SetShown(tile.fav, self:IsFavorite(id))
+    end
+    -- the filter tabs, and a word when a filter has nothing in it
+    local filter = self.db.menuFilter or "all"
+    for _, f in ipairs(ns.MENU_FILTERS) do
+        local b = menu.filters and menu.filters[f.key]
+        if b then
+            local on = f.key == filter
+            b.label:SetTextColor(on and 1 or 0.6, on and 0.82 or 0.6, on and 0 or 0.6)
+            ns.SetShown(b.mark, on)
+        end
+    end
+    if menu.empty then
+        local word = (filter == "fav" and "Right-click a game to add it to Favorites.")
+            or (filter == "recent" and "The games you play show up here.") or ""
+        menu.empty:SetText(order[1] and "" or word)
+    end
     local left = math.floor((menu.list:GetWidth() - (COLS * TILE_W + (COLS - 1) * TILE_GAP)) / 2)
     if left < 0 then left = 0 end
     for i, id in ipairs(order) do
@@ -343,6 +448,18 @@ function ns:BuildOptionsPage(frame)
     mpLabel:SetPoint("LEFT", mpFirst, "RIGHT", 2, 0)
     mpLabel:SetText("Multiplayer games first")
     o.mpFirst = mpFirst
+    -- pop-ups when someone in your group opens a table (Lobby.lua); invites always show
+    local popups = ns.CreateFrame("CheckButton", ns:NewName(), games, "UICheckButtonTemplate")
+    popups:SetWidth(24); popups:SetHeight(24)
+    popups:SetPoint("TOPLEFT", mpFirst, "BOTTOMLEFT", 0, 0)
+    popups:SetScript("OnClick", function()
+        ns.db.lobbyQuiet = (not this:GetChecked()) and true or nil
+        ns:Sound("IG_MAINMENU_OPTION")
+    end)
+    local popLabel = games:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    popLabel:SetPoint("LEFT", popups, "RIGHT", 2, 0)
+    popLabel:SetText("Pop-ups for tables your group opens")
+    o.lobbyPopups = popups
 
     -- Card art, shared by every card game (Cards.lua), with a small preview
     local artY = -82
@@ -590,6 +707,7 @@ function ns:BuildOptionsPage(frame)
         o.updating = nil
         scaleValue:SetText(math.floor((ns.db.scale or 1) * 100 + 0.5) .. "%")
         o.mpFirst:SetChecked(ns.db.mpFirst and true or nil)
+        o.lobbyPopups:SetChecked((not ns.db.lobbyQuiet) and true or nil)
         o.styleStep:Refresh()
         local order = ns:MenuOrder()
         local n = ns.getn(order)
@@ -751,7 +869,33 @@ function ns:BuildMainFrame()
     header:SetText("Pick a game")
 
     menu.chips = menu:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    menu.chips:SetPoint("TOP", header, "BOTTOM", 0, -10)
+    menu.chips:SetPoint("TOP", header, "BOTTOM", 0, -6)
+
+    -- the filter tabs: All, Favorites, Recent, Multiplayer and the kinds of game
+    menu.filters = {}
+    local tabsW = 0
+    for _, f in ipairs(ns.MENU_FILTERS) do tabsW = tabsW + f.width end
+    local x = math.floor((FRAME_W - 2 * INSET - tabsW) / 2)
+    for _, f in ipairs(ns.MENU_FILTERS) do
+        local key = f.key
+        local b = ns.CreateFrame("Button", nil, menu)
+        b:SetWidth(f.width); b:SetHeight(16)
+        b:SetPoint("TOPLEFT", menu, "TOPLEFT", x, -52)
+        b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        b.label:SetPoint("CENTER", b, "CENTER", 0, 1)
+        b.label:SetText(f.label)
+        local hl = b:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints(b)
+        hl:SetTexture(1, 0.82, 0, 0.12)
+        b.mark = b:CreateTexture(nil, "ARTWORK")
+        b.mark:SetHeight(2)
+        b.mark:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 4, 0)
+        b.mark:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 0)
+        b.mark:SetTexture(1, 0.82, 0, 0.9)
+        b:SetScript("OnClick", function() ns:SetMenuFilter(key) end)
+        menu.filters[key] = b
+        x = x + f.width
+    end
 
     local list = ns.CreateFrame("Frame", nil, menu)
     list:SetPoint("TOPLEFT", list:GetParent(), "TOPLEFT", 0, -72)
@@ -765,6 +909,8 @@ function ns:BuildMainFrame()
         self.menuRows[id] = CreateGameTile(list, self.games[id])
     end
     menu.list, menu.perPage, menu.page = list, COLS * GRID_ROWS, 1
+    menu.empty = menu:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    menu.empty:SetPoint("TOP", list, "TOP", 0, -100)
     menu.desc = menu:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     menu.desc:SetPoint("TOPLEFT", list, "TOPLEFT", 4, -(GRID_ROWS * (TILE_H + TILE_GAP)) - 2)
     menu.desc:SetWidth(FRAME_W - 2 * INSET - 8)
@@ -794,7 +940,7 @@ function ns:BuildMainFrame()
     list:EnableMouseWheel(true)
     list:SetScript("OnMouseWheel", function()
         local dir = (arg1 or 0) > 0 and -1 or 1
-        local pages = math.ceil(ns.getn(ns.gameOrder) / menu.perPage)
+        local pages = math.ceil(ns.getn(ns:MenuList()) / menu.perPage)
         if menu.page + dir >= 1 and menu.page + dir <= pages then ns:MenuPage(dir) end
     end)
     self:LayoutMenu()
@@ -841,6 +987,7 @@ function ns:BuildMainFrame()
     ground:SetTexture(0.05, 0.04, 0.03, 0.85)
     frame.container = container
 
+    if self.Lobby then self.Lobby:BuildWindow(frame) end
     self.rebuyPage = self:BuildRebuyPage(frame)
     if self.Chat then self.Chat:Build(frame) end
 
@@ -991,6 +1138,8 @@ function ns:ShowMenu()
     self.frame.menu:Show()
     if self.optionsPage then self.optionsPage:Hide() end
     self.frame.title:SetText("CowCasino")
+    if ns.Lobby then ns.Lobby:UpdateWindow() end
+    if self.db.menuFilter == "recent" then self:LayoutMenu() end
     self:UpdateChipsDisplay()
 end
 
@@ -1021,6 +1170,7 @@ function ns:OpenGame(id)
     PlaceOptionsButton(game.panel, true)
 
     self.currentGame = id
+    self:NoteRecent(id)
     self.frame.menu:Hide()
     if self.optionsPage then self.optionsPage:Hide() end
     self.frame.gamePage:Show()
@@ -1028,6 +1178,7 @@ function ns:OpenGame(id)
     self.frame.title:SetText(game.name or id)   -- (short: it shares its row with < Games and Options)
     if ns.Dealer then ns.Dealer:Attach(game) end      -- before OnShow, so it can talk straight away
     if game.OnShow then game:OnShow() end
+    if ns.Lobby then ns.Lobby:UpdateWindow() end
 end
 
 function ns:Toggle()

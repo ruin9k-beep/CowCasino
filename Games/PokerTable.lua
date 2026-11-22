@@ -2982,5 +2982,33 @@ function Poker:ResetStats()
     for k, v in pairs(DEFAULT_STATS) do d.stats[k] = v end
 end
 
+-- The lobby hub (Lobby.lua): pop-ups, badges and invites.
+ns.Lobby:Register(V.id, {
+    noun = "table",
+    offers = function()
+        local out = {}
+        for name, o in pairs(T.offers) do
+            if GetTime() - o.heard < OFFER_TIMEOUT and (o.open or 0) > 0 and not Net:VersionProblem(o.ver) then
+                table.insert(out, { host = name, key = o.tid })
+            end
+        end
+        return out
+    end,
+    ask = function() Net:Send(Msg({ "Q" })) end,
+    join = function(host)
+        if T.seats[1] then
+            return T.mode == "solo" and "Leave your solo table first (your stack goes back to your chips), then join."
+                or "You're already at a table."
+        end
+        if not ui.party then return "Open " .. V.name .. " first." end
+        if not ui.party:IsShown() then ui.party:Show() end
+        local o = T.offers[host]
+        if not o then return host .. "'s table is gone." end
+        JoinTable(host, o.tid)
+    end,
+    hosting = function() return T.mode == "host" end,
+    busy = function() return T.seats[1] ~= nil or T.joining ~= nil end,
+})
+
 return Poker
 end   -- ns.NewPokerGame

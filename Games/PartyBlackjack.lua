@@ -1322,6 +1322,7 @@ table.insert(ns.partyGames, Game)
 -- The pieces the shared party code (PartyKit.lua) calls back into.
 H.Refresh, H.SeatMsg, H.StateMsg, H.NewSeat = Refresh, SeatMsg, StateMsg, NewSeat
 H.ResetToLobby, H.HostTable = ResetToLobby, HostTable
+P.RegisterLobby("blackjack", function() return ns.games.blackjack:ShowParty() end)
 H.TopUpLater = function(p) return p.inRound end        -- mid-round: top up when it's over
 H.LobbyStats = function()
         local s = db.stats

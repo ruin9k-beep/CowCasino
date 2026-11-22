@@ -223,6 +223,36 @@ function Room:Join(host, tid)
     self:Refresh()
 end
 
+-- Hooks the room up to the lobby hub (Lobby.lua: pop-ups, badges, invites).
+-- enter(): brings the game's lobby page up (from a solo screen, say), or
+-- returns why it can't.
+function Room:RegisterLobby(id, enter)
+    local room = self
+    ns.Lobby:Register(id, {
+        noun = "game",
+        offers = function()
+            local out = {}
+            for name, o in pairs(room.offers) do
+                if GetTime() - o.heard < RK.OFFER_TIMEOUT and o.players < room.max and not Net:VersionProblem(o.ver) then
+                    table.insert(out, { host = name, key = o.tid })
+                end
+            end
+            return out
+        end,
+        ask = function() room:Send({ "Q" }) end,
+        join = function(host)
+            if room.mode ~= "lobby" then return "You're already in a game." end
+            local why = enter and enter()
+            if why then return why end
+            local o = room.offers[host]
+            if not o then return host .. "'s game is gone." end
+            room:Join(host, o.tid)
+        end,
+        hosting = function() return room.mode == "host" end,
+        busy = function() return room.mode ~= "lobby" or room.joining ~= nil end,
+    })
+end
+
 function Room:Leave()
     if self.mode ~= "client" then return end
     self:Send({ "L", self.tid })

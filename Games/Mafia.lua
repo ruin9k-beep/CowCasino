@@ -875,3 +875,4 @@ end)
 Game.G, Game.HS, Game.ui, Game.room = G, HS, ui, room
 ns.Mafia = Game
 ns:RegisterGame(Game)
+room:RegisterLobby("mafia")

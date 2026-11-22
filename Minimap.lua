@@ -30,6 +30,7 @@ local function ShowTooltip(button)
     GameTooltip:AddLine("|cffffd100CowCasino|r")
     GameTooltip:AddLine("Click to open or close.", 1, 1, 1)
     GameTooltip:AddLine("Chips: " .. ns:FormatChips(ns.db.chips), 1, 1, 1)
+    if ns.Lobby then ns.Lobby:AddTooltipLines(nil) end
     GameTooltip:AddLine("Drag to move.  /casino minimap to hide.", 0.6, 0.6, 0.6)
     GameTooltip:Show()
 end

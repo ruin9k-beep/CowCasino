@@ -229,6 +229,10 @@ TargetByName = function(name, exact)
   end
 end
 TargetLastTarget = function() SetTarget(LAST_TARGET) end
+-- party invites: recorded (tests read GROUP_INVITES)
+GROUP_INVITES = {}
+InviteByName = function(name) assert(type(name) == "string" and name ~= ""); table.insert(GROUP_INVITES, name) end
+UnitIsPlayer = function(u) return UnitName(u) ~= nil and (TARGET_IS_PLAYER ~= false) and 1 or nil end
 ClearTarget = function() SetTarget(nil) end
 GetAddOnMetadata = function(addon, field) if field == "Version" then return "test" end end
 GetNumPartyMembers = function() return 0 end

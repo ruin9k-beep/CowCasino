@@ -464,6 +464,19 @@ function Kit:Accept(offer)
     self:Refresh()
 end
 
+-- Take host's challenge from a pop-up (Lobby.lua): switch to party games and accept.
+function Kit:LobbyJoin(host)
+    if self.S.game then return "You're already in a game of " .. self.name .. "." end
+    if self:Mode() ~= "party" then self:SetMode("party") end
+    for _, o in ipairs(self:OpenOffers()) do
+        if o.host == host then
+            self:Accept(o)
+            return
+        end
+    end
+    return host .. "'s challenge is gone."
+end
+
 function Kit:Quiet(g)
     return g and g.kind == "party" and GetTime() - (g.heard or 0) > QUIET_LIMIT
 end
@@ -1453,6 +1466,21 @@ function Kit.New(def, class)
     }, class or Kit)
     Net.handlers[def.tag] = function(sender, f) game:OnMessage(sender, f) end
     Net.groupHandlers[def.id] = function() game:GroupChanged() end
+    -- the lobby hub (Lobby.lua): pop-ups, badges and invites
+    ns.Lobby:Register(def.id, {
+        noun = "challenge",
+        offers = function()
+            local out = {}
+            for _, o in ipairs(game:OpenOffers()) do
+                if not Net:VersionProblem(o.ver) then table.insert(out, { host = o.host, key = o.id }) end
+            end
+            return out
+        end,
+        ask = function() Net:Send(game:Msg({ "Q" })) end,
+        join = function(host) return game:LobbyJoin(host) end,
+        hosting = function() return game.S.posted ~= nil end,
+        busy = function() return game.S.game ~= nil or game.S.posted ~= nil or game.S.accepting ~= nil end,
+    })
     local ticker = ns.CreateFrame("Frame")
     local wait = 0
     ticker:SetScript("OnUpdate", function()

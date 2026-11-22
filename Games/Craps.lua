@@ -590,6 +590,15 @@ local function BuildParty(panel)
     ui.partyButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- Party play on screen (a lobby pop-up was clicked), or why it can't be.
+function Craps:ShowParty()
+    if not ui.partyFrame then return "Open Craps first." end
+    if ui.partyFrame:IsShown() then return end
+    if S.rolling or Rules.Total(db.bets) > 0 then return "Take your bets down first, then join from Party play." end
+    ui.partyFrame:Show()
+    ns.PartyCraps:OnShow()
+end
+
 function Craps:Build(panel)
     db = ns:SetupGame(panel, "craps", {
         defaults = { bets = {}, chip = 25, oddsMax = 3 },

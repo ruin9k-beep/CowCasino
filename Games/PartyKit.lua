@@ -180,6 +180,35 @@ function ns.PartyKit(K)
         P.SetLobbyMessage("Asking " .. host .. " for a seat...")
     end
 
+    -- Hooks the table up to the lobby hub (Lobby.lua: pop-ups, badges and
+    -- invites), under the menu game id it's shown in. show(): puts the party
+    -- lobby on screen, or returns why it can't.
+    function P.RegisterLobby(id, show)
+        ns.Lobby:Register(id, {
+            noun = "table",
+            offers = function()
+                local out = {}
+                for name, o in pairs(T.offers) do
+                    if GetTime() - o.heard < OFFER_TIMEOUT and (o.open or 0) > 0 and not Net:VersionProblem(o.ver) then
+                        table.insert(out, { host = name, key = o.tid })
+                    end
+                end
+                return out
+            end,
+            ask = function() Net:Send(Msg({ "Q" })) end,
+            join = function(host)
+                if T.mode ~= "lobby" then return "You're already at a table." end
+                local why = show()
+                if why then return why end
+                local o = T.offers[host]
+                if not o then return host .. "'s table is gone." end
+                P.JoinTable(host, o.tid)
+            end,
+            hosting = function() return T.mode == "host" end,
+            busy = function() return T.mode ~= "lobby" or T.joining ~= nil end,
+        })
+    end
+
     -- A client: who's sitting where. False if we're no longer at the table.
     function P.ClientRoster(f)
         for i = 1, NUM_SEATS do

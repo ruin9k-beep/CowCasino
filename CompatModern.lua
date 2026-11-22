@@ -170,6 +170,9 @@ end
 ---------------------------------------------------------------------------
 function ns.NumParty() return GetNumSubgroupMembers() end
 function ns.NumRaid() return IsInRaid() and GetNumGroupMembers() or 0 end
+function ns.InviteToGroup(name)
+    if C_PartyInfo and C_PartyInfo.InviteUnit then C_PartyInfo.InviteUnit(name) else InviteUnit(name) end
+end
 -- Addon messages. The modern client gives each prefix an allowance of 10
 -- messages that comes back at 1 per second, and drops anything over it, which
 -- is far less than a busy table needs. So CowCasino sends on a pool of

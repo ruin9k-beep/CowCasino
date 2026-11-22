@@ -1107,3 +1107,27 @@ Game.S, Game.HS, Game.ui = S, HS, ui
 ns.Sketch = Game
 
 ns:RegisterGame(Game)
+
+-- The lobby hub (Lobby.lua): pop-ups, badges and invites.
+ns.Lobby:Register("sketch", {
+    noun = "game",
+    offers = function()
+        local out = {}
+        for name, o in pairs(S.offers) do
+            if GetTime() - o.heard < OFFER_TIMEOUT and o.players < MAX_PLAYERS and not Net:VersionProblem(o.ver) then
+                table.insert(out, { host = name, key = o.tid })
+            end
+        end
+        return out
+    end,
+    ask = function() Send({ "Q" }) end,
+    join = function(host)
+        if S.mode == "practice" then Game.ToLobby() end
+        if S.mode ~= "lobby" then return "You're already in a game." end
+        local o = S.offers[host]
+        if not o then return host .. "'s game is gone." end
+        Join(host, o.tid)
+    end,
+    hosting = function() return S.mode == "host" end,
+    busy = function() return (S.mode ~= "lobby" and S.mode ~= "practice") or S.joining ~= nil end,
+})
