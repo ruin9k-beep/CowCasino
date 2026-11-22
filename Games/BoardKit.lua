@@ -1352,7 +1352,7 @@ function Kit:Build(panel)
     self:BuildBottom(panel)
     self.ui.options = ns:GameOptions(self, panel, {
         rules = def.rulesText,
-        onReset = function() game:ResetStats() end,
+        onReset = function() ns:ResetStats(game) end,
         db = function() return game.db end,
         sounds = EXTRA_SOUNDS,
         settings = true,
@@ -1420,11 +1420,8 @@ function Kit:Abandon()
     end
 end
 
-function Kit:ResetStats()
-    local d = ns.db[self.id]
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Kit.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Kit:OnStatsReset()
     if self.ui.stats and self.db then self:Refresh() end
 end
 

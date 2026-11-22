@@ -96,6 +96,13 @@ end
 ---------------------------------------------------------------------------
 function Room:Refresh() Call(self.spec.refresh) end
 
+-- The host changed a setting: a click, everyone told, the screen redrawn.
+function Room:SettingsChanged()
+    ns:Sound("IG_MAINMENU_OPTION")
+    if self:IsHost() then self:SendState() end
+    self:Refresh()
+end
+
 function Room:Phase() return Call(self.spec.phase) or "w" end
 
 function Room:Offer()

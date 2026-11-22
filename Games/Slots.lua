@@ -711,12 +711,7 @@ local function BuildReel(machine, r)
     return reel
 end
 
-local function IndexOf(list, value)
-    for i, v in ipairs(list) do
-        if v == value then return i end
-    end
-    return 1
-end
+local IndexOf = ns.IndexOf
 
 -- One payline drawn as a small reels-by-rows grid, its path lit.
 local LINE_CELL_W, LINE_CELL_H, LINE_CELL_GAP = 12, 9, 2
@@ -1169,11 +1164,8 @@ function Slots:OnHide()
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.
-function Slots:ResetStats()
-    local d = ns.db.slots
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Slots.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Slots:OnStatsReset(d)
     ns.UI.ClearHistory(S.recent)
     if ui.stats and db then Refresh() end
 end

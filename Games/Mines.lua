@@ -320,12 +320,7 @@ end
 ---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick)     -- (with a click sound)
-    return ns.UI.Button(parent, text, width, function(self, button)
-        Sound("IG_MAINMENU_OPTION")
-        onClick(self, button)
-    end, 24)
-end
+local function MakeButton(parent, text, width, onClick) return ns.UI.ClickButton(parent, text, width, onClick, 24) end
 
 local function MakeTile(parent, index)
     local t = ns.CreateFrame("Button", nil, parent)
@@ -545,12 +540,7 @@ function Mines:Abandon()
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.
-function Mines:ResetStats()
-    local d = ns.db.mines
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
-end
+Mines.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
 
 -- The stats line on the game's intro (Intro.lua).
 function Mines:IntroStats() return StatsText() end

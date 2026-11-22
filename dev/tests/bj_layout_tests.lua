@@ -80,6 +80,6 @@ end
 Check("net stat = chips won minus chips lost", bj.stats.net - netStart == ns.db.chips - start, (bj.stats.net - netStart) .. " vs " .. (ns.db.chips - start))
 Check("two split hands sit centered under the dealer", splitCentered and splits > 0, splits)
 Check("stats line shows the signed net", string.find(stats.text, "Net ", 1, true) ~= nil and string.find(stats.text, ns:FormatChips(math.abs(bj.stats.net)) .. "|r$") ~= nil, stats.text)
-ns.games.blackjack:ResetStats()
+ns:ResetStats(ns.games.blackjack)
 Check("a fresh stack starts net at 0", bj.stats.net == 0 and string.find(stats.text, "Net |cffcccccc0", 1, true) ~= nil)
 H.Done("BJ LAYOUT")

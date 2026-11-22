@@ -166,7 +166,7 @@ local function Refresh()
 end
 
 local function AddBet(amount)
-    db.bet = math.max(0, math.min(MAX_BET, db.bet + amount, math.max(0, ns.db.chips)))
+    db.bet = ns:NudgeBet(db.bet, amount, MAX_BET)
     ns:Sound("IG_MAINMENU_OPTION")
     Refresh()
 end
@@ -567,11 +567,8 @@ function Plinko:Abandon()
     if ui.board then Refresh() end
 end
 
-function Plinko:ResetStats()
-    local d = ns.db.plinko
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Plinko.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Plinko:OnStatsReset(d)
     if ui.stats and db then Refresh() end
 end
 

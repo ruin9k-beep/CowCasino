@@ -424,11 +424,8 @@ function TCP:Abandon()
     if ui.cards then Refresh() end
 end
 
-function TCP:ResetStats()
-    local d = ns.db.threecard
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+TCP.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function TCP:OnStatsReset(d)
     if ui.stats and db then Refresh() end
 end
 

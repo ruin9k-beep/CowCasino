@@ -578,12 +578,7 @@ end
 ---------------------------------------------------------------------------
 -- Build helpers
 ---------------------------------------------------------------------------
-local function MakeButton(parent, text, width, onClick)     -- (with a click sound)
-    return ns.UI.Button(parent, text, width, function(self, button)
-        Sound("IG_MAINMENU_OPTION")
-        onClick(self, button)
-    end, 24)
-end
+local function MakeButton(parent, text, width, onClick) return ns.UI.ClickButton(parent, text, width, onClick, 24) end
 
 local function MakeButtonRow(parent, specs, gap)
     local row = ns.CreateFrame("Frame", nil, parent)
@@ -650,26 +645,15 @@ local function MakeCycler(parent, y, label, getText, step)
 end
 
 local function MakeCheck(parent, y, label, key)
-    local cb = ns.CreateFrame("CheckButton", ns:NewName(), parent, "UICheckButtonTemplate")
-    cb:SetWidth(24); cb:SetHeight(24)
-    cb:SetPoint("TOPLEFT", cb:GetParent(), "TOPLEFT", 12, y + 4)
-    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-    text:SetText(label)
-    cb:SetScript("OnClick", function() local self = this
-        db.settings[key] = self:GetChecked() and true or false
-        Sound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+    local cb = ns.UI.CheckBox(parent, label, function() return db.settings[key] end, function(on)
+        db.settings[key] = on
         Refresh()
     end)
-    return function() cb:SetChecked(db.settings[key]) end
+    cb:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, y + 4)
+    return function() cb:Refresh() end
 end
 
-local function IndexOf(list, value)
-    for i, v in ipairs(list) do
-        if v == value then return i end
-    end
-    return 1
-end
+local IndexOf = ns.IndexOf
 
 local function BuildOptions(panel)
     local o
@@ -932,11 +916,8 @@ function Blackjack:Abandon()
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.
-function Blackjack:ResetStats()
-    local d = ns.db.blackjack
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Blackjack.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Blackjack:OnStatsReset(d)
     d.stats.best = ns.db.chips
     if ui.status then UpdateStats() end
 end

@@ -28,8 +28,6 @@ local DEALER_DELAY = 0.7    -- seconds between dealer cards
 local RESULT_DELAY = 6      -- seconds the results stay up before the next round
 local MAX_TIMEOUTS = 2      -- missed turns in a row before a player is removed
 local MAX_SITOUTS  = 5      -- betting rounds sat out in a row before a player is removed
-local HEARTBEAT    = 15     -- the host re-sends the table this often
-local HOST_TIMEOUT = 40
 local GAME_TAG     = "BJ"
 
 local CARD_W, CARD_H   = 46, 64
@@ -83,6 +81,7 @@ local StartClock, StopClock, HostTopUp, DoTopUp, RefreshTopUp =
     P.StartClock, P.StopClock, P.HostTopUp, P.DoTopUp, P.RefreshTopUp
 local SetLobbyMessage, ClientCashOut, HostGone, JoinTable, ClientRoster =
     P.SetLobbyMessage, P.ClientCashOut, P.HostGone, P.JoinTable, P.ClientRoster
+local SeatPlayer = P.SeatPlayer
 local function Sound(key) ns:Sound(key) end
 
 local PHASE_CODE = { waiting = "w", betting = "b", insurance = "i", playing = "p", dealer = "d", settled = "s" }
@@ -205,44 +204,10 @@ end
 ---------------------------------------------------------------------------
 -- Host: the round
 ---------------------------------------------------------------------------
-local function SeatPlayer(name, buyin)
-    for i = 2, NUM_SEATS do
-        local p = T.seats[i]
-        if p.kind == "remote" and p.name == name then
-            if not (p.leaving or p.kicked) then
-                Net:Send(Msg({ "S", T.tid, name, i, p.stack }))   -- asked twice
-                return
-            end
-            -- a seat they dropped from mid-round: clear it and seat them fresh
-            if p.kicked then Net:Send(Msg({ "K", T.tid, p.name, p.stack })) end
-            T.seats[i] = NewSeat("empty")
-            MarkSeat(i)
-        end
-    end
-    local free
-    for i = 2, NUM_SEATS do
-        if not free and T.seats[i].kind == "empty" then free = i end
-    end
-    if not free then
-        Net:Send(Msg({ "N", T.tid, name, "The table is full." }))
-        return
-    end
-    local p = NewSeat("remote", name, buyin)
-    p.bet = math.min(25, buyin)
-    T.seats[free] = p
-    Net:Send(Msg({ "S", T.tid, name, free, buyin }))
-    MarkAll()           -- the newcomer needs every seat, not just theirs
-    Changed()
-    SendRoster()
-    SendOffer()
-end
-
 local function SeatPending()
     local waiting = T.pending
     T.pending = {}
-    for _, w in ipairs(waiting) do
-        if Net:IsMember(w.name) then SeatPlayer(w.name, w.buyin) end
-    end
+    for _, w in ipairs(Net:StillHere(waiting)) do SeatPlayer(w.name, w.buyin) end
 end
 
 -- Between rounds: drop players who left or were removed, seat new ones.
@@ -635,17 +600,9 @@ function HostLeave()
 end
 
 local function HostTable(buyin)
-    if T.mode ~= "lobby" or not Net:InGroup() then return end   -- free: party tables don't use your chips
-    db.stats.buyIns = db.stats.buyIns + 1
-    T.tableBuyIn = buyin            -- everyone who joins sits down with this
-    T.mode, T.mySeat = "host", 1
-    T.tid = tostring(math.random(1, 99999))
-    T.version, T.pending = 0, {}
-    T.seats = { NewSeat("you", Net:Me(), buyin) }
-    for i = 2, NUM_SEATS do T.seats[i] = NewSeat("empty") end
+    if not P.OpenTable(buyin) then return end
     T.seats[1].bet = math.min(T.myBet, buyin)
     shoe = ns:NewShoe(DECKS)
-    db.host = { stack = buyin }
     SendOffer()
     StartBetting()
 end
@@ -790,151 +747,37 @@ local function ClientState(f)
     Refresh()
 end
 
-local function OnMessage(sender, f)
-    local kind, tid = f[2], f[3]
-    if P.LobbyMessage(sender, f) then return end
-
-    if T.mode == "host" and tid == T.tid then
-        if kind == "J" then
-            if Net:VersionProblem(f[5]) then return end   -- another version can't sit here
-            local buyin = T.tableBuyIn or 500     -- everyone gets the host's stack
-            if T.phase == "betting" or T.phase == "settled" or T.phase == "waiting" then
-                SeatPlayer(sender, buyin)
-                Refresh()
-                CheckAllReady()
-            else
-                for _, w in ipairs(T.pending) do
-                    if w.name == sender then return end
-                end
-                table.insert(T.pending, { name = sender, buyin = buyin })
-                Net:Send(Msg({ "N", T.tid, sender, "wait" }))
-            end
-        elseif kind == "A" then
-            local i
-            for s = 2, NUM_SEATS do
-                if T.seats[s].kind == "remote" and T.seats[s].name == sender then i = s end
-            end
-            if not i then return end
-            local code = f[6]
-            local isPlay = code ~= "B" and code ~= "y" and code ~= "n"
-            if tonumber(f[5]) ~= T.round then return end
-            if isPlay and tonumber(f[4]) ~= T.version then return end
-            HostAct(i, code, f[7])
-        elseif kind == "L" then
-            for i = 2, NUM_SEATS do
-                if T.seats[i].kind == "remote" and T.seats[i].name == sender then HostDropPlayer(i) end
-            end
-        elseif kind == "U" then
-            for i = 2, NUM_SEATS do
-                if T.seats[i].kind == "remote" and T.seats[i].name == sender then HostTopUp(i) end
-            end
-        end
-        return
-    end
-
-    if T.joining and sender == T.joining.host and tid == T.joining.tid then
-        if kind == "S" and f[4] == Net:Me() then
-            local seat, stack = tonumber(f[5]), tonumber(f[6]) or 0
-            T.joining = nil
-            if not seat then
-                Net:Send(Msg({ "L", tid }))
-                return
-            end
-            db.stats.buyIns = db.stats.buyIns + 1
-            T.mode, T.host, T.tid, T.mySeat = "client", sender, tid, seat
-            T.tableBuyIn = stack            -- the host's stack, for topping up
-            T.seats = {}
-            for i = 1, NUM_SEATS do T.seats[i] = NewSeat("empty") end
-            T.seats[seat] = NewSeat("human", Net:Me(), stack)
-            T.phase, T.version, T.lastHeard = "waiting", 0, GetTime()
-            db.seat = { host = sender, tid = tid, stack = stack }
-            Refresh()
-        elseif kind == "N" and f[4] == Net:Me() then
-            if f[5] == "wait" then
-                T.joining.waiting = true
-                SetLobbyMessage(sender .. " will seat you after this round.")
-            else
-                T.joining = nil
-                SetLobbyMessage(f[5] or "No seat.")
-            end
-        end
-        return
-    end
-
-    if T.mode ~= "client" or sender ~= T.host or tid ~= T.tid then
-        if kind == "X" then
-            T.offers[sender] = nil
-            if T.mode == "lobby" then Refresh() end
-        end
-        return
-    end
-    T.lastHeard = GetTime()
-    if kind == "R" then
-        if ClientRoster(f) then Refresh() end
-    elseif kind == "Z" then
-        ClientSeat(f)
+-- Someone asks for a seat: now between rounds, or after this one.
+local function OnJoin(name, buyin)
+    if T.phase == "betting" or T.phase == "settled" or T.phase == "waiting" then
+        SeatPlayer(name, buyin)
         Refresh()
-    elseif kind == "P" then
-        ClientState(f)
-    elseif kind == "K" then
-        if f[4] == Net:Me() then
-            ClientCashOut(tonumber(f[5]) or 0, "You were removed from " .. sender .. "'s table for not responding.")
-        end
-    elseif kind == "X" then
-        HostGone(sender .. " closed the table.")
+        CheckAllReady()
+        return
     end
+    for _, w in ipairs(T.pending) do
+        if w.name == name then return end
+    end
+    table.insert(T.pending, { name = name, buyin = buyin })
+    Net:Send(Msg({ "N", T.tid, name, "wait" }))
 end
 
-Net.handlers[GAME_TAG] = OnMessage
-
-Net.groupHandlers.partybj = function()
-    if T.mode == "host" then
-        for i = 2, NUM_SEATS do
-            local p = T.seats[i]
-            if p.kind == "remote" and not Net:IsMember(p.name) then HostDropPlayer(i) end
-        end
-        local still = {}
-        for _, w in ipairs(T.pending) do
-            if Net:IsMember(w.name) then table.insert(still, w) end
-        end
-        T.pending = still
-    elseif T.mode == "client" and not Net:IsMember(T.host) then
-        HostGone((T.host or "The host") .. " left the group.")
-    end
-    for name in pairs(T.offers) do
-        if not Net:IsMember(name) then T.offers[name] = nil end
-    end
-    if T.joining and not Net:IsMember(T.joining.host) then
-        T.joining = nil
-        SetLobbyMessage("The host left the group.")
-    end
-    if T.mode == "lobby" and ui.lobby then Refresh() end
+-- A seated player's move, to the host (A;tid;version;round;code;amount):
+-- plays need the current table, bets and insurance only the round.
+local function HostMove(i, f)
+    local code = f[6]
+    local isPlay = code ~= "B" and code ~= "y" and code ~= "n"
+    if tonumber(f[5]) ~= T.round then return end
+    if isPlay and tonumber(f[4]) ~= T.version then return end
+    HostAct(i, code, f[7])
 end
 
-local ticker = ns.CreateFrame("Frame")
-local tickWait, beatWait = 0, 0
-ticker:SetScript("OnUpdate", function()
-    tickWait = tickWait + (arg1 or 0)
-    if tickWait < 0.5 then return end
-    beatWait = beatWait + tickWait
-    tickWait = 0
-    if T.deadline and ui.table and ui.table:IsVisible() then Refresh() end
-    if T.mode == "host" and beatWait >= HEARTBEAT then
-        beatWait = 0
-        if HasRemote() then
-            SendRoster()
-            MarkAll()
-            Broadcast()
-        end
-    elseif T.mode == "client" and T.lastHeard and GetTime() - T.lastHeard > HOST_TIMEOUT then
-        HostGone((T.host or "The host") .. " stopped responding.")
+-- Removed for not responding (K), to a client.
+local function ClientMessage(kind, f, sender)
+    if kind == "K" and f[4] == Net:Me() then
+        ClientCashOut(tonumber(f[5]) or 0, "You were removed from " .. sender .. "'s table for not responding.")
     end
-    if T.joining and not T.joining.waiting and GetTime() - T.joining.at > 15 then
-        SetLobbyMessage("No answer from " .. T.joining.host .. ".")
-        T.joining = nil
-        Refresh()
-    end
-end)
+end
 
 ---------------------------------------------------------------------------
 -- Display
@@ -1257,46 +1100,13 @@ local function BuildTable(panel)
 end
 
 function Game:Build(panel)
-    ns.db.partybj = ns.db.partybj or {}
-    db = ns.db.partybj
-    db.stats = db.stats or {}
-    for k, v in pairs(DEFAULT_STATS) do
-        if db.stats[k] == nil then db.stats[k] = v end
-    end
-
-    self.panel = panel
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    felt:SetTexture(0.05, 0.30, 0.12, 1)
-    P.BuildLobby(panel, {
-        title = "Party Blackjack",
+    db = P.Build(panel, { key = "partybj", stats = DEFAULT_STATS, title = "Party Blackjack",
         info = "Up to four players from your group against a computer dealer. Free to join: everyone "
             .. "plays with the stack the host picks, and your own chips are never touched.",
-        buyIns = BUY_INS,
-    })
+        buyIns = BUY_INS })
     BuildTable(panel)
     ResetToLobby()
-
-    -- A party table can't survive a reload (its stacks are free, so nothing
-    -- goes back to your chips).
-    local message
-    if db.host then
-        db.host = nil
-        message = "Your blackjack table closed when the game reloaded."
-    end
-    if db.seat then
-        if db.seat.host and Net:IsMember(db.seat.host) then Net:Send(Msg({ "L", db.seat.tid })) end
-        message = "You left " .. (db.seat.host or "the") .. "'s blackjack table when the game reloaded."
-        db.seat = nil
-    end
-    SetLobbyMessage(message)
-    Refresh()
-end
-
--- At a party table (hosting or seated)?
-function Game:OnShow()
-    if T.mode == "lobby" and Net:InGroup() then Net:Send(Msg({ "Q" })) end
-    if ui.table then Refresh() end
+    P.Restore("blackjack")
 end
 
 -- Exposed for tests.
@@ -1304,12 +1114,7 @@ Game.T, Game.ui = T, ui
 Game.HandValue, Game.IsBlackjack = HandValue, IsBlackjack
 
 -- A fresh stack after running out (Core.lua): stats start over.
-function Game:ResetStats()
-    local d = ns.db.partybj
-    if not d then return end
-    d.stats = {}
-    for k, v in pairs(DEFAULT_STATS) do d.stats[k] = v end
-end
+Game.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
 
 Game.parent = "blackjack"   -- shown inside Blackjack
 ns.PartyBlackjack = Game
@@ -1318,6 +1123,10 @@ table.insert(ns.partyGames, Game)
 -- The pieces the shared party code (PartyKit.lua) calls back into.
 H.Refresh, H.SeatMsg, H.StateMsg, H.NewSeat = Refresh, SeatMsg, StateMsg, NewSeat
 H.ResetToLobby, H.HostTable = ResetToLobby, HostTable
+H.HostAct, H.DropPlayer, H.ClientSeat, H.ClientState = HostMove, HostDropPlayer, ClientSeat, ClientState
+H.OnJoin, H.ClientMessage = OnJoin, ClientMessage
+H.OnSeat = function(p) p.bet = math.min(25, p.stack) end      -- a new player's opening bet
+P.Watch("partybj")
 P.RegisterLobby("blackjack", function() return ns.games.blackjack:ShowParty() end)
 H.TopUpLater = function(p) return p.inRound end        -- mid-round: top up when it's over
 H.LobbyStats = function()

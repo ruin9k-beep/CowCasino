@@ -222,12 +222,8 @@ function Widget:SetLevel(level)
 end
 
 function ns:CreateSymbolWidget(parent, width, height)
-    local f = ns.CreateFrame("Frame", nil, parent)
-    f:SetWidth(width); f:SetHeight(height)
-    f.skins = {}
-    for k, v in pairs(Widget) do f[k] = v end
+    local f = ns.UI.SkinFrame(parent, width, height, Widget)
     widgets[f] = true
-    f:Hide()
     return f
 end
 

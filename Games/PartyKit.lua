@@ -11,6 +11,14 @@
 --   H.Refresh, H.SeatMsg, H.StateMsg, H.NewSeat, H.ResetToLobby, H.HostTable,
 --   H.LobbyStats() -> the lobby's stats line, H.TopUpLater(p) -> true when a
 --   top-up has to wait for the round to end.
+-- The kit also runs the table's messages (P.OnMessage), its clock
+-- (heartbeat, a silent host, an unanswered join) and the group changing
+-- (P.Watch), with these hooks:
+--   H.HostAct(i, f)       a seated player's move (A), to the host
+--   H.DropPlayer(i)       a player left the table or the group (host)
+--   H.ClientSeat(f), H.ClientState(f)   a seat (Z) and the table (P), to a client
+--   optional: H.OnJoin(name, buyin) (default: seat them), H.OnSeat(p) (a new
+--   player's seat), H.OnSeated() (you just sat down), H.ClientMessage(kind, f, sender)
 -- The game's table state T needs: mode ("lobby", "host", "client"), seats,
 -- mySeat, tid, host, offers, joining, version, dirty, dirtySeats, round,
 -- deadline, clock, tableBuyIn and partyBuyIn.
@@ -19,6 +27,9 @@ local ns = CowCasino.ns
 local Net = ns.Net
 
 local ROWS = 3                -- tables listed in the lobby
+local HEARTBEAT = 15          -- the host re-sends the table this often
+local HOST_TIMEOUT = 40       -- a client gives up on a silent host after this long
+local JOIN_TIMEOUT = 15       -- no answer to a seat request
 
 function ns.PartyKit(K)
     local T, ui, H, Game = K.T, K.ui, K.hooks, K.game
@@ -350,6 +361,234 @@ function ns.PartyKit(K)
             end
         end
         ui.lobbyStats:SetText(H.LobbyStats())
+    end
+
+    -- Host: opening a table, seating and finding players --------------------
+    -- The table's common setup (the game adds its own, then offers it and
+    -- starts). False if it can't open.
+    function P.OpenTable(buyin)
+        if T.mode ~= "lobby" or not Net:InGroup() then return false end   -- free: party tables don't use your chips
+        local db = K.db()
+        db.stats.buyIns = db.stats.buyIns + 1
+        T.tableBuyIn = buyin            -- everyone who joins sits down with this
+        T.mode, T.mySeat = "host", 1
+        T.tid = tostring(math.random(1, 99999))
+        T.version, T.pending = 0, {}
+        T.seats = { H.NewSeat("you", Net:Me(), buyin) }
+        for i = 2, NUM_SEATS do T.seats[i] = H.NewSeat("empty") end
+        db.host = { stack = buyin }
+        return true
+    end
+
+    -- The seat a remote player is in (or nil).
+    function P.RemoteSeat(name)
+        for i = 2, NUM_SEATS do
+            local p = T.seats[i]
+            if p.kind == "remote" and p.name == name then return i end
+        end
+    end
+
+    function P.SeatPlayer(name, buyin)
+        for i = 2, NUM_SEATS do
+            local p = T.seats[i]
+            if p.kind == "remote" and p.name == name then
+                if not (p.leaving or p.kicked) then
+                    Net:Send(Msg({ "S", T.tid, name, i, p.stack }))   -- asked twice
+                    return
+                end
+                -- a seat they dropped from mid-round: clear it and seat them fresh
+                if p.kicked then Net:Send(Msg({ "K", T.tid, p.name, p.stack })) end
+                T.seats[i] = H.NewSeat("empty")
+                P.MarkSeat(i)
+            end
+        end
+        local free
+        for i = 2, NUM_SEATS do
+            if not free and T.seats[i].kind == "empty" then free = i end
+        end
+        if not free then
+            Net:Send(Msg({ "N", T.tid, name, "The table is full." }))
+            return
+        end
+        local p = H.NewSeat("remote", name, buyin)
+        if H.OnSeat then H.OnSeat(p) end
+        T.seats[free] = p
+        Net:Send(Msg({ "S", T.tid, name, free, buyin }))
+        P.MarkAll()           -- the newcomer needs every seat, not just theirs
+        P.Changed()
+        P.SendRoster()
+        P.SendOffer()
+    end
+
+    -- Messages -----------------------------------------------------------------
+    local function HostMessage(sender, f)
+        local kind = f[2]
+        if kind == "J" then
+            if Net:VersionProblem(f[5]) then return end   -- another version can't sit here
+            local buyin = T.tableBuyIn or 500             -- everyone gets the host's stack
+            if H.OnJoin then H.OnJoin(sender, buyin)
+            else
+                P.SeatPlayer(sender, buyin)
+                H.Refresh()
+            end
+            return
+        end
+        local i = P.RemoteSeat(sender)
+        if not i then return end
+        if kind == "A" then H.HostAct(i, f)
+        elseif kind == "L" then H.DropPlayer(i)
+        elseif kind == "U" then P.HostTopUp(i) end
+    end
+
+    -- The host's answer to your seat request.
+    local function JoinReply(sender, f)
+        local kind, tid = f[2], f[3]
+        if kind == "S" and f[4] == Net:Me() then
+            local seat, stack = tonumber(f[5]), tonumber(f[6]) or 0
+            T.joining = nil
+            if not seat then
+                Net:Send(Msg({ "L", tid }))
+                return
+            end
+            local db = K.db()
+            db.stats.buyIns = db.stats.buyIns + 1
+            T.mode, T.host, T.tid, T.mySeat = "client", sender, tid, seat
+            T.tableBuyIn = stack            -- the host's stack, for topping up
+            T.seats = {}
+            for i = 1, NUM_SEATS do T.seats[i] = H.NewSeat("empty") end
+            T.seats[seat] = H.NewSeat("human", Net:Me(), stack)
+            T.phase, T.version, T.lastHeard = "waiting", 0, GetTime()
+            db.seat = { host = sender, tid = tid, stack = stack }
+            if H.OnSeated then H.OnSeated() end
+            H.Refresh()
+        elseif kind == "N" and f[4] == Net:Me() then
+            if f[5] == "wait" then
+                T.joining.waiting = true
+                P.SetLobbyMessage(sender .. " will seat you after this round.")
+            else
+                T.joining = nil
+                P.SetLobbyMessage(f[5] or "No seat.")
+            end
+        end
+    end
+
+    function P.OnMessage(sender, f)
+        local kind, tid = f[2], f[3]
+        if P.LobbyMessage(sender, f) then return end
+        if T.mode == "host" and tid == T.tid then return HostMessage(sender, f) end
+        if T.joining and sender == T.joining.host and tid == T.joining.tid then return JoinReply(sender, f) end
+        if T.mode ~= "client" or sender ~= T.host or tid ~= T.tid then
+            if kind == "X" and T.mode == "lobby" then H.Refresh() end    -- (a table gone from the list)
+            return
+        end
+        T.lastHeard = GetTime()
+        if kind == "R" then
+            if P.ClientRoster(f) then H.Refresh() end
+        elseif kind == "Z" then
+            H.ClientSeat(f)
+            H.Refresh()
+        elseif kind == "P" then
+            H.ClientState(f)
+        elseif kind == "X" then
+            P.HostGone(sender .. " closed the table.")
+        elseif H.ClientMessage then
+            H.ClientMessage(kind, f, sender)
+        end
+    end
+
+    -- The group changing, and the clock --------------------------------------
+    local function GroupChanged()
+        if T.mode == "host" then
+            for i = 2, NUM_SEATS do
+                local p = T.seats[i]
+                if p.kind == "remote" and not Net:IsMember(p.name) then H.DropPlayer(i) end
+            end
+            T.pending = Net:StillHere(T.pending)
+        elseif T.mode == "client" and not Net:IsMember(T.host) then
+            P.HostGone((T.host or "The host") .. " left the group.")
+        end
+        for name in pairs(T.offers) do
+            if not Net:IsMember(name) then T.offers[name] = nil end
+        end
+        if T.joining and not Net:IsMember(T.joining.host) then
+            T.joining = nil
+            P.SetLobbyMessage("The host left the group.")
+        end
+        if T.mode == "lobby" and ui.lobby then H.Refresh() end
+    end
+
+    -- Every half second: the countdown on screen, the host's heartbeat, a
+    -- host gone quiet, a seat request nobody answered.
+    local tickWait, beatWait = 0, 0
+    local function Tick(dt)
+        tickWait = tickWait + dt
+        if tickWait < 0.5 then return end
+        beatWait = beatWait + tickWait
+        tickWait = 0
+        if T.deadline and ui.table and ui.table:IsVisible() then H.Refresh() end
+        if T.mode == "host" and beatWait >= HEARTBEAT then
+            beatWait = 0
+            if P.HasRemote() then
+                P.SendRoster()
+                P.MarkAll()
+                P.Broadcast()
+            end
+        elseif T.mode == "client" and T.lastHeard and GetTime() - T.lastHeard > HOST_TIMEOUT then
+            P.HostGone((T.host or "The host") .. " stopped responding.")
+        end
+        if T.joining and not T.joining.waiting and GetTime() - T.joining.at > JOIN_TIMEOUT then
+            P.SetLobbyMessage("No answer from " .. T.joining.host .. ".")
+            T.joining = nil
+            H.Refresh()
+        end
+    end
+
+    -- Hooks the table to the network: its messages, the group, the clock.
+    -- id: the key the group handler goes under (the game's id).
+    function P.Watch(id)
+        Net.handlers[TAG] = P.OnMessage
+        Net.groupHandlers[id] = GroupChanged
+        local ticker = ns.CreateFrame("Frame")
+        ticker:SetScript("OnUpdate", function() Tick(arg1 or 0) end)
+    end
+
+    -- Building: saved settings, the felt, the lobby, and a table that didn't
+    -- survive a reload. spec: key (ns.db[key]), stats (defaults), noun
+    -- ("blackjack"), and the lobby's title, info and buyIns. Returns the db.
+    function P.Build(panel, spec)
+        ns.db[spec.key] = ns.db[spec.key] or {}
+        local db = ns.db[spec.key]
+        db.stats = db.stats or {}
+        ns.UI.Fill(db.stats, spec.stats)
+        Game.panel = panel
+        local felt = panel:CreateTexture(nil, "BACKGROUND")
+        felt:SetAllPoints(panel)
+        felt:SetTexture(0.05, 0.30, 0.12, 1)
+        P.BuildLobby(panel, spec)
+        return db
+    end
+
+    -- After the table's built: a party table can't survive a reload (its
+    -- stacks are free, so nothing goes back to your chips).
+    function P.Restore(noun)
+        local db = K.db()
+        local message
+        if db.host then
+            db.host = nil
+            message = "Your " .. noun .. " table closed when the game reloaded."
+        end
+        if db.seat then
+            if db.seat.host and Net:IsMember(db.seat.host) then Net:Send(Msg({ "L", db.seat.tid })) end
+            message = "You left " .. (db.seat.host or "the") .. "'s " .. noun .. " table when the game reloaded."
+            db.seat = nil
+        end
+        P.SetLobbyMessage(message)
+        H.Refresh()
+    end
+
+    function Game:OnShow()
+        if T.mode == "lobby" and Net:InGroup() then Net:Send(Msg({ "Q" })) end
+        if ui.table then H.Refresh() end
     end
 
     -- The game's hooks into the rest of the casino -------------------------

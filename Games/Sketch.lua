@@ -82,7 +82,7 @@ end
 local function Player(name) return room:Player(name) end
 local function HostName() return room:HostName() end
 
-local function NeedPlayers() return S.set.custom and 3 or 2 end
+local function NeedPlayers() return Words.NeedPlayers(S.set) end
 
 -- A host who typed their own words knows them: they draw but don't guess.
 local function CanGuess(name)
@@ -108,10 +108,7 @@ local function SettingsText()
         .. " each"
 end
 
-local function Log(text)
-    table.insert(S.log, text)
-    while ns.getn(S.log) > 40 do table.remove(S.log, 1) end
-end
+local function Log(text) ns.UI.AddLog(S.log, text, 40) end
 
 ---------------------------------------------------------------------------
 -- The drawing (one canvas and its sync, made in Build)
@@ -472,13 +469,7 @@ end)
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function Clock()
-    if not S.deadline then return "" end
-    local left = math.max(0, math.floor(S.deadline - GetTime() + 0.5))
-    local text = string.format("%d:%02d", math.floor(left / 60), ns.Mod(left, 60))
-    if left <= 10 then return "|cffff5050" .. text .. "|r" end
-    return text
-end
+local function Clock() return ns.UI.Countdown(S.deadline) end
 
 function Game.RefreshClock()
     if ui.timer then ui.timer:SetText(Clock()) end
@@ -624,21 +615,11 @@ function Game:IntroState() return (S.practice or room.mode ~= "lobby") and "busy
 ---------------------------------------------------------------------------
 -- Building
 ---------------------------------------------------------------------------
-local function Text(parent, font, x, y, width, justify)
-    local t = parent:CreateFontString(nil, "OVERLAY", font)
-    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
-    if width then t:SetWidth(width) end
-    t:SetJustifyH(justify or "LEFT")
-    return t
-end
+local Text = ns.UI.Text
 
 local function Check(parent, x, y, label, onClick)
-    local c = ns.CreateFrame("CheckButton", ns:NewName(), parent, "UICheckButtonTemplate")
-    c:SetWidth(22); c:SetHeight(22)
+    local c = ns.UI.CheckBox(parent, label, function() return false end, function() onClick() end, true)
     c:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
-    c:SetScript("OnClick", function() onClick(this) end)
-    c.label = Text(parent, "GameFontHighlightSmall", x + 24, y - 5, 100)
-    c.label:SetText(label)
     return c
 end
 
@@ -671,11 +652,7 @@ local function TogglePack(key)
     S.set.packs = packs
 end
 
-local function SettingsChanged()
-    ns:Sound("IG_MAINMENU_OPTION")
-    if room:IsHost() then room:SendState() end
-    Refresh()
-end
+local function SettingsChanged() room:SettingsChanged() end
 
 local function BuildWait(field)
     local w = ns.CreateFrame("Frame", nil, field)
@@ -889,11 +866,8 @@ end
 function Game:IsSeated() return room:InRoom() end
 function Game:ChatTable() return room:ChatTable() end
 
-function Game:ResetStats()
-    local d = ns.db.sketch
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Game.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Game:OnStatsReset(d)
     if ui.lobby then Refresh() end
 end
 

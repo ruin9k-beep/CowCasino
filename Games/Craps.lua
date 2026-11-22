@@ -727,11 +727,8 @@ function Craps:Abandon()
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.
-function Craps:ResetStats()
-    local d = ns.db.craps
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Craps.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Craps:OnStatsReset(d)
     if ui.stats and db then Refresh() end
 end
 

@@ -72,10 +72,7 @@ end
 local function MyRole() return G.roles and R.RoleAt(G.roles, MySeat()) or nil end
 local function Alive(seat) return G.alive[seat] == true end
 
-local function Log(text)
-    table.insert(G.log, text)
-    while ns.getn(G.log) > 60 do table.remove(G.log, 1) end
-end
+local function Log(text) ns.UI.AddLog(G.log, text, 60) end
 
 local function Clean(text) return ns.Net.Clean(text, 120) end
 
@@ -473,13 +470,7 @@ room = ns.RoomKit.New({
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function Clock()
-    if not G.deadline then return "" end
-    local left = math.max(0, math.floor(G.deadline - GetTime() + 0.5))
-    local text = string.format("%d:%02d", math.floor(left / 60), ns.Mod(left, 60))
-    if left <= 10 then return "|cffff5050" .. text .. "|r" end
-    return text
-end
+local function Clock() return ns.UI.Countdown(G.deadline) end
 
 local PROMPTS = {
     kill = "Pick someone for the Mafia to kill.",
@@ -650,19 +641,9 @@ Game.Refresh = function() Refresh() end
 ---------------------------------------------------------------------------
 -- Building
 ---------------------------------------------------------------------------
-local function Text(parent, font, x, y, width, justify)
-    local t = parent:CreateFontString(nil, "OVERLAY", font)
-    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
-    if width then t:SetWidth(width) end
-    t:SetJustifyH(justify or "LEFT")
-    return t
-end
+local Text = ns.UI.Text
 
-local function Changed()
-    ns:Sound("IG_MAINMENU_OPTION")
-    if room:IsHost() then room:SendState() end
-    Refresh()
-end
+local function Changed() room:SettingsChanged() end
 
 local function BuildWait(t)
     local w = ns.CreateFrame("Frame", nil, t)
@@ -828,11 +809,8 @@ end
 function Game:IsSeated() return room:InRoom() end
 function Game:ChatTable() return room:ChatTable() end
 
-function Game:ResetStats()
-    local d = ns.db.mafia
-    if not d then return end
-    d.stats = {}
-    ns.UI.Fill(d.stats, DEFAULT_STATS)
+Game.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Game:OnStatsReset(d)
     if ui.table then Refresh() end
 end
 

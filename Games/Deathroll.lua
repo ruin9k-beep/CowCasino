@@ -744,11 +744,8 @@ function Deathroll:Abandon()
     end
 end
 
-function Deathroll:ResetStats()
-    local d = ns.db.deathroll
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Deathroll.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Deathroll:OnStatsReset(d)
     if ui.stats and db then Refresh() end
 end
 

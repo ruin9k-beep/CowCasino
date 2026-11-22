@@ -398,11 +398,8 @@ function HiLo:Abandon()
     if ui.big then Refresh() end
 end
 
-function HiLo:ResetStats()
-    local d = ns.db.hilo
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+HiLo.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function HiLo:OnStatsReset(d)
     ns.UI.ClearHistory(recent)
     if ui.stats and db then Refresh() end
 end

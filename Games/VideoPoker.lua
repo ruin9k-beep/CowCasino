@@ -417,11 +417,8 @@ function VideoPoker:Abandon()
     if ui.cards then Refresh() end
 end
 
-function VideoPoker:ResetStats()
-    local d = ns.db.videopoker
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+VideoPoker.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function VideoPoker:OnStatsReset(d)
     if ui.stats and db then Refresh() end
 end
 

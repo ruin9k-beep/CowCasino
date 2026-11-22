@@ -1180,9 +1180,7 @@ end
 local function SeatPending()
     local waiting = T.pending
     T.pending = {}
-    for _, w in ipairs(waiting) do
-        if Net:IsMember(w.name) then SeatPlayer(w.name, w.buyin) end
-    end
+    for _, w in ipairs(Net:StillHere(waiting)) do SeatPlayer(w.name, w.buyin) end
 end
 
 local function FinishHand()
@@ -2963,12 +2961,8 @@ function Poker:ChipsInPlay()
 end
 
 -- A fresh stack after running out (Core.lua): stats start over.
-function Poker:ResetStats()
-    local d = ns.db[DB_KEY]
-    if not d then return end
-    d.stats = {}
-    for k, v in pairs(DEFAULT_STATS) do d.stats[k] = v end
-end
+Poker.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+Poker.dbKey = DB_KEY
 
 -- For the core's intro (Intro.lua): at a table it's "busy"; away from one,
 -- the intro is all there is.

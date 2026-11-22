@@ -7,6 +7,12 @@
 --   UI.Options(panel, spec)             the Options overlay: title, how it
 --                                       plays, Reset stats, Sounds and Done
 --   UI.Stepper(parent, spec)            a "< label >" picker over a list
+--   UI.Text(parent, font, x, y, width, justify)   a label at TOPLEFT x, y
+--   UI.ClickButton(...)                 UI.Button with a click sound
+--   UI.CheckBox(parent, label, get, set, small)   a checkbox and its label
+--   UI.Countdown(deadline, style)       "0:12" (or "12s") to a deadline, red near the end
+--   UI.AddLog(list, text, max)          a capped list of lines, oldest dropped
+--   UI.SkinFrame(parent, w, h, methods) a hidden frame with skins = {} and methods
 
 local ns = CowCasino.ns
 local UI = {}
@@ -73,16 +79,18 @@ end
 
 -- A checkbox with a label: get() says whether it's ticked, set(on) saves it.
 -- Returns the checkbox (cb:Refresh() ticks it from get()).
-function UI.CheckBox(parent, label, get, set)
+function UI.CheckBox(parent, label, get, set, small)
     local cb = ns.CreateFrame("CheckButton", ns:NewName(), parent, "UICheckButtonTemplate")
-    cb:SetWidth(24); cb:SetHeight(24)
-    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+    local size = small and 22 or 24
+    cb:SetWidth(size); cb:SetHeight(size)
+    local text = parent:CreateFontString(nil, "OVERLAY", small and "GameFontHighlightSmall" or "GameFontNormal")
+    text:SetPoint("LEFT", cb, "RIGHT", small and 2 or 4, 0)
+    if small then text:SetWidth(100); text:SetJustifyH("LEFT") end
     text:SetText(label)
     cb.label = text
     cb:SetScript("OnClick", function()
         set(this:GetChecked() and true or false)
-        ns:Sound("IG_MAINMENU_OPTION")
+        ns:Sound("IG_MAINMENU_OPTION_CHECKBOX_ON")
     end)
     function cb:Refresh() self:SetChecked(get() and true or nil) end
     return cb
@@ -109,6 +117,54 @@ function UI.Button(parent, text, width, onClick, height)
     b:SetText(text)
     b:SetScript("OnClick", function() onClick(this, arg1) end)
     return b
+end
+
+-- The same, with the menu click sound.
+function UI.ClickButton(parent, text, width, onClick, height)
+    return UI.Button(parent, text, width, function(self, button)
+        ns:Sound("IG_MAINMENU_OPTION")
+        onClick(self, button)
+    end, height)
+end
+
+-- A label at TOPLEFT x, y of its parent.
+function UI.Text(parent, font, x, y, width, justify)
+    local t = parent:CreateFontString(nil, "OVERLAY", font)
+    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+    if width then t:SetWidth(width) end
+    t:SetJustifyH(justify or "LEFT")
+    return t
+end
+
+-- Time left to a deadline (GetTime()), red near the end: "1:05", or with
+-- style "s" plain seconds ("12s", red from 5). "" with no deadline.
+function UI.Countdown(deadline, style)
+    if not deadline then return "" end
+    local left = math.max(0, math.floor(deadline - GetTime() + 0.5))
+    if style == "s" then
+        if left <= 5 then return "|cffff5050" .. left .. "s|r" end
+        return left .. "s"
+    end
+    local text = string.format("%d:%02d", math.floor(left / 60), ns.Mod(left, 60))
+    if left <= 10 then return "|cffff5050" .. text .. "|r" end
+    return text
+end
+
+-- A game's log: add a line, keep the last max.
+function UI.AddLog(list, text, max)
+    table.insert(list, text)
+    while ns.getn(list) > (max or 30) do table.remove(list, 1) end
+end
+
+-- A frame that wears skins (a card, a slot symbol): hidden, skins = {}, and
+-- the given methods copied on.
+function UI.SkinFrame(parent, width, height, methods)
+    local f = ns.CreateFrame("Frame", nil, parent)
+    f:SetWidth(width); f:SetHeight(height)
+    f.skins = {}
+    for k, v in pairs(methods) do f[k] = v end
+    f:Hide()
+    return f
 end
 
 -- Fill in any saved values that are missing (new settings, new stats).
@@ -362,7 +418,7 @@ end
 --   refresh(o)     updates them whenever the page is shown
 --   db()           the game's saved table: gives the page a Sounds tab
 --   sounds         extra sounds for that page (see ns:CreateSoundOptions)
---   onReset        what Reset stats does (default: the game's ResetStats)
+--   onReset        what Reset stats does (default: ns:ResetStats(game))
 --   canReset()     false while Reset stats can't be used
 -- Returns the page. A game that doesn't call this still gets a plain page
 -- (Reset stats, Done).
@@ -373,7 +429,7 @@ function ns:GameOptions(game, panel, spec)
     local o = UI.Options(panel, {
         title = title, note = spec.note, rules = spec.rules,
         settings = spec.settings, sounds = spec.db ~= nil,
-        onReset = spec.onReset or function() if game.ResetStats then game:ResetStats() end end,
+        onReset = spec.onReset or function() ns:ResetStats(game) end,
         canReset = spec.canReset,
         onRefresh = spec.refresh,
     })

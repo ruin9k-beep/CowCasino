@@ -43,6 +43,9 @@ W.PACKS = {
         "spirit healer", "fishing", "duel", "group" } },
 }
 
+-- Players a game needs: a host using their own words knows them, so one more.
+function W.NeedPlayers(set) return (set and set.custom) and 3 or 2 end
+
 function W.Pack(key)
     for _, p in ipairs(W.PACKS) do if p.key == key then return p end end
 end

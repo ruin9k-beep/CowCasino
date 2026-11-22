@@ -215,6 +215,19 @@ function ns:FreshBet(bet, step, start)
     end
     return bet
 end
+-- Where value is in list (default: 1).
+function ns.IndexOf(list, value, default)
+    for i, v in ipairs(list) do
+        if v == value then return i end
+    end
+    return default or 1
+end
+
+-- A bet nudged by amount: from 0 up to maxBet and the chips you have.
+function ns:NudgeBet(bet, amount, maxBet)
+    return math.max(0, math.min(maxBet, bet + amount, math.max(0, self.db.chips)))
+end
+
 function ns:FitList(list, bet)
     if bet <= self.db.chips then return bet end
     local i = 1
@@ -284,17 +297,30 @@ function ns:LowChipsText(minBet)
     return "Not enough chips for the smallest bet here (" .. self:FormatChips(minBet) .. "). Try another game."
 end
 
+-- A game's stats from scratch: ns.db[game.dbKey or game.id].stats back to
+-- game.defaultStats, then game:OnStatsReset(d) for anything else the game
+-- keeps (a history, a stats line on screen).
+function ns:ResetStats(game)
+    local d = self.db and self.db[game.dbKey or game.id]
+    if not d then return end
+    if game.defaultStats then
+        d.stats = {}
+        for k, v in pairs(game.defaultStats) do d.stats[k] = v end
+    end
+    if game.OnStatsReset then game:OnStatsReset(d) end
+end
+
 -- A fresh stack is a fresh start: every game's stats begin again, and so
--- does your best chip count. (Each game resets its own with ResetStats.)
+-- does your best chip count.
 function ns:RebuyChips(amount)
     self.db.chips = amount or self.START_CHIPS
     self.db.rebuys = self.db.rebuys + 1
     self.db.bestChips = self.db.chips
     for _, game in pairs(self.games) do
-        if game.ResetStats then game:ResetStats() end
+        self:ResetStats(game)
     end
     for _, party in ipairs(self.partyGames) do   -- part of a game's window, not menu games
-        if party.ResetStats then party:ResetStats() end
+        self:ResetStats(party)
     end
     self:UpdateChipsDisplay()
 end

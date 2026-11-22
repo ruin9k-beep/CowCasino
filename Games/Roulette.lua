@@ -811,11 +811,9 @@ end
 
 -- A fresh stack after running out (Core.lua): stats start over. (The strip
 -- of recent numbers is the wheel's, not yours, so it stays.)
-function Game:ResetStats()
-    local d = ns.db.roulette
-    if not d then return end
-    d.stats = { counts = {} }
-    for k, v in pairs(DEFAULT_STATS) do d.stats[k] = v end
+Game.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Game:OnStatsReset(d)
+    d.stats.counts = {}
 end
 
 -- The stats line on the game's intro (Intro.lua).

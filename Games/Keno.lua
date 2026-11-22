@@ -538,11 +538,8 @@ function Keno:Abandon()
     end
 end
 
-function Keno:ResetStats()
-    local d = ns.db.keno
-    if not d then return end
-    d.stats = {}
-    Fill(d.stats, DEFAULT_STATS)
+Keno.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
+function Keno:OnStatsReset(d)
     ns.UI.ClearHistory(recent)
     if ui.stats and db then Refresh() end
 end

@@ -729,7 +729,7 @@ function B:Build(panel)
     self.panel = panel
     ui.options = ns:GameOptions(self, panel, {
         rules = def.rulesText,
-        onReset = function() game:ResetStats() end,
+        onReset = function() ns:ResetStats(game) end,
         db = function() return game.db end,
         sounds = { { key = "move", label = "The other side fires", default = "tick" } },
         settings = true,

@@ -185,6 +185,15 @@ end)
 -- each offer with .heard (GetTime() when last heard). Those heard within
 -- OFFER_TIMEOUT from members of the group (and that keep(offer) likes, if
 -- given) come back as copies with .host set, sorted by host.
+-- The entries of list (each with .name) whose player is still in the group.
+function Net:StillHere(list)
+    local out = {}
+    for _, w in ipairs(list or {}) do
+        if self:IsMember(w.name) then table.insert(out, w) end
+    end
+    return out
+end
+
 Net.OFFER_TIMEOUT = 60
 function Net:OpenOffers(offers, keep)
     local out, now = {}, GetTime()
