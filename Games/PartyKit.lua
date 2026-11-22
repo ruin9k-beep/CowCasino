@@ -358,7 +358,11 @@ function ns.PartyKit(K)
             local p = T.seats[i]
             if p.kind == "remote" and p.name == name then
                 if not (p.leaving or p.kicked) then
-                    Net:Send(Msg({ "S", T.tid, name, i, p.stack }))   -- asked twice
+                    -- asked twice (or back after a reload): their seat, and the whole table again
+                    Net:Send(Msg({ "S", T.tid, name, i, p.stack }))
+                    P.MarkAll()
+                    P.Changed()
+                    P.SendRoster()
                     return
                 end
                 -- a seat they dropped from mid-round: clear it and seat them fresh
@@ -410,13 +414,14 @@ function ns.PartyKit(K)
         local kind, tid = f[2], f[3]
         if kind == "S" and f[4] == Net:Me() then
             local seat, stack = tonumber(f[5]), tonumber(f[6]) or 0
+            local rejoin = T.joining.rejoin
             T.joining = nil
             if not seat then
                 Net:Send(Msg({ "L", tid }))
                 return
             end
             local db = K.db()
-            db.stats.buyIns = db.stats.buyIns + 1
+            if not rejoin then db.stats.buyIns = db.stats.buyIns + 1 end
             T.mode, T.host, T.tid, T.mySeat = "client", sender, tid, seat
             T.tableBuyIn = stack            -- the host's stack, for topping up
             T.seats = {}
@@ -522,7 +527,11 @@ function ns.PartyKit(K)
     -- After the table's built: a party table can't survive a reload (its
     -- stacks are free, so nothing goes back to your chips).
     function P.Restore(noun)
-        P.SetLobbyMessage(sess:Restore(K.db(), { host = "host", seat = "seat", noun = noun .. " table" }))
+        P.SetLobbyMessage(sess:Restore(K.db(), { host = "host", seat = "seat", noun = noun .. " table",
+            rejoin = function(seat)
+                T.joining = { host = seat.host, tid = seat.tid, at = GetTime(), rejoin = true }
+                Net:Send(Msg(Net:Pack("tableJoin", { tid = seat.tid, buyin = T.partyBuyIn })))
+            end }))
         H.Refresh()
     end
 

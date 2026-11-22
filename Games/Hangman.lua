@@ -360,7 +360,8 @@ local function PartySolve(text)
 end
 
 room = ns.RoomKit.New({
-    tag = TAG, id = "hangman", max = MAX_PLAYERS,
+    onAllReady = function() HostStart() end,
+    tag = TAG, id = "hangman", max = MAX_PLAYERS, watch = true,
     phase = function() return G.phase end,
     state = State,
     onState = ClientState,
@@ -562,14 +563,13 @@ local function RefreshTable()
             status = top and ("|cffffd100Game over.|r " .. (top.name == Me() and "You win" or (top.name .. " wins"))
                 .. " with " .. top.score .. ".") or "Game over."
         end
-        ui.main:SetText(room:IsHost() and "Close game" or "Leave game")
+        ui.main:SetText(room:LeaveLabel())
         ns.SetEnabled(ui.main, true)
     end
     ui.status:SetText(status)
     ui.info:SetText((not solo and G.round > 0 and G.phase ~= "o") and ("Word " .. G.round .. " of " .. (G.set.words or 5)) or "")
     ui.clock:SetText(solo and "" or Clock())
-    ns.SetShown(ui.again, room:IsHost() and G.phase == "o")
-    if room:IsHost() and G.phase == "o" then ns.SetEnabled(ui.again, ns.getn(room.players) >= NeedPlayers()) end
+    room:RefreshAgain(ui.again, "Play again", function() return ns.getn(room.players) >= NeedPlayers() end)
     RefreshSide()
 end
 
@@ -737,7 +737,7 @@ local function BuildTable(panel)
         end
     end, 24)
     ui.main:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -4, 6)
-    ui.again = ns.UI.Button(t, "Play again", 110, function() HostStart() end, 24)
+    ui.again = ns.UI.Button(t, "Play again", 130, function() if room:IsHost() then HostStart() else room:ToggleReady() end end, 24)
     ui.again:SetPoint("RIGHT", ui.main, "LEFT", -8, 0)
 end
 

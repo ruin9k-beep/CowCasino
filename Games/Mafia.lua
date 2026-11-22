@@ -422,6 +422,7 @@ local function OnGameMessage(sender, f)
 end
 
 room = ns.RoomKit.New({
+    onAllReady = function() HostStart() end,
     tag = TAG, id = "mafia", max = MAX_PLAYERS, fields = { "seat" },
     phase = function() return (G.phase == "w" or G.phase == "o") and G.phase or "p" end,
     state = State,
@@ -620,9 +621,8 @@ local function RefreshTable()
         local talk = me > 0 and Alive(me) and R.IsMafia(role) and G.phase ~= "o"
         ns.SetShown(ui.talk, talk)
     end
-    ui.leave:SetText(room:IsHost() and "Close game" or "Leave game")
-    ns.SetShown(ui.again, room:IsHost() and G.phase == "o")
-    if room:IsHost() and G.phase == "o" then ns.SetEnabled(ui.again, ns.getn(room.players) >= R.MIN_PLAYERS) end
+    ui.leave:SetText(room:LeaveLabel())
+    room:RefreshAgain(ui.again, "Deal again", function() return ns.getn(room.players) >= R.MIN_PLAYERS end)
 end
 
 Refresh = function()
@@ -767,7 +767,7 @@ local function BuildTable(panel)
     BuildWait(t)
     ui.leave = ns.UI.Button(t, "Leave game", 110, function() room:Exit() end, 24)
     ui.leave:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -4, 6)
-    ui.again = ns.UI.Button(t, "Deal again", 110, function() HostStart() end, 24)
+    ui.again = ns.UI.Button(t, "Deal again", 130, function() if room:IsHost() then HostStart() else room:ToggleReady() end end, 24)
     ui.again:SetPoint("RIGHT", ui.leave, "LEFT", -8, 0)
 end
 

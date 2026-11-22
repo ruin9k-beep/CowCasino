@@ -152,6 +152,12 @@ function Intro.New(panel, spec)
                 if o and o.click then o.click() end
             end, 20)
             r.join:SetPoint("RIGHT", r, "RIGHT", -2, 0)
+            r.watch = ns.UI.Button(r, "Watch", 62, function()
+                local o = self.rows[i].offer
+                if o and o.watch then o.watch() end
+            end, 20)
+            r.watch:SetPoint("RIGHT", r.join, "LEFT", -4, 0)
+            r.watch:Hide()
             r:Hide()
             self.rows[i] = r
         end
@@ -208,6 +214,8 @@ function Intro:SetOffers(list)
             r.text:SetText(o.text or "")
             r.join:SetText(o.label or "Join")
             ns.SetEnabled(r.join, o.enabled ~= false)
+            ns.SetShown(r.watch, o.watch ~= nil)
+            r.text:SetWidth(W - (o.watch and 176 or 110))
             r:Show()
         else
             r:Hide()

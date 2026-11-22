@@ -56,7 +56,7 @@ end
 -- whenever a party game changes in a way older copies can't follow.
 --   1: before 0.13.1 (offers carry no number)
 --   2: 0.13.1: free seats with the host's stack; Hold'em sends base-36 amounts
-Net.PARTY_VERSION = 3
+Net.PARTY_VERSION = 4
 
 -- Nothing if a table from a copy at version v can be played, or why not.
 function Net:VersionProblem(v)

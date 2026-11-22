@@ -70,7 +70,9 @@ local function InPanel(cl, o)
 end
 local function FindIn(cl, text)
   for _, o in ipairs(cl.env.all) do
-    if o.kind == "Button" and InPanel(cl, o) and o.text == text then return o end
+    -- (text ending in * matches the start: "Play again*")
+    if o.kind == "Button" and InPanel(cl, o) and (o.text == text or (string.sub(text, -1) == "*"
+      and string.find(o.text or "", string.sub(text, 1, -2), 1, true) == 1)) then return o end
   end
 end
 local function PressIn(cl, text)
@@ -236,7 +238,7 @@ table.insert(party.group, "Una")
 local una = NewClient("Una")
 GroupChanged()
 ann.P.G.set.secret = true
-PressIn(ann, "Deal again")
+PressIn(ann, "Deal again*")
 Run(1)
 PressIn(una, "Refresh")
 Run(0.5)

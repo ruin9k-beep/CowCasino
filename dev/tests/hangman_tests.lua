@@ -100,7 +100,9 @@ local function InPanel(cl, o)
 end
 local function FindIn(cl, text)
   for _, o in ipairs(cl.env.all) do
-    if o.kind == "Button" and InPanel(cl, o) and o.text == text then return o end
+    -- (text ending in * matches the start: "Play again*")
+    if o.kind == "Button" and InPanel(cl, o) and (o.text == text or (string.sub(text, -1) == "*"
+      and string.find(o.text or "", string.sub(text, 1, -2), 1, true) == 1)) then return o end
   end
 end
 local function PressIn(cl, text)
@@ -215,11 +217,15 @@ Check("word 3 of 3", AG.round == 3 and AG.phase == "p")
 SolveIn(Turn(), ann.P.HS.word)
 Run(5)
 Check("after the last word: game over for all, Play again for the host", AG.phase == "o" and BG.phase == "o"
-  and FindIn(ann, "Play again") ~= nil and FindIn(bob, "Play again") == nil and string.find(bob.P.ui.status.text, "Game over"))
+  and FindIn(ann, "Play again (1/3)") ~= nil and FindIn(bob, "Play again*") == nil and string.find(bob.P.ui.status.text, "Game over"))
 Check("every client counted the game", ann.ns.db.hangman.stats.games == 1 and cid.ns.db.hangman.stats.games == 1)
-PressIn(ann, "Play again")
+Check("the ready check: the others get Ready", FindIn(bob, "Ready") ~= nil and FindIn(cid, "Ready") ~= nil)
+PressIn(bob, "Ready")
 Run(0.5)
-Check("Play again: scores back to 0, word 1", AG.round == 1 and BG.round == 1 and ScoreOf("Bob") == 0)
+Check("...the host sees who's ready", FindIn(ann, "Play again (2/3)") ~= nil and FindIn(bob, "Not ready") ~= nil)
+PressIn(cid, "Ready")
+Run(0.5)
+Check("...everyone ready starts the next game: scores back to 0, word 1", AG.round == 1 and BG.round == 1 and ScoreOf("Bob") == 0)
 
 -- someone leaves, a turn player drops out of the group
 PressIn(cid, "Leave game")
@@ -267,6 +273,34 @@ for i = 1, 4 do
   Run(21)
 end
 Check("...turns go round Bob and Cid only", turns.Bob and turns.Cid and not turns.Ann)
+
+-- a reload mid-game: Bob asks to rejoin, and the host kept his place
+local bobScore = room:Player("Bob").score
+local savedBob = bob.env.CowCasinoDB
+for i, c in ipairs(party.clients) do if c == bob then table.remove(party.clients, i) break end end
+local bob2 = NewClient("Bob", savedBob)
+Check("after a reload: rejoining", string.find(bob2.P.room.lobbyMsg or "", "Rejoining Ann's game", 1, true) ~= nil, bob2.P.room.lobbyMsg)
+Run(2)
+Check("...and back in Ann's game, score and all", bob2.P.room.mode == "client" and bob2.P.room.host == "Ann"
+  and bob2.P.room:Player("Bob").score == bobScore and ns.getn(room.players) == 3)
+Check("...with the game in progress on his screen", bob2.P.G.phase == AG.phase and bob2.P.G.round == AG.round, bob2.P.G.phase)
+
+-- watching: Dan follows the game without a place in it
+table.insert(party.group, "Dan")
+local dan = NewClient("Dan")
+GroupChanged()
+PressIn(dan, "Refresh")
+Run(0.5)
+PressIn(dan, "Watch")
+Run(1)
+Check("watching: Dan sees the game in progress, without a place in it", dan.P.room.watching and dan.P.room.mode == "client"
+  and dan.P.G.phase == AG.phase and dan.P.G.round == AG.round and room:Player("Dan") == nil and ns.getn(room.players) == 3)
+local anyLetter = false
+for _, b in ipairs(dan.P.ui.letters) do if b.enabled then anyLetter = true end end
+Check("...he can't play a letter, and can stop watching", not anyLetter and FindIn(dan, "Stop watching") ~= nil)
+PressIn(dan, "Stop watching")
+Run(0.5)
+Check("...which takes him back to the lobby, the game going on", dan.P.room.mode == "lobby" and ns.getn(room.players) == 3)
 
 Check("no addon message ran long", party.stats.longest <= 254, party.stats.longest)
 H.Done("HANGMAN")

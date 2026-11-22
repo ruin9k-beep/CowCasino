@@ -619,6 +619,16 @@ host.T.seats[1].stack = 40
 host.P:OnShow()
 Press(host, "Top up to 500")
 Check("top up: the host can too", host.T.seats[1].stack == 500)
+-- a reload at the table: Bob asks to rejoin, and the host kept his seat
+local savedBob = bob.env.CowCasinoDB
+for i, c in ipairs(clients) do if c == bob then table.remove(clients, i) break end end
+local bob2 = NewClient("Bob", savedBob)
+RunUntil(function() return bob2.T.mode == "client" end, 20)
+Check("reload at a table: back in the same seat, same stack", bob2.T.mode == "client" and bob2.T.host == "Host"
+  and bob2.T.mySeat == bobSeat and host.T.seats[bobSeat].name == "Bob" and host.T.seats[bobSeat].stack == 500, bob2.T.mode)
+RunUntil(function() return bob2.T.seats[1].name == "Host" end, 20)
+Check("...and the table catches up", bob2.T.seats[bobSeat].stack == 500 and bob2.T.seats[1].name == "Host")
+bob = bob2
 Press(host, "Close table"); Run(2)
 
 ---------------------------------------------------------------------------

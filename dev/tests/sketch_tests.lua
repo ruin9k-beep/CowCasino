@@ -135,7 +135,9 @@ local function InPanel(cl, o)
 end
 local function FindIn(cl, text)
   for _, o in ipairs(cl.env.all) do
-    if o.kind == "Button" and InPanel(cl, o) and o.text == text then return o end
+    -- (text ending in * matches the start: "Play again*")
+    if o.kind == "Button" and InPanel(cl, o) and (o.text == text or (string.sub(text, -1) == "*"
+      and string.find(o.text or "", string.sub(text, 1, -2), 1, true) == 1)) then return o end
   end
 end
 local function PressIn(cl, text)
@@ -272,10 +274,10 @@ while AS.phase ~= "o" and guard < 150 do Run(5) guard = guard + 1 end
 Check("everyone draws twice, round robin, then the game's over", AS.phase == "o" and BS.phase == "o"
   and (function() for _, p in ipairs(AS.players) do if p.drew ~= 2 then return false end end return true end)())
 Check("final scores for all, Play again for the host", InPanel(bob, bob.P.ui.banner) and string.find(bob.P.ui.bannerText.text, "Final")
-  and FindIn(ann, "Play again") ~= nil and FindIn(bob, "Play again") == nil)
+  and FindIn(ann, "Play again*") ~= nil and FindIn(bob, "Play again*") == nil)
 Check("every client counted the game", ann.ns.db.sketch.stats.games == 1 and bob.ns.db.sketch.stats.games == 1
   and dee.ns.db.sketch.stats.games == 1)
-PressIn(ann, "Play again")
+PressIn(ann, "Play again*")
 Run(0.5)
 Check("Play again: scores back to 0, turn 1", AS.phase == "d" and AS.turn == 1 and BS.turn == 1 and Score("Bob") == 0)
 

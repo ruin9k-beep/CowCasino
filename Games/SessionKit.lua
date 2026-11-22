@@ -91,9 +91,11 @@ function Session:GroupChanged()
     Call(spec.changed)
 end
 
--- In Build: a session can't survive a reload. db[spec.host] (you hosted)
--- and db[spec.seat] ({ host, tid }: you were at someone's) are cleared, the
--- host told you've gone; returns the line to show, if any.
+-- In Build, after a reload. A game you hosted is gone (db[spec.host] is
+-- cleared). A game you were in (db[spec.seat] = { host, tid }): with
+-- spec.rejoin(seat), and its host still in the group, you ask to join again
+-- (the host kept your place); otherwise the host is told you've gone.
+-- Returns the line to show, if any.
 function Session:Restore(db, spec)
     local noun = spec.noun or "game"
     local message
@@ -103,9 +105,14 @@ function Session:Restore(db, spec)
     end
     local seat = db[spec.seat]
     if seat then
-        if seat.host and Net:IsMember(seat.host) then self:Send({ "L", seat.tid }) end
-        message = "You left " .. (seat.host or "the") .. "'s " .. noun .. " when the game reloaded."
         db[spec.seat] = nil
+        local here = seat.host and Net:IsMember(seat.host)
+        if here and spec.rejoin then
+            spec.rejoin(seat)
+            return "Rejoining " .. seat.host .. "'s " .. noun .. " after the reload..."
+        end
+        if here then self:Send({ "L", seat.tid }) end
+        message = "You left " .. (seat.host or "the") .. "'s " .. noun .. " when the game reloaded."
     end
     return message
 end

@@ -360,7 +360,7 @@ local function ClientState(f)
 end
 
 room = ns.RoomKit.New({
-    tag = TAG, id = "sketch", max = MAX_PLAYERS, fields = { "score", "drew" },
+    tag = TAG, id = "sketch", max = MAX_PLAYERS, fields = { "score", "drew" }, watch = true,
     phase = function() return S.phase end,
     state = StateParts,
     onBroadcast = SendWord,
@@ -385,6 +385,7 @@ room = ns.RoomKit.New({
         end
     end,
     refresh = function() Refresh() end,
+    onAllReady = function() HostStart() end,
 })
 -- the drawing kit's strokes first (they carry the same tag), then the room
 Net.handlers[TAG] = function(sender, f)
@@ -580,10 +581,9 @@ local function RefreshRoom()
     end
     ns.SetShown(ui.banner, banner ~= "")
     ui.bannerText:SetText(banner)
-    ns.SetShown(ui.again, S.mode == "host" and S.phase == "o")
-    if S.mode == "host" and S.phase == "o" then ns.SetEnabled(ui.again, ns.getn(S.players) >= NeedPlayers()) end
+    room:RefreshAgain(ui.again, "Play again", function() return ns.getn(room.players) >= NeedPlayers() end)
     ns.SetShown(ui.testButton, practice)
-    ui.leave:SetText(practice and "Done" or (S.mode == "host" and "Close game" or "Leave game"))
+    ui.leave:SetText(practice and "Done" or room:LeaveLabel())
     RefreshSide()
 end
 
@@ -739,7 +739,7 @@ local function BuildRoom(panel)
     ui.bannerText = ui.banner:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     ui.bannerText:SetPoint("TOP", ui.banner, "TOP", 0, -12)
     ui.bannerText:SetWidth(210)
-    ui.again = ns.UI.Button(ui.banner, "Play again", 110, function() HostStart() end, 22)
+    ui.again = ns.UI.Button(ui.banner, "Play again", 130, function() if room:IsHost() then HostStart() else room:ToggleReady() end end, 22)
     ui.again:SetPoint("BOTTOM", ui.banner, "BOTTOM", 0, 10)
 
     -- guessing

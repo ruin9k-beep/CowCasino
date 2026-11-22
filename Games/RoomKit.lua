@@ -132,6 +132,7 @@ end
 
 function Room:SendState()
     if self.mode ~= "host" then return end
+    if self:Phase() ~= "o" then self.ready = nil end      -- a new game: the ready check starts over
     local parts = { "S", self.tid }
     for _, v in ipairs(Call(self.spec.state) or {}) do table.insert(parts, v) end
     self:Send(parts, self.tag .. "-S")
@@ -235,7 +236,7 @@ end
 -- Joining and leaving
 ---------------------------------------------------------------------------
 function Room:ToLobby(message)
-    self.mode, self.tid, self.host, self.joining = "lobby", nil, nil, nil
+    self.mode, self.tid, self.host, self.joining, self.watching = "lobby", nil, nil, nil, nil
     self.players = {}
     self.lobbyMsg = message
     if self.db then self.db.hosting, self.db.joined = nil, nil end
@@ -276,10 +277,87 @@ function Room:RegisterLobby(id, enter)
     })
 end
 
+-- Watching a game (spec.watch): following it without a place in it. The
+-- room's messages go to the whole group anyway; the host sends the game so
+-- far (W). A watcher is a client that isn't on the roster (room.watching).
+function Room:Watch(host, tid)
+    if self.mode ~= "lobby" or not self.spec.watch then return end
+    self.mode, self.host, self.tid, self.watching = "client", host, tid, true
+    self.players, self.fresh, self.lobbyMsg = {}, true, nil
+    self.sess:Heard()
+    self:Send({ "W", tid })
+    ns:Sound("IG_MAINMENU_OPTION")
+    self:Refresh()
+end
+
+-- The ready check, once a game is over (phase "o"): each player says
+-- they're ready for another (Y); the host's button shows how many are, and
+-- when everyone is the next game starts (spec.onAllReady).
+function Room:HostReady(name, on)
+    if not self:Player(name) or self:Phase() ~= "o" then return end
+    self.ready = self.ready or {}
+    self.ready[name] = on or nil
+    self:Refresh()
+    local ready, total = self:ReadyCount()
+    if ready == total and total > 1 then Call(self.spec.onAllReady) end
+end
+
+-- Players ready (the host always is) and players in all.
+function Room:ReadyCount()
+    local ready, total = 0, 0
+    for _, p in ipairs(self.players) do
+        total = total + 1
+        if p.name == self:HostName() or (self.ready and self.ready[p.name]) then ready = ready + 1 end
+    end
+    return ready, total
+end
+
+-- A player's Ready button (between games).
+function Room:ToggleReady()
+    if self.mode ~= "client" or self.watching then return end
+    self.myReady = not self.myReady
+    self:Send({ "Y", self.tid, self.myReady and "1" or "0" })
+    ns:Sound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+    self:Refresh()
+end
+
+-- The game-over button: the host's (hostText, with the count) or a
+-- player's Ready. Returns shown, text.
+function Room:AgainButton(hostText)
+    if self:Phase() ~= "o" then
+        self.myReady = nil
+        return false
+    end
+    if self:IsHost() then
+        local ready, total = self:ReadyCount()
+        return true, hostText .. (total > 1 and (" (" .. ready .. "/" .. total .. ")") or "")
+    end
+    if self.mode == "client" and not self.watching then
+        return true, self.myReady and "Not ready" or "Ready"
+    end
+    return false
+end
+
+-- Every game's game-over button: shows, says and does the right thing.
+-- canStart(): enough players for the host to start again.
+function Room:RefreshAgain(button, hostText, canStart)
+    local shown, text = self:AgainButton(hostText)
+    ns.SetShown(button, shown)
+    if not shown then return end
+    button:SetText(text)
+    ns.SetEnabled(button, not self:IsHost() or canStart())
+end
+
+-- What the leave button says: Close game, Stop watching or Leave game.
+function Room:LeaveLabel()
+    if self:IsHost() then return "Close game" end
+    return self.watching and "Stop watching" or "Leave game"
+end
+
 function Room:Leave()
     if self.mode ~= "client" then return end
     self:Send({ "L", self.tid })
-    self:ToLobby("You left " .. (self.host or "the") .. "'s game.")
+    self:ToLobby((self.watching and "You stopped watching " or "You left ") .. (self.host or "the") .. "'s game.")
 end
 
 -- Leave a room either way (host closes it, a player leaves).
@@ -303,6 +381,8 @@ function Room:OnMessage(sender, f)
     if self.mode == "host" then
         if tid ~= self.tid then return end
         if kind == "J" then self:HostJoin(sender, f[4])
+        elseif kind == "W" then self:Broadcast()      -- someone started watching: the game so far
+        elseif kind == "Y" then self:HostReady(sender, f[4] == "1")
         elseif kind == "L" then self:Drop(sender)
         elseif self:Player(sender) then Call(self.spec.onHostMessage, sender, f) end
         return
@@ -349,7 +429,7 @@ function Room:OnMessage(sender, f)
         local roster = self:RosterPart(f)
         if not roster then return end
         self.players = roster
-        if not self:Player(Net:Me()) then
+        if not self.watching and not self:Player(Net:Me()) then
             self:ToLobby("You're no longer in " .. sender .. "'s game.")
             return
         end
@@ -370,7 +450,9 @@ function Room:Tick(now) end
 -- In Build: a game can't survive a reload.
 function Room:Restore(db)
     self.db = db
-    self.lobbyMsg = self.sess:Restore(db, { host = "hosting", seat = "joined", noun = "game" })
+    local room = self
+    self.lobbyMsg = self.sess:Restore(db, { host = "hosting", seat = "joined", noun = "game",
+        rejoin = function(seat) room:Join(seat.host, seat.tid) end })
 end
 
 -- Ask who's hosting (opening the lobby).
@@ -433,6 +515,7 @@ function Room:RefreshLobby()
                 .. Net:VersionNote(o.ver),
             enabled = o.players < self.max and not self.joining and not Net:VersionProblem(o.ver),
             click = function() r:Join(offer.host, offer.tid) end,
+            watch = self.spec.watch and not self.joining and function() r:Watch(offer.host, offer.tid) end or nil,
         })
     end
     intro:SetOffers(rows)
