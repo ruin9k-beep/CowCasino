@@ -4,7 +4,7 @@ local ns = CowCasino.ns
 -- Timer frame (Core) and helpers
 local timerFrame
 for _, o in ipairs(all) do if o.scripts.OnUpdate and not o.parent and rawget(o, "file") == "Core.lua" then timerFrame = o; break end end
-local function Flush() local g = 0; while timerFrame.shown do CLOCK = CLOCK + 10; Fire(timerFrame, "OnUpdate", 10); g = g + 1; assert(g < 500) end end
+local function Flush() local g = 0; while ns:PendingTimers() > 0 do CLOCK = CLOCK + 10; Fire(timerFrame, "OnUpdate", 10); g = g + 1; assert(g < 500) end end
 
 -- Stacked shoe support
 stacked = nil

@@ -237,14 +237,7 @@ function Chat:Build(frame)
 
     -- Notices joining and leaving tables, and portraits coming into range.
     -- (Not inside the window, so it keeps up while the window is closed.)
-    local watch = ns.CreateFrame("Frame")
-    local wait = 0
-    watch:SetScript("OnUpdate", function()
-        wait = wait + arg1
-        if wait < 0.5 then return end
-        wait = 0
-        Chat:Check()
-    end)
+    ns:Every(0.5, function() Chat:Check() end)
 
     self:Layout()
     self:Check()

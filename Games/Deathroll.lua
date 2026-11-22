@@ -517,13 +517,8 @@ listener:SetScript("OnEvent", function()
 end)
 
 -- The dealer's answer, /rolls that never showed, and open challenges.
-local ticker = ns.CreateFrame("Frame")
-local tickWait = 0
-ticker:SetScript("OnUpdate", function()
+ns:Every(0.1, function()
     if not db then return end
-    tickWait = tickWait + (arg1 or 0)
-    if tickWait < 0.1 then return end
-    tickWait = 0
     local d = S.duel
     local now = GetTime()
     if d and d.kind == "solo" and d.turn == "them" then

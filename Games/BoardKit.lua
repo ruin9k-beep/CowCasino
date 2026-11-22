@@ -1453,10 +1453,9 @@ function Kit.New(def, class)
         hosting = function() return game.S.posted ~= nil end,
         busy = function() return game.S.game ~= nil or game.S.posted ~= nil or game.S.accepting ~= nil end,
     })
-    local ticker = ns.CreateFrame("Frame")
     local wait = 0
-    ticker:SetScript("OnUpdate", function()
-        wait = wait + (arg1 or 0)
+    ns:Every(0, function(dt)
+        wait = wait + dt
         -- the computer thinks every frame; the rest can wait a moment
         if game.S.think or wait >= 0.1 then
             wait = 0

@@ -138,12 +138,7 @@ function ns:CreatePortrait(parent, width, height, facing)
 end
 
 -- Players walk in and out of range: recheck the portraits on screen.
-local ticker = ns.CreateFrame("Frame")
-local wait = 0
-ticker:SetScript("OnUpdate", function()
-    wait = wait + (arg1 or 0)
-    if wait < 2 then return end
-    wait = 0
+ns:Every(2, function()
     for _, m in ipairs(portraits) do
         if m.creature and m.cstate ~= "shown" and m.cstate ~= "picture" and m:GetParent():IsVisible() then
             CreatureTick(m)

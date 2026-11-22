@@ -139,8 +139,13 @@ local function Hand(id, steps)
   ns:OpenGame(id)
   local g = ns.games[id]
   if g.intro:IsShown() and g.intro.soloGo and g.intro.soloGo.shown then env.Fire(g.intro.soloGo, "OnClick", "LeftButton") end
-  for _, step in ipairs(steps) do
-    if type(step) == "number" then H.Tick(step) else PressIn(g.panel, step) end
+  -- (a deal can end at once, on a natural say: deal again, a few times)
+  for _ = 1, 6 do
+    for _, step in ipairs(steps) do
+      if type(step) == "number" then H.Tick(step) else PressIn(g.panel, step) end
+    end
+    if ns:IntroState(g) == "busy" then break end
+    H.Tick(4)
   end
   Check(g.name .. ": a hand is really on (for the next check)", ns:IntroState(g) == "busy" and not g.intro:IsShown())
   Screen(g.name .. " mid-hand", g.panel, { g.intro.frame, g.options })

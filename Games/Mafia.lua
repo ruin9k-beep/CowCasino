@@ -814,13 +814,7 @@ function Game:OnStatsReset(d)
     if ui.table then Refresh() end
 end
 
-local ticker = ns.CreateFrame("Frame")
-local acc = 0
-ticker:SetScript("OnUpdate", function()
-    acc = acc + (arg1 or 0)
-    if acc < 0.25 then return end
-    acc = 0
-    local now = GetTime()
+ns:Every(0.25, function(dt, now)
     room:Tick(now)
     if room:IsHost() then
         HostTick(now)

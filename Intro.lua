@@ -287,12 +287,7 @@ function ns:Back()
 end
 
 -- a few times a second: the game on screen, in case its state moved on
-local ticker = ns.CreateFrame("Frame")
-local wait = 0
-ticker:SetScript("OnUpdate", function()
-    wait = wait + (arg1 or 0)
-    if wait < 0.25 then return end
-    wait = 0
+ns:Every(0.25, function()
     local id = ns.currentGame
     local game = id and ns.games[id]
     if game and game.intro then

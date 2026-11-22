@@ -2203,14 +2203,17 @@ Net.groupHandlers[V.id] = function()
 end
 
 -- Countdown, host heartbeat, and noticing a host that went quiet.
-local ticker = ns.CreateFrame("Frame")
-local tickWait, beatWait = 0, 0
-ticker:SetScript("OnUpdate", function()
-    tickWait = tickWait + (arg1 or 0)
-    if tickWait < 0.5 then return end
-    beatWait = beatWait + tickWait
-    tickWait = 0
-    if T.deadline and ui.table and ui.table:IsShown() then Refresh() end
+local beatWait = 0
+ns:Every(0.5, function(dt)
+    beatWait = beatWait + dt
+    -- the countdown: a redraw only when the seconds shown change
+    if T.deadline and ui.table and ui.table:IsShown() then
+        local left = math.ceil(T.deadline - GetTime())
+        if left ~= T.shownLeft then
+            T.shownLeft = left
+            Refresh()
+        end
+    end
     if T.mode == "host" and beatWait >= HEARTBEAT then
         beatWait = 0
         if HasRemote() then

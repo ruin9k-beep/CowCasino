@@ -138,8 +138,8 @@ do
     watch:RegisterEvent("SPELLS_CHANGED")
     -- bag updates come in bursts: check once, a moment after
     watch:SetScript("OnEvent", function() due = GetTime() + 1 end)
-    watch:SetScript("OnUpdate", function()
-        if due and GetTime() >= due then
+    ns:Every(0.25, function(dt, now)
+        if due and now >= due then
             due = nil
             ns:CheckHiddenDealers()
         end

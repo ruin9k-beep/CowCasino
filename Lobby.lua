@@ -491,11 +491,13 @@ function Lobby:Poll()
     self:UpdateWindow()
 end
 
-local ticker = ns.CreateFrame("Frame")
-local wait = 0
-ticker:SetScript("OnUpdate", function()
-    wait = wait + (arg1 or 0)
-    if wait < POLL or not ns.db then return end
-    wait = 0
-    Lobby:Poll()
+-- Out of a group there are no tables to hear about: once the last pop-up
+-- and badge are cleared, polling waits until you're in one again.
+local idle = false
+ns:Every(POLL, function()
+    if not ns.db then return end
+    if ns.Net:InGroup() or not idle then
+        Lobby:Poll()
+        idle = not ns.Net:InGroup() and Lobby.current == nil and next(Lobby.seen) == nil
+    end
 end)

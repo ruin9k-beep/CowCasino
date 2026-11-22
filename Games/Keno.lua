@@ -320,10 +320,8 @@ end
 
 
 -- The draw, one number at a time; Auto's next game after a pause.
-local ticker = ns.CreateFrame("Frame")
-ticker:SetScript("OnUpdate", function()
+ns:Every(0, function(dt)
     if not db then return end
-    local dt = arg1 or 0
     if S.drawing and db.game then
         S.t = S.t + dt
         local changed = false

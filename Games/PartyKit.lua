@@ -519,13 +519,17 @@ function ns.PartyKit(K)
 
     -- Every half second: the countdown on screen, the host's heartbeat, a
     -- host gone quiet, a seat request nobody answered.
-    local tickWait, beatWait = 0, 0
+    local beatWait = 0
     local function Tick(dt)
-        tickWait = tickWait + dt
-        if tickWait < 0.5 then return end
-        beatWait = beatWait + tickWait
-        tickWait = 0
-        if T.deadline and ui.table and ui.table:IsVisible() then H.Refresh() end
+        beatWait = beatWait + dt
+        -- the countdown: a redraw only when the seconds shown change
+        if T.deadline and ui.table and ui.table:IsVisible() then
+            local left = math.ceil(T.deadline - GetTime())
+            if left ~= T.shownLeft then
+                T.shownLeft = left
+                H.Refresh()
+            end
+        end
         if T.mode == "host" and beatWait >= HEARTBEAT then
             beatWait = 0
             if P.HasRemote() then
@@ -548,8 +552,7 @@ function ns.PartyKit(K)
     function P.Watch(id)
         Net.handlers[TAG] = P.OnMessage
         Net.groupHandlers[id] = GroupChanged
-        local ticker = ns.CreateFrame("Frame")
-        ticker:SetScript("OnUpdate", function() Tick(arg1 or 0) end)
+        ns:Every(0.5, Tick)
     end
 
     -- Building: saved settings, the felt, the lobby, and a table that didn't

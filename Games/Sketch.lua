@@ -441,15 +441,9 @@ end
 ---------------------------------------------------------------------------
 -- The clock: the host's game, clients waiting on the host, sending strokes
 ---------------------------------------------------------------------------
-local ticker = ns.CreateFrame("Frame")
-local acc, shown = 0, 0
-ticker:SetScript("OnUpdate", function()
-    local dt = arg1 or 0
-    if ui.sync then ui.sync:Tick() end
-    acc, shown = acc + dt, shown + dt
-    if acc < 0.2 then return end
-    acc = 0
-    local now = GetTime()
+ns:Every(0, function() if ui.sync then ui.sync:Tick() end end)
+ns:Every(0.5, function() if ui.room and ui.room:IsShown() then Game.RefreshClock() end end)
+ns:Every(0.2, function(dt, now)
     room:Tick(now)
     if room:IsHost() then
         HostTick(now)
@@ -459,10 +453,6 @@ ticker:SetScript("OnUpdate", function()
         elseif S.phase ~= "o" then
             S.wasOver = nil
         end
-    end
-    if shown >= 0.5 then
-        shown = 0
-        if ui.room and ui.room:IsShown() then Game.RefreshClock() end
     end
 end)
 

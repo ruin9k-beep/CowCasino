@@ -120,28 +120,70 @@ function ns:Sound(key)
     if name then ns.PlaySound(name) end
 end
 
--- Timers: ns:After(seconds, func). 1.12 has no C_Timer.
-local timers = {}
-local timerFrame = ns.CreateFrame("Frame")
-timerFrame:Hide()
-timerFrame:SetScript("OnUpdate", function()
-    local now = GetTime()
+---------------------------------------------------------------------------
+-- The clock: one frame runs every timer in the addon (1.12 has no C_Timer).
+--   ns:After(seconds, func)          once, after a delay
+--   local job = ns:Every(seconds, func)   func(dt, now) about every `seconds`
+--                                    (0: every frame); dt is the time since
+--                                    its last run. job.paused = true skips it.
+-- A timer that errors is reported and the others still run.
+---------------------------------------------------------------------------
+local timers, jobs = {}, {}
+local clock = ns.CreateFrame("Frame")
+clock:Hide()
+
+local function Report(err)
+    if geterrorhandler then geterrorhandler()(err) else error(err, 0) end
+end
+
+local function RunJobs(dt, now)
+    for _, j in ipairs(jobs) do
+        if not j.paused then
+            j.wait = j.wait + dt
+            if j.wait >= j.interval then
+                local ran = j.wait
+                j.wait = 0
+                local ok, err = pcall(j.func, ran, now)
+                if not ok then Report(err) end
+            end
+        end
+    end
+end
+
+local function RunTimers(now)
     local i = 1
     while i <= ns.getn(timers) do
         local t = timers[i]
         if now >= t.at then
             table.remove(timers, i)
-            t.func()
+            local ok, err = pcall(t.func)
+            if not ok then Report(err) end
         else
             i = i + 1
         end
     end
-    if ns.getn(timers) == 0 then this:Hide() end
+end
+
+clock:SetScript("OnUpdate", function()
+    local now = GetTime()
+    RunJobs(arg1 or 0, now)
+    RunTimers(now)
+    if ns.getn(timers) == 0 and ns.getn(jobs) == 0 then this:Hide() end
 end)
+
+function ns:Every(interval, func)
+    local job = { interval = interval or 0, wait = 0, func = func }
+    table.insert(jobs, job)
+    clock:Show()
+    return job
+end
+
+-- ns:After timers still waiting (for tests).
+function ns:PendingTimers() return ns.getn(timers) end
 
 function ns:After(delay, func)
     table.insert(timers, { at = GetTime() + delay, func = func })
-    timerFrame:Show()
+    clock:Show()
 end
 
 ---------------------------------------------------------------------------

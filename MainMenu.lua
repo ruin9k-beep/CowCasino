@@ -1037,13 +1037,9 @@ function ns:BuildRebuyPage(frame)
     end
 
     -- Watches for running out while the window is open.
-    local watch = ns.CreateFrame("Frame", nil, frame)
-    local since, wait = 0, 0
-    watch:SetScript("OnUpdate", function()
-        wait = wait + arg1
-        if wait < 0.25 then return end
-        local dt = wait
-        wait = 0
+    local since = 0
+    ns:Every(0.25, function(dt)
+        if not frame:IsShown() then return end
         if o:IsShown() or not ns:IsBroke() then since = 0 return end
         since = since + dt
         if not ns.currentGame or since >= KICK_DELAY then
