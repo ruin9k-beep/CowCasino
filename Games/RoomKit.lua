@@ -127,7 +127,7 @@ function Room:Phase() return Call(self.spec.phase) or "w" end
 
 function Room:Offer()
     if self.mode ~= "host" then return end
-    self:Send({ "O", self.tid, ns.getn(self.players), self:Phase(), Net.PARTY_VERSION }, self.tag .. "-O")
+    self:Send(Net:Pack("roomOffer", { tid = self.tid, players = ns.getn(self.players), phase = self:Phase() }), self.tag .. "-O")
 end
 
 function Room:SendState()
@@ -293,7 +293,9 @@ function Room:OnMessage(sender, f)
         if self.mode == "host" then self:Offer() end
         return
     elseif kind == "O" then
-        self.offers[sender] = { tid = tid, players = tonumber(f[4] or "") or 0, phase = f[5], ver = tonumber(f[6] or ""), heard = GetTime() }
+        local o = Net:Read("roomOffer", f)
+        o.players, o.heard = o.players or 0, GetTime()
+        self.offers[sender] = o
         if self.mode == "lobby" then self:Refresh() end
         return
     end

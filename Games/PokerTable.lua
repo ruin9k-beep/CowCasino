@@ -706,7 +706,8 @@ end
 local function SendOffer()
     if T.mode ~= "host" then return end
     local players = NUM_SEATS - OpenSeats()
-    Net:Send(Msg({ "O", T.tid, SB, BB, players, OpenSeats(), T.tableBuyIn or 50 * BB, Net.PARTY_VERSION }), GAME_TAG .. "-O")
+    Net:Send(Msg(Net:Pack("pokerOffer", { tid = T.tid, sb = SB, bb = BB, players = players, open = OpenSeats(),
+        buyin = T.tableBuyIn or 50 * BB })), GAME_TAG .. "-O")
 end
 
 local function SendRoster()
@@ -2003,7 +2004,7 @@ local function JoinTable(host, tid)
     local buyin = offer and OfferBuyIn(offer) or 50 * bb
     if T.seats[1] then return end
     T.joining = { host = host, tid = tid, buyin = buyin, sb = sb, bb = bb, at = GetTime() }
-    Net:Send(Msg({ "J", tid, buyin, Net.PARTY_VERSION }))
+    Net:Send(Msg(Net:Pack("tableJoin", { tid = tid, buyin = buyin })))
     ui.partyMsg:SetText("Asking " .. host .. " for a seat...")
 end
 
@@ -2018,9 +2019,9 @@ local function OnMessage(sender, f)
         if T.mode == "host" then SendOffer() end
         return
     elseif kind == "O" then
-        T.offers[sender] = { tid = tid, sb = tonumber(f[4]) or 5, bb = tonumber(f[5]) or 10,
-            players = tonumber(f[6]) or 0, open = tonumber(f[7]) or 0, buyin = tonumber(f[8]), ver = tonumber(f[9]),
-            heard = GetTime() }
+        local o = Net:Read("pokerOffer", f)
+        o.sb, o.bb, o.players, o.open, o.heard = o.sb or 5, o.bb or 10, o.players or 0, o.open or 0, GetTime()
+        T.offers[sender] = o
         if ui.party and ui.party:IsShown() then ui.party:Refresh() end
         if ui.lobby and ui.lobby:IsShown() then ui.refreshLobby() end   -- (through ui: upvalues)
         return
@@ -2029,8 +2030,9 @@ local function OnMessage(sender, f)
     -- Host: requests from players at (or joining) our table.
     if T.mode == "host" and tid == T.tid then
         if kind == "J" then
-            if Net:VersionProblem(f[5]) then return end   -- another version can't sit here
-            local buyin = tonumber(f[4]) or 0
+            local join = Net:Read("tableJoin", f)
+            if Net:VersionProblem(join.ver) then return end   -- another version can't sit here
+            local buyin = join.buyin or 0
             local valid = buyin == T.tableBuyIn
             for _, b in ipairs(BuyIns(BB)) do       -- (an older CowCasino joining)
                 if b == buyin then valid = true end

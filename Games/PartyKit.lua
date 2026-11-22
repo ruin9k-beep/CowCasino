@@ -90,8 +90,8 @@ function ns.PartyKit(K)
 
     function P.SendOffer()
         if T.mode ~= "host" then return end
-        Net:Send(Msg({ "O", T.tid, NUM_SEATS - P.OpenSeats(), P.OpenSeats(), T.tableBuyIn or T.partyBuyIn,
-            Net.PARTY_VERSION }), TAG .. "-O")
+        Net:Send(Msg(Net:Pack("tableOffer", { tid = T.tid, players = NUM_SEATS - P.OpenSeats(), open = P.OpenSeats(),
+            buyin = T.tableBuyIn or T.partyBuyIn })), TAG .. "-O")
     end
 
     -- Seat updates first, then the table state, so a client never sees a turn
@@ -178,7 +178,7 @@ function ns.PartyKit(K)
         local buyin = (offer and offer.buyin) or T.partyBuyIn     -- the host's stack, free
         if T.mode ~= "lobby" then return end
         T.joining = { host = host, tid = tid, buyin = buyin, at = GetTime() }
-        Net:Send(Msg({ "J", tid, buyin, Net.PARTY_VERSION }))
+        Net:Send(Msg(Net:Pack("tableJoin", { tid = tid, buyin = buyin })))
         P.SetLobbyMessage("Asking " .. host .. " for a seat...")
     end
 
@@ -244,8 +244,9 @@ function ns.PartyKit(K)
             if T.mode == "host" then P.SendOffer() end
             return true
         elseif kind == "O" then
-            T.offers[sender] = { tid = tid, players = tonumber(f[4]) or 0, open = tonumber(f[5]) or 0,
-                buyin = tonumber(f[6]), ver = tonumber(f[7]), heard = GetTime() }
+            local o = Net:Read("tableOffer", f)
+            o.players, o.open, o.heard = o.players or 0, o.open or 0, GetTime()
+            T.offers[sender] = o
             if T.mode == "lobby" then H.Refresh() end
             return true
         end
@@ -388,7 +389,7 @@ function ns.PartyKit(K)
     local function HostMessage(sender, f)
         local kind = f[2]
         if kind == "J" then
-            if Net:VersionProblem(f[5]) then return end   -- another version can't sit here
+            if Net:VersionProblem(Net:Read("tableJoin", f).ver) then return end   -- another version can't sit here
             local buyin = T.tableBuyIn or 500             -- everyone gets the host's stack
             if H.OnJoin then H.OnJoin(sender, buyin)
             else

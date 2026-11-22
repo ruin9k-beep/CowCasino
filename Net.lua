@@ -185,6 +185,56 @@ end)
 -- each offer with .heard (GetTime() when last heard). Those heard within
 -- OFFER_TIMEOUT from members of the group (and that keep(offer) likes, if
 -- given) come back as copies with .host set, sorted by host.
+---------------------------------------------------------------------------
+-- Messages with named fields: define a message's fields once, then pack and
+-- read it by name rather than by position.
+--   Net:Define("roomOffer", "O", { "tid", "players#", "phase", "ver#" })   -- # = a number
+--   Net:Send(Msg(Net:Pack("roomOffer", { tid = t, players = 3, phase = "w" })))
+--   local o = Net:Read("roomOffer", f)      -- o.tid, o.players (a number), o.ver
+-- A field left out packs as "" (and reads back nil); a "ver" left out is this
+-- version (Net.PARTY_VERSION). Fields start at f[3] (f[1] the tag, f[2] the kind).
+---------------------------------------------------------------------------
+Net.schemas = {}
+
+function Net:Define(name, kind, fields)
+    local list = {}
+    for i, spec in ipairs(fields) do
+        local key, num = spec, false
+        if string.sub(spec, -1) == "#" then key, num = string.sub(spec, 1, -2), true end
+        list[i] = { key = key, num = num }
+    end
+    self.schemas[name] = { kind = kind, fields = list }
+end
+
+function Net:Pack(name, t)
+    local s = self.schemas[name]
+    local parts = { s.kind }
+    for _, fd in ipairs(s.fields) do
+        local v = t[fd.key]
+        if v == nil and fd.key == "ver" then v = self.PARTY_VERSION end
+        table.insert(parts, v == nil and "" or v)
+    end
+    return parts
+end
+
+function Net:Read(name, f)
+    local s = self.schemas[name]
+    local t = {}
+    for i, fd in ipairs(s.fields) do
+        local v = f[2 + i]
+        if v == "" then v = nil end
+        if fd.num then v = tonumber(v or "") end
+        t[fd.key] = v
+    end
+    return t
+end
+
+-- The offers every hosted game sends (who's hosting what), and asking to join.
+Net:Define("roomOffer", "O", { "tid", "players#", "phase", "ver#" })
+Net:Define("tableOffer", "O", { "tid", "players#", "open#", "buyin#", "ver#" })
+Net:Define("pokerOffer", "O", { "tid", "sb#", "bb#", "players#", "open#", "buyin#", "ver#" })
+Net:Define("tableJoin", "J", { "tid", "buyin#", "ver#" })
+
 -- The entries of list (each with .name) whose player is still in the group.
 function Net:StillHere(list)
     local out = {}
