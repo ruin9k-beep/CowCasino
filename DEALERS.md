@@ -58,6 +58,11 @@ and you're out of combat, CowCasino looks for that creature by name every few
 seconds, copies it, and puts your target back. Until the model is up, the dealer's
 `image` shows.
 
+`portrait = { npc = ..., name = ... }` (same fields) is a 3D stand-in used only where a
+game shows its dealer as a portrait, such as Deathroll's duel with the dealer, where
+the model faces you. The strip keeps the picture. A dealer with a `model` uses that
+for both.
+
 ### Hidden dealers
 
 `unlock = function() return ... end` keeps a dealer out of the picker until it

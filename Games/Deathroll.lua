@@ -184,8 +184,10 @@ local function Refresh()
         ui.oppImage:Hide()
         ui.oppName:SetText("")
     elseif opp.kind == "solo" then
-        ui.oppPic:ShowUnit(nil)
-        local image = ns:GetDealer().image
+        -- the dealer: their 3D model facing you where the client can show it
+        -- (Portraits.lua), their picture until then (or instead)
+        local pack = ns:GetDealer()
+        local image = pack.image
         if type(image) == "table" then
             ui.oppImage:SetTexture(image[1])
             ui.oppImage:SetTexCoord(image[2] or 0, image[3] or 1, image[4] or 0, image[5] or 1)
@@ -193,7 +195,8 @@ local function Refresh()
             ui.oppImage:SetTexture(image)
             ui.oppImage:SetTexCoord(0, 1, 0, 1)
         end
-        ui.oppImage:Show()
+        ui.oppPic:ShowCreature(pack.model or pack.portrait)
+        ns.SetShown(ui.oppImage, ui.oppPic.cstate ~= "shown")
         ui.oppName:SetText(DealerName())
     else
         ui.oppImage:Hide()
@@ -642,6 +645,7 @@ function Deathroll:Build(panel)
     ui.youPic = ns:CreatePortrait(panel, PIC, PIC, FACE)
     ui.youPic:SetPoint("CENTER", youBox, "CENTER", 0, 0)
     ui.oppPic = ns:CreatePortrait(panel, PIC, PIC, -FACE)
+    ui.oppPic.onCreature = function(up) ns.SetShown(ui.oppImage, not up) end
     ui.oppPic:SetPoint("CENTER", oppBox, "CENTER", 0, 0)
     ui.oppImage = panel:CreateTexture(nil, "ARTWORK")
     ui.oppImage:SetWidth(PIC); ui.oppImage:SetHeight(PIC)

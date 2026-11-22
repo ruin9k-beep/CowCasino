@@ -7,6 +7,7 @@ local ART = "Interface\\AddOns\\CowCasino\\Art\\"
 
 ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author = "ruin9k",
     image = ART .. "DealerGoblin",
+    portrait = { npc = 3391 },      -- a 3D stand-in where there is one (Gazlowe)
     lines = {
         -- Blackjack
         deal = {

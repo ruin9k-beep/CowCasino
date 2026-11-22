@@ -6,4 +6,5 @@ local ns = CowCasino.ns
 local ART = "Interface\\AddOns\\CowCasino\\Art\\"
 
 ns:RegisterDealer({ id = "human", name = "Human", title = "Harold", author = "ruin9k",
-    image = ART .. "DealerHuman" })
+    image = ART .. "DealerHuman",
+    portrait = { npc = 295 } })     -- a 3D stand-in where there is one (Innkeeper Farley)

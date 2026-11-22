@@ -178,9 +178,19 @@ Check("the duel takes the stake (100)", host.ns.db.chips == 900, host.ns.db.chip
 Check("you roll first: Roll 1-1,000", Enabled(host, "Roll 1-1,000"))
 local ui = host.G.ui
 Check("the two of you at the top: your 3D portrait on the left, the dealer's picture on the right",
-  ui.youPic.shown and ui.youPic.unitId == "player" and ui.oppImage.shown and not ui.oppPic.shown
+  ui.youPic.shown and ui.youPic.unitId == "player" and ui.oppImage.shown and ui.oppPic.cstate ~= "shown"
   and ui.youName.text == "You" and ui.oppName.text ~= "")
 Check("...turned to face each other", ui.youPic.facing > 0 and ui.oppPic.facing < 0)
+if string.find(os.getenv("MOCK") or "", "retail") then
+  -- the modern client: the dealer's 3D stand-in, once the client has the creature
+  host.env.MODEL_CACHE = { [3391] = true }
+  Tick(3)
+  Check("Forever: the dealer's 3D model takes the picture's place, facing you",
+    ui.oppPic.shown and ui.oppPic.creature == 3391 and not ui.oppImage.shown and ui.oppPic.facing < 0, ui.oppPic.cstate)
+else
+  Tick(3)
+  Check("1.12: the dealer's picture stays (no creature to copy)", ui.oppImage.shown and not ui.oppPic.shown)
+end
 Check("...and your name lit up on your roll", ui.youName.color[2] == 1 and ui.oppName.color[1] == 1)
 Press(host, "Roll 1-1,000")
 Check("your roll sets the dealer's range", host.S.duel.max == 400 and host.S.duel.turn == "them")
