@@ -398,7 +398,6 @@ local function Refresh()
     ns.SetEnabled(ui.clear, not S.rolling and onTable > 0)
     local _, need = RebetPlan()
     ns.SetEnabled(ui.rebet, not S.rolling and need > 0 and need <= ns.db.chips)
-    if ui.partyButton then ns.SetEnabled(ui.partyButton, not S.rolling and onTable == 0) end
     if ui.refreshIntro then ui.refreshIntro() end
     ui.stats:SetText(StatsText())
 end
@@ -574,21 +573,21 @@ local function BuildParty(panel)
         partyFrame:Hide()
         Refresh()
     end
-    partyFrame:SetScript("OnShow", function() ui.solo:Hide() ui.intro:Hide() end)
+    partyFrame:SetScript("OnShow", function() ui.solo:Hide() ns:UpdateIntro(Craps) end)
     partyFrame:SetScript("OnHide", function()
         ui.solo:Show()
-        ui.introUp = true        -- back from party play: the intro
+        ns:ShowIntro(Craps)              -- back from party play: the intro
         Refresh()
     end)
 
-    -- the intro screen (IntroKit.lua): the solo table, or play with your
+    -- the intro screen (Intro.lua): the solo table, or play with your
     -- group (host on the party page, or join a table listed here)
-    local intro = ns.Intro.New(panel, { title = "Craps", felt = { 0.05, 0.25, 0.10, 0.92 },
+    local intro = ns:AddIntro(Craps, panel, { felt = { 0.05, 0.25, 0.10, 0.92 },
         solo = "Play solo", party = "Play with your group", rows = 3 })
-    ui.intro, ui.introUp = intro, true
+    ui.intro = intro
     intro.soloGo:SetText("Step up to the table")
     intro.onSolo = function()
-        ui.introUp = false
+        Craps.introUp = false
         ns:Sound("IG_MAINMENU_OPTION")
         Refresh()
     end
@@ -598,16 +597,14 @@ local function BuildParty(panel)
         party:OnShow()
     end
     intro:WatchLobby("craps")
-    ui.refreshIntro = function() intro:SetShown(ui.introUp and not partyFrame:IsShown()) end
+    ui.refreshIntro = function() ns:UpdateIntro(Craps) end
+end
 
-    -- on the table, with no bets down: back to the intro
-    ui.partyButton = MakeButton(ui.solo, "< Setup", 80, function()
-        if S.rolling or Rules.Total(db.bets) > 0 then return end
-        ui.introUp = true
-        ns:Sound("IG_MAINMENU_OPTION")
-        Refresh()
-    end)
-    ui.partyButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 2, -2)
+-- For the core's intro (Intro.lua): dice rolling, bets down, or party play
+-- up is "busy"; otherwise the window's back button (< Setup) goes to the intro.
+function Craps:IntroState()
+    if (ui.partyFrame and ui.partyFrame:IsShown()) or S.rolling or (db and Rules.Total(db.bets) > 0) then return "busy" end
+    return "idle"
 end
 
 -- Party play on screen (a lobby pop-up was clicked), or why it can't be.
@@ -700,8 +697,6 @@ function Craps:Build(panel)
 end
 
 function Craps:OnShow()
-    -- opening the game with nothing riding: the intro
-    if ui.intro and db and not S.rolling and Rules.Total(db.bets) == 0 then ui.introUp = true end
     if ui.spots then Refresh() end
     -- Back at your party table, if you're at one.
     local party = ns.PartyCraps

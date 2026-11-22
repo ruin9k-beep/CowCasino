@@ -139,7 +139,7 @@ Check("Resign loses the game (and the stake)", G.S.game == nil and G.db.stats.lo
 Check("...and the last position stays on the board, with Play again and Setup", G.S.over ~= nil
   and not G.ui.intro:IsShown() and H.Find("Play again for 50") ~= nil and H.Find("< Setup") ~= nil)
 H.Press("< Setup")
-Check("Setup goes back to the intro: stake, level, side and Play", G.ui.intro:IsShown() and G.S.over == nil
+Check("Setup goes back to the intro: stake, level, side and Play", G.ui.intro:IsShown()
   and H.Find("Play for 50") ~= nil and G.ui.stake.shown and H.Find("Challenge the group") ~= nil)
 H.Press("Play for 50")
 H.Press("Resign"); H.Tick(3.1); H.Press("Confirm")
@@ -273,7 +273,7 @@ Check("...the move list ends in Qh4#", string.find(guest.P.S.over.log[2], "Qh4#"
 
 -- capture paths in chess
 local function NewGame()
-  for _, c in ipairs({ host, guest }) do if FindIn(c, "< Setup") then PressIn(c, "< Setup") end end
+  for _, c in ipairs({ host, guest }) do if not c.P.ui.intro:IsShown() then c.ns:Back() end end
   PressIn(host, "Challenge the group")
   Run(1)
   PressIn(guest, "Accept")

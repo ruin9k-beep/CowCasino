@@ -1,18 +1,35 @@
--- CowCasino: the intro screen, the same for every game that has one. It sits
--- over the play field between games, so the field itself can use the whole
--- game area. Top to bottom:
+-- CowCasino: the intro screen, part of the core: every game has one. It sits
+-- over the play field between rounds, so the field needs no setup controls
+-- of its own.
+--
+-- What it holds, top to bottom:
 --   the game's name, and a status line (what just happened)
---   Play solo: the game's own settings row (soloRow) and a Start button (soloGo)
+--   Play solo: the game's settings row (soloRow) and a Start button (soloGo)
 --   Play with your group: a settings row (partyRow), a Host button (hostGo),
 --     a note, and the tables or challenges open in the group, each with Join
 --   the game's stats, at the foot
+-- A game that doesn't make its own gets a simple one when it's first opened:
+-- its name, its description, Play, and its stats (game:IntroStats(), if it
+-- has that).
 --
---   local intro = ns.Intro.New(panel, {
---       title = "Chess",
---       felt = { r, g, b, a },          -- the background (the game's felt)
---       solo = "Vs the computer",       -- the solo section's heading (nil: none)
---       party = "Play with your group", -- the party section's heading (nil: none)
---       rows = 4,                        -- how many open tables to list
+-- When it shows: each game says where it stands with game:IntroState():
+--   "busy"   a round or game is on: the field shows (this is also the answer,
+--            for a game without IntroState, while it has chips in play)
+--   "idle"   between rounds: the intro shows when the game is opened, Play
+--            goes to the field, and the window's back button (< Setup) comes
+--            back to the intro
+--   "intro"  nothing to show on the field (no table to sit at): the intro stays
+-- The back button steps back a screen: the field, then the intro, then the
+-- game list.
+--
+-- A game makes its own intro in Build:
+--   local intro = ns:AddIntro(game, panel, {
+--       solo = "Vs the computer",        -- the solo section's heading (nil: none)
+--       party = "Play with your group",  -- the party section's heading (nil: none)
+--       rows = 4,                         -- how many open tables to list
+--       felt = { r, g, b, a },            -- the background (the game's felt)
+--       blurb = "...",                    -- a word on the game, under its name
+--       refresh = true,                   -- a Refresh button by the party heading (intro.onRefresh)
 --   })
 --   intro.soloRow / intro.partyRow   frames 340 x 24 to put steppers in
 --   intro.soloGo / intro.hostGo      buttons: set their text and state; clicks
@@ -20,7 +37,9 @@
 --   intro:SetStatus(text), intro:SetNote(text), intro:SetStats(text)
 --   intro:SetOffers({ { text = "Ann (plays White)", label = "Accept", enabled = true, click = fn,
 --                       host = "Ann" (and anything else the game wants to keep with it) }, ... })
---   intro:Show(), intro:Hide(), intro:IsShown()
+--   intro:WatchLobby(id)             list game id's open tables from the lobby hub
+-- and calls ns:UpdateIntro(game) when its state changes (the core also checks
+-- a few times a second).
 
 local ns = CowCasino.ns
 
@@ -72,7 +91,27 @@ function Intro.New(panel, spec)
     self.status:SetPoint("TOP", title, "BOTTOM", 0, -6)
     self.status:SetWidth(W)
 
+    if spec.simple then
+        -- just the game: its description and Play
+        local blurb = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        blurb:SetPoint("TOP", f, "TOP", 0, -90)
+        blurb:SetWidth(W - 20)
+        blurb:SetText(spec.blurb or "")
+        self.blurb = blurb
+        self.soloGo = ns.UI.Button(f, "Play", 200, function() if self.onSolo then self.onSolo() end end, 30)
+        self.soloGo:SetPoint("TOP", f, "TOP", 0, -170)
+    end
+
     local y = -58
+    if spec.blurb and not spec.simple then
+        -- a word on the game, under the title
+        local blurb = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        blurb:SetPoint("TOP", f, "TOP", 0, -52)
+        blurb:SetWidth(W)
+        blurb:SetText(spec.blurb)
+        self.blurb = blurb
+        y = y - 26
+    end
     if spec.solo then
         self.soloHead = Heading(f, spec.solo, y)
         self.soloRow = Row(f, y - 22)
@@ -82,6 +121,11 @@ function Intro.New(panel, spec)
     end
     if spec.party then
         self.partyHead = Heading(f, spec.party, y)
+        if spec.refresh then
+            -- ask the group again who's hosting
+            self.refresh = ns.UI.Button(f, "Refresh", 64, function() if self.onRefresh then self.onRefresh() end end, 18)
+            self.refresh:SetPoint("TOPRIGHT", f, "TOPRIGHT", -16, y + 2)
+        end
         self.partyRow = Row(f, y - 22)
         self.hostGo = ns.UI.Button(f, "Host", 180, function() if self.onHost then self.onHost() end end, 26)
         self.hostGo:SetPoint("TOP", f, "TOP", 0, y - 54)
@@ -113,6 +157,7 @@ function Intro.New(panel, spec)
 
     self.stats = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.stats:SetPoint("BOTTOM", f, "BOTTOM", 0, 4)
+    self.stats:SetWidth(W + 20)
     f:Hide()
     return self
 end
@@ -167,3 +212,86 @@ function Intro:SetOffers(list)
         end
     end
 end
+
+---------------------------------------------------------------------------
+-- The core's part: every game's intro, when it shows, and the back button
+---------------------------------------------------------------------------
+function ns:AddIntro(game, panel, spec)
+    spec.title = spec.title or game.name
+    local intro = Intro.New(panel, spec)
+    game.intro = intro
+    game.introUp = true
+    return intro
+end
+
+-- A game that didn't make its own: its name, description, Play and stats.
+function ns:DefaultIntro(game)
+    local intro = self:AddIntro(game, game.panel, { simple = true, blurb = game.description, felt = game.introFelt })
+    intro.onSolo = function()
+        game.introUp = false
+        ns:Sound("IG_MAINMENU_OPTION")
+        ns:UpdateIntro(game)
+    end
+    return intro
+end
+
+function ns:IntroState(game)
+    if game.IntroState then return game:IntroState() end
+    if game.ChipsInPlay and game:ChipsInPlay() then return "busy" end
+    return "idle"
+end
+
+-- Show or hide the game's intro, as its state says; and the back button.
+function ns:UpdateIntro(game)
+    local intro = game and game.intro
+    if not intro then return end
+    local state = self:IntroState(game)
+    if state == "busy" then game.introUp = false
+    elseif state == "intro" then game.introUp = true end
+    intro:SetShown(game.introUp and state ~= "busy")
+    if self.currentGame == game.id and self.frame and self.frame.back then
+        self.frame.back:SetText((not intro:IsShown() and state == "idle") and "< Setup" or "< Games")
+    end
+end
+
+function ns:ShowIntro(game)
+    if not (game and game.intro) then return end
+    game.introUp = true
+    self:UpdateIntro(game)
+end
+
+-- The game was opened: between rounds, it starts on its intro.
+function ns:OpenIntro(game)
+    if not game.intro and game.panel and not game.noIntro then self:DefaultIntro(game) end
+    if not game.intro then return end
+    if game.IntroStats and game.intro.stats then game.intro:SetStats(game:IntroStats()) end
+    if self:IntroState(game) ~= "busy" then game.introUp = true end
+    self:UpdateIntro(game)
+end
+
+-- The window's back button: from the field to the intro, else to the games.
+function ns:Back()
+    local game = self.currentGame and self.games[self.currentGame]
+    if game and game.intro and not game.intro:IsShown() and self:IntroState(game) == "idle" then
+        ns:Sound("IG_MAINMENU_OPTION")
+        self:ShowIntro(game)
+        return
+    end
+    ns:Sound("IG_MAINMENU_OPTION")
+    self:ShowMenu()
+end
+
+-- a few times a second: the game on screen, in case its state moved on
+local ticker = ns.CreateFrame("Frame")
+local wait = 0
+ticker:SetScript("OnUpdate", function()
+    wait = wait + (arg1 or 0)
+    if wait < 0.25 then return end
+    wait = 0
+    local id = ns.currentGame
+    local game = id and ns.games[id]
+    if game and game.intro then
+        ns:UpdateIntro(game)
+        if game.IntroStats and game.intro:IsShown() then game.intro:SetStats(game:IntroStats()) end
+    end
+end)

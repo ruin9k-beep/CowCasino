@@ -592,10 +592,9 @@ function Game.RefreshClock()
 end
 
 local function RefreshLobby()
+    local intro = ui.intro
     local inGroup = Net:InGroup()
-    ui.groupInfo:SetText(inGroup and ("You're in a group of " .. Net:GroupSize() .. ". Everyone needs CowCasino to play.")
-        or "Join a party or raid to play with friends (or practice on your own).")
-    ns.SetEnabled(ui.hostButton, inGroup)
+    ns.SetEnabled(intro.hostGo, inGroup)
     local list = {}
     for name, o in pairs(S.offers) do
         if GetTime() - o.heard < OFFER_TIMEOUT and Net:IsMember(name) then
@@ -603,23 +602,25 @@ local function RefreshLobby()
         end
     end
     table.sort(list, function(a, b) return a.host < b.host end)
-    for r = 1, ROWS do
-        local row, o = ui.rows[r], list[r]
-        row.offer = o
-        if o then
-            local doing = (o.phase == "w" and "waiting to start") or (o.phase == "o" and "between games") or "playing"
-            row.text:SetText(string.format("%s's game - %d player%s, %s", o.host, o.players, o.players == 1 and "" or "s", doing)
-                .. Net:VersionNote(o.ver))
-            row.join:Show()
-            ns.SetEnabled(row.join, o.players < MAX_PLAYERS and not S.joining and not Net:VersionProblem(o.ver))
-        else
-            row.text:SetText((r == 1 and inGroup) and "|cff888888No games yet. Host one, or ask someone to.|r" or "")
-            row.join:Hide()
-        end
+    local rows = {}
+    for _, o in ipairs(list) do
+        local offer = o
+        local doing = (o.phase == "w" and "waiting to start") or (o.phase == "o" and "between games") or "playing"
+        table.insert(rows, {
+            host = o.host, tid = o.tid,
+            text = string.format("%s's game - %d player%s, %s", o.host, o.players, o.players == 1 and "" or "s", doing)
+                .. Net:VersionNote(o.ver),
+            enabled = o.players < MAX_PLAYERS and not S.joining and not Net:VersionProblem(o.ver),
+            click = function() ui.onJoin(offer.host, offer.tid) end,
+        })
     end
-    ui.lobbyMsg:SetText(S.lobbyMsg or "")
+    intro:SetOffers(rows)
+    intro:SetNote((rows[1] and "Games in your group:")
+        or (inGroup and ("You're in a group of " .. Net:GroupSize() .. ". No games yet: host one, or ask someone to.")
+        or "Join a party or raid to play with friends (or practice on your own)."))
+    intro:SetStatus(S.lobbyMsg or "")
     local s = db.stats
-    ui.lobbyStats:SetText(string.format("Games %d   Wins %d   Right guesses %d   Drawings guessed %d",
+    intro:SetStats(string.format("Games %d   Wins %d   Right guesses %d   Drawings guessed %d",
         s.games, s.wins, s.guessed, s.drawn))
 end
 
@@ -749,11 +750,15 @@ end
 Refresh = function()
     if not ui.lobby then return end
     local lobby = S.mode == "lobby"
-    ns.SetShown(ui.lobby, lobby)
+    ns:UpdateIntro(Game)
     ns.SetShown(ui.room, not lobby)
     if lobby then RefreshLobby() else RefreshRoom() end
 end
 Game.Refresh = function() Refresh() end
+
+-- For the core's intro (Intro.lua): a game or practice on is "busy"; in the
+-- lobby the intro is all there is.
+function Game:IntroState() return S.mode == "lobby" and "intro" or "busy" end
 
 ---------------------------------------------------------------------------
 -- Building
@@ -800,52 +805,26 @@ local function EditBox(parent, width, maxLetters)
     return box
 end
 
+-- The lobby is the game's intro screen (Intro.lua): Practice, Host a game,
+-- and the games open in the group.
 local function BuildLobby(panel)
-    local MakeButton = ns.UI.Button
-    local l = ns.CreateFrame("Frame", nil, panel)
-    l:SetAllPoints(panel)
-    ui.lobby = l
-    local title = ns:BigFont(l:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 22)
-    title:SetPoint("TOP", l, "TOP", 0, -12)
-    title:SetText("Sketch & Guess")
-    local info = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    info:SetPoint("TOP", title, "BOTTOM", 0, -8)
-    info:SetWidth(350)
-    info:SetText("Take turns drawing a secret word while everyone else races to guess it. The first right guess "
-        .. "scores " .. GUESS_POINTS .. ", and the artist " .. ART_POINTS .. ". Free: no chips are wagered.")
-    ui.groupInfo = l:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    ui.groupInfo:SetPoint("TOP", l, "TOP", 0, -90)
-    ui.groupInfo:SetWidth(350)
-    ui.hostButton = MakeButton(l, "Host a game", 130, function() HostRoom() end, 24)
-    ui.hostButton:SetPoint("TOP", l, "TOP", -70, -112)
-    local practice = MakeButton(l, "Practice", 130, function() Game.Practice() end, 24)
-    practice:SetPoint("TOP", l, "TOP", 70, -112)
-
-    local header = Text(l, "GameFontNormal", 16, -156)
-    header:SetText("Games in your group")
-    local refresh = MakeButton(l, "Refresh", 70, function()
+    local intro = ns:AddIntro(Game, panel, {
+        felt = { 0.07, 0.06, 0.05, 1 },
+        blurb = "Take turns drawing a secret word while everyone else races to guess it. The first right guess "
+            .. "scores " .. GUESS_POINTS .. ", and the artist " .. ART_POINTS .. ". Free: no chips are wagered.",
+        solo = "On your own", party = "Play with your group", rows = 3, refresh = true,
+    })
+    ui.intro = intro
+    ui.lobby = intro.frame
+    intro.soloGo:SetText("Practice")
+    intro.onSolo = function() Game.Practice() end
+    intro.hostGo:SetText("Host a game")
+    intro.onHost = function() HostRoom() end
+    intro.onRefresh = function()
         Send({ "Q" })
         Refresh()
-    end)
-    refresh:SetPoint("TOPRIGHT", l, "TOPRIGHT", -14, -151)
-    ui.rows = {}
-    for r = 1, ROWS do
-        local r = r   -- own copy for closures (Lua 5.0)
-        local row = {}
-        row.text = Text(l, "GameFontHighlightSmall", 18, -186 - (r - 1) * 30, 270)
-        row.join = MakeButton(l, "Join", 60, function()
-            local o = ui.rows[r].offer
-            if o then Join(o.host, o.tid) end
-        end)
-        row.join:SetPoint("TOPRIGHT", l, "TOPRIGHT", -14, -180 - (r - 1) * 30)
-        ui.rows[r] = row
     end
-    ui.lobbyMsg = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.lobbyMsg:SetPoint("TOP", l, "TOP", 0, -310)
-    ui.lobbyMsg:SetWidth(350)
-    ui.lobbyStats = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ui.lobbyStats:SetPoint("BOTTOM", l, "BOTTOM", 0, 10)
-    ui.lobbyStats:SetWidth(360)
+    ui.onJoin = function(host, tid) Join(host, tid) end
 end
 
 local function TogglePack(key)

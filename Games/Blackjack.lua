@@ -217,7 +217,6 @@ local function Refresh()
     ui.deal:SetText("Deal " .. Fmt(db.bet))
     ns.SetEnabled(ui.deal, betting and db.bet >= MIN_BET and db.bet <= ns.db.chips)
 
-    if ui.partyButton then ns.SetEnabled(ui.partyButton, betting) end
     if ui.refreshIntro then ui.refreshIntro() end
     if ui.options and ui.options:IsShown() then ui.options:Refresh() end
 end
@@ -736,27 +735,25 @@ local function BuildParty(panel)
     local solo = { ui.dealerGroup.frame, ui.playerArea, ui.betRow, ui.actionRow, ui.insuranceRow, ui.portrait }
     partyFrame:SetScript("OnShow", function()
         for _, f in ipairs(solo) do f:Hide() end
-        ui.partyButton:Hide()
-        ui.intro:Hide()
+        ns:UpdateIntro(Blackjack)
     end)
     partyFrame:SetScript("OnHide", function()
         ui.dealerGroup.frame:Show()
         ui.playerArea:Show()
         ui.betRow:Show()
         ui.portrait:Show()
-        ui.partyButton:Show()
-        ui.introUp = true        -- back from party play: the intro
+        ns:ShowIntro(Blackjack)          -- back from party play: the intro
         Refresh()
     end)
 
-    -- the intro screen (IntroKit.lua): sit down at the solo table, or play
+    -- the intro screen (Intro.lua): sit down at the solo table, or play
     -- with your group (host on the party page, or join a table listed here)
-    local intro = ns.Intro.New(panel, { title = "Blackjack", felt = { 0.05, 0.25, 0.10, 0.92 },
+    local intro = ns:AddIntro(Blackjack, panel, { felt = { 0.05, 0.25, 0.10, 0.92 },
         solo = "Play solo", party = "Play with your group", rows = 3 })
-    ui.intro, ui.introUp = intro, true
+    ui.intro = intro
     intro.soloGo:SetText("Sit down at the table")
     intro.onSolo = function()
-        ui.introUp = false
+        Blackjack.introUp = false
         ns:Sound("IG_MAINMENU_OPTION")
         Refresh()
     end
@@ -766,18 +763,14 @@ local function BuildParty(panel)
         party:OnShow()
     end
     intro:WatchLobby("blackjack")
-    ui.refreshIntro = function()
-        intro:SetShown(ui.introUp and not partyFrame:IsShown())
-    end
+    ui.refreshIntro = function() ns:UpdateIntro(Blackjack) end
+end
 
-    -- on the table, between hands: back to the intro
-    ui.partyButton = MakeButton(panel, "< Setup", 80, function()
-        if S.phase ~= "betting" then return end
-        ui.introUp = true
-        ns:Sound("IG_MAINMENU_OPTION")
-        Refresh()
-    end)
-    ui.partyButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 2, -2)
+-- For the core's intro (Intro.lua): a hand on, or party play up, is "busy";
+-- between hands the window's back button (< Setup) goes to the intro.
+function Blackjack:IntroState()
+    if (ui.partyFrame and ui.partyFrame:IsShown()) or S.phase ~= "betting" then return "busy" end
+    return "idle"
 end
 
 -- Party play on screen (a lobby pop-up was clicked), or why it can't be.
@@ -914,7 +907,6 @@ end
 
 function Blackjack:OnShow()
     if db and S.phase == "betting" then db.bet = ns:FreshBet(db.bet, MIN_BET) end
-    if S.phase == "betting" then ui.introUp = true end     -- opening the game between hands: the intro
     if ui.status then Refresh() end
     -- Back at your party table, if you're at one.
     local party = ns.PartyBlackjack

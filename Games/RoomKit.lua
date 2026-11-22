@@ -21,7 +21,7 @@
 --   })
 --   room:Restore(db)        (in Build: remembers db, and cleans up a game a reload ended)
 --   room:Tick(now)          (every so often: heartbeats and timeouts)
---   room:BuildLobby(panel, opts)  /  room:RefreshLobby()
+--   room:BuildLobby(panel, opts)  /  room:RefreshLobby()   (the lobby is the game's intro: Intro.lua)
 --
 -- Messages (tag, then): Q (who's hosting?), O;tid;players;phase;ver, J;tid;ver,
 -- F;tid;name;why (can't join), L;tid (leaving), X;tid (closed),
@@ -395,97 +395,58 @@ end
 ---------------------------------------------------------------------------
 local ROWS = 4
 
+-- The lobby is the game's intro screen (Intro.lua): its solo button (the
+-- first of opts.buttons), Host a game, and the games open in the group.
+-- opts: game, title (unused: the game's name), info, alone, buttons, stats, felt.
 function Room:BuildLobby(panel, opts)
-    local MakeButton = ns.UI.Button
     local r = self
-    local l = ns.CreateFrame("Frame", nil, panel)
-    l:SetAllPoints(panel)
-    self.lobby = l
-    local title = ns:BigFont(l:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 22)
-    title:SetPoint("TOP", l, "TOP", 0, -12)
-    title:SetText(opts.title or "")
-    local info = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    info:SetPoint("TOP", title, "BOTTOM", 0, -8)
-    info:SetWidth(350)
-    info:SetText(opts.info or "")
-    l.groupInfo = l:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    l.groupInfo:SetPoint("TOP", l, "TOP", 0, -90)
-    l.groupInfo:SetWidth(350)
-
-    local buttons = { { "Host a game", function() r:Host() end, 130 } }
-    for _, b in ipairs(opts.buttons or {}) do table.insert(buttons, b) end
-    local total = 0
-    for _, b in ipairs(buttons) do total = total + (b[3] or 130) + 10 end
-    local x = -(total - 10) / 2
-    for i, b in ipairs(buttons) do
-        local w = b[3] or 130
-        local btn = MakeButton(l, b[1], w, b[2], 24)
-        btn:SetPoint("TOPLEFT", l, "TOP", x, -112)
-        x = x + w + 10
-        if i == 1 then l.host = btn end
+    local solo = opts.buttons and opts.buttons[1]
+    local intro = ns:AddIntro(opts.game, panel, { felt = opts.felt, blurb = opts.info,
+        solo = solo and "Play solo" or nil, party = "Play with your group", rows = solo and 3 or ROWS, refresh = true })
+    self.intro = intro
+    self.lobby = intro.frame
+    if solo then
+        intro.soloGo:SetText(solo[1])
+        intro.onSolo = solo[2]
     end
-
-    local header = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    header:SetPoint("TOPLEFT", l, "TOPLEFT", 16, -156)
-    header:SetText("Games in your group")
-    local refresh = MakeButton(l, "Refresh", 70, function()
+    intro.hostGo:SetText("Host a game")
+    intro.onHost = function() r:Host() end
+    intro.onRefresh = function()
         r:Send({ "Q" })
         r:Refresh()
-    end)
-    refresh:SetPoint("TOPRIGHT", l, "TOPRIGHT", -14, -151)
-    l.rows = {}
-    for i = 1, ROWS do
-        local i = i   -- own copy for closures (Lua 5.0)
-        local row = {}
-        row.text = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.text:SetPoint("TOPLEFT", l, "TOPLEFT", 18, -186 - (i - 1) * 30)
-        row.text:SetWidth(270)
-        row.text:SetJustifyH("LEFT")
-        row.join = MakeButton(l, "Join", 60, function()
-            local o = l.rows[i].offer
-            if o then r:Join(o.host, o.tid) end
-        end)
-        row.join:SetPoint("TOPRIGHT", l, "TOPRIGHT", -14, -180 - (i - 1) * 30)
-        l.rows[i] = row
     end
-    l.msg = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    l.msg:SetPoint("TOP", l, "TOP", 0, -310)
-    l.msg:SetWidth(350)
-    l.stats = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    l.stats:SetPoint("BOTTOM", l, "BOTTOM", 0, 10)
-    l.stats:SetWidth(360)
     self.lobbyOpts = opts
-    return l
+    return intro.frame
 end
 
 function Room:RefreshLobby()
-    local l = self.lobby
-    if not l then return end
+    local intro = self.intro
+    if not intro then return end
     local inGroup = Net:InGroup()
-    l.groupInfo:SetText(inGroup and ("You're in a group of " .. Net:GroupSize() .. ". Everyone needs CowCasino to play.")
-        or (self.lobbyOpts.alone or "Join a party or raid to play with friends."))
-    ns.SetEnabled(l.host, inGroup)
-    local list = {}
+    ns.SetEnabled(intro.hostGo, inGroup)
+    local r, list = self, {}
     for name, o in pairs(self.offers) do
         if GetTime() - o.heard < RK.OFFER_TIMEOUT and Net:IsMember(name) then
             table.insert(list, { host = name, tid = o.tid, players = o.players, phase = o.phase, ver = o.ver })
         end
     end
     table.sort(list, function(a, b) return a.host < b.host end)
-    for i = 1, ROWS do
-        local row, o = l.rows[i], list[i]
-        row.offer = o
-        if o then
-            local doing = (o.phase == "w" and "waiting to start") or (o.phase == "o" and "between games") or "playing"
-            row.text:SetText(string.format("%s's game - %d player%s, %s", o.host, o.players, o.players == 1 and "" or "s", doing)
-                .. Net:VersionNote(o.ver))
-            row.join:Show()
-            ns.SetEnabled(row.join, o.players < self.max and not self.joining and not Net:VersionProblem(o.ver))
-        else
-            row.text:SetText((i == 1 and inGroup) and "|cff888888No games yet. Host one, or ask someone to.|r" or "")
-            row.join:Hide()
-        end
+    local rows = {}
+    for _, o in ipairs(list) do
+        local offer = o
+        local doing = (o.phase == "w" and "waiting to start") or (o.phase == "o" and "between games") or "playing"
+        table.insert(rows, {
+            host = o.host, tid = o.tid,
+            text = string.format("%s's game - %d player%s, %s", o.host, o.players, o.players == 1 and "" or "s", doing)
+                .. Net:VersionNote(o.ver),
+            enabled = o.players < self.max and not self.joining and not Net:VersionProblem(o.ver),
+            click = function() r:Join(offer.host, offer.tid) end,
+        })
     end
-    l.msg:SetText(self.lobbyMsg or "")
-    l.stats:SetText(Call(self.lobbyOpts.stats) or "")
+    intro:SetOffers(rows)
+    intro:SetNote((rows[1] and "Games in your group:")
+        or (inGroup and ("You're in a group of " .. Net:GroupSize() .. ". No games yet: host one, or ask someone to.")
+        or (self.lobbyOpts.alone or "Join a party or raid to play with friends.")))
+    intro:SetStatus(self.lobbyMsg or "")
+    intro:SetStats(Call(self.lobbyOpts.stats) or "")
 end

@@ -93,7 +93,7 @@ Check("Don't Pass can't go down during a point", db.bets.dontPass == nil)
 Press("25")
 Click("odds"); Click("odds"); Click("odds"); Click("odds")
 Check("odds up to 3x the Pass bet", db.bets.odds == 75 and ns.db.chips == 895, db.bets.odds)
-Check("Setup (back to the intro) is off while bets are down", not Find("< Setup").enabled)
+Check("with bets down, the back button goes to the games (not the intro)", Find("< Setup") == nil and Find("< Games") ~= nil)
 Roll(2, 4)
 Check("point made: Pass pays 1:1 and the odds 6:5", ns.db.chips == 895 + 50 + 75 + 90 and db.point == nil
   and next(db.bets) == nil, ns.db.chips)

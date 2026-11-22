@@ -578,16 +578,24 @@ local function RefreshTable()
     ui.clock:SetText(solo and "" or Clock())
     ns.SetShown(ui.again, room:IsHost() and G.phase == "o")
     if room:IsHost() and G.phase == "o" then ns.SetEnabled(ui.again, ns.getn(room.players) >= NeedPlayers()) end
-    ns.SetShown(ui.back, solo and not Solo().active)
     RefreshSide()
 end
 
 Refresh = function()
     if not ui.table then return end
     local lobby = not room:InRoom() and ui.mode ~= "solo"
-    ns.SetShown(room.lobby, lobby)
+    ns:UpdateIntro(Game)
     ns.SetShown(ui.table, not lobby)
-    if lobby then room:RefreshLobby() else RefreshTable() end
+    room:RefreshLobby()
+    if not lobby then RefreshTable() end
+end
+
+-- For the core's intro (Intro.lua): a room or a solo word on is "busy";
+-- between solo words the window's back button (< Setup) goes to the intro;
+-- otherwise the intro (the lobby) is all there is.
+function Game:IntroState()
+    if room:InRoom() or Solo().active then return "busy" end
+    return ui.mode == "solo" and "idle" or "intro"
 end
 Game.Refresh = function() Refresh() end
 
@@ -758,12 +766,6 @@ local function BuildTable(panel)
         end
     end, 24)
     ui.main:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -4, 6)
-    ui.back = ns.UI.Button(t, "< Lobby", 80, function()
-        ui.mode, ui.soloMsg = "lobby", nil
-        ns:Sound("IG_MAINMENU_OPTION")
-        Refresh()
-    end, 24)
-    ui.back:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", 4, 6)
     ui.again = ns.UI.Button(t, "Play again", 110, function() HostStart() end, 24)
     ui.again:SetPoint("RIGHT", ui.main, "LEFT", -8, 0)
 end
@@ -788,12 +790,13 @@ function Game:Build(panel)
     ui.mode = "lobby"
     room:Restore(db)
     room:BuildLobby(panel, {
-        title = "Hangman",
+        game = Game, felt = { 0.08, 0.07, 0.05, 1 },
         info = "Guess the word before the gallows is done. Play solo for chips, or take turns with your group "
             .. "(free): letters and solves score points.",
         alone = "Join a party or raid to play with friends, or play solo.",
         buttons = { { "Play solo", function()
             ui.mode = "solo"
+            Game.introUp = false
             ns:Sound("IG_MAINMENU_OPTION")
             Refresh()
         end, 130 } },

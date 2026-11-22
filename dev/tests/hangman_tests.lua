@@ -77,8 +77,10 @@ Check("giving up loses the bet", db.solo.result == "lose" and ns.db.chips == chi
 Deal("murloc")
 G:Abandon()
 Check("abandoning from Options loses it too", db.solo.result == "lose")
-H.Press("< Lobby")
-Check("back to the lobby", H.Visible(G.room.lobby))
+H.Tick(0.3)
+Check("between words the window's back button says < Setup", ns.frame.back.text == "< Setup")
+env.Fire(ns.frame.back, "OnClick", "LeftButton")
+Check("the back button goes to the lobby (the intro)", H.Visible(G.room.lobby))
 Check("solo stats", db.stats.solo == 6 and db.stats.soloWins == 3)
 H.panel = nil
 

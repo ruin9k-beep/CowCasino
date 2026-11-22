@@ -970,10 +970,9 @@ function ns:BuildMainFrame()
     back:SetWidth(80); back:SetHeight(22)
     back:SetPoint("TOPLEFT", back:GetParent(), "TOPLEFT", INSET - GAME_INSET, -1)   -- level with the close button
     back:SetText("< Games")
-    back:SetScript("OnClick", function()
-        ns:Sound("IG_MAINMENU_OPTION")
-        ns:ShowMenu()
-    end)
+    -- a step back: from the play field to the game's intro, then to the games (Intro.lua)
+    back:SetScript("OnClick", function() ns:Back() end)
+    frame.back = back
 
     gamePage.chips = gamePage:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     gamePage.chips:SetPoint("TOP", frame, "TOP", 0, -31)
@@ -1178,6 +1177,8 @@ function ns:OpenGame(id)
     self.frame.title:SetText(game.name or id)   -- (short: it shares its row with < Games and Options)
     if ns.Dealer then ns.Dealer:Attach(game) end      -- before OnShow, so it can talk straight away
     if game.OnShow then game:OnShow() end
+    self.frame.back:SetText("< Games")
+    self:OpenIntro(game)
     if ns.Lobby then ns.Lobby:UpdateWindow() end
 end
 

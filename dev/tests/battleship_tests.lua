@@ -218,7 +218,7 @@ local function HasButton(c, text)
   end
 end
 local function NewGame()
-  for _, c in ipairs({ host, guest }) do if HasButton(c, "< Setup") then PressIn(c, "< Setup") end end
+  for _, c in ipairs({ host, guest }) do if not c.P.ui.intro:IsShown() then c.ns:Back() end end
   PressIn(host, "Challenge the group")
   Run(1)
   PressIn(guest, "Accept")

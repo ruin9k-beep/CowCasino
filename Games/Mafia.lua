@@ -640,10 +640,14 @@ end
 Refresh = function()
     if not ui.table then return end
     local inRoom = room:InRoom()
-    ns.SetShown(room.lobby, not inRoom)
+    ns:UpdateIntro(Game)
     ns.SetShown(ui.table, inRoom)
     if inRoom then RefreshTable() else room:RefreshLobby() end
 end
+
+-- For the core's intro (Intro.lua): in a room it's "busy"; otherwise the
+-- intro (the lobby) is all there is.
+function Game:IntroState() return room:InRoom() and "busy" or "intro" end
 Game.Refresh = function() Refresh() end
 
 ---------------------------------------------------------------------------
@@ -823,7 +827,7 @@ function Game:Build(panel)
     self.panel = panel
     room:Restore(db)
     room:BuildLobby(panel, {
-        title = "Mafia",
+        game = Game, felt = { 0.06, 0.05, 0.06, 1 },
         info = "Some players are secretly the Mafia. Each night they kill someone; each day everyone votes on who to lynch. "
             .. "For 5 to 30 players in a raid. Free: no chips are wagered.",
         alone = "Join a raid (or party) to play. Everyone needs CowCasino.",

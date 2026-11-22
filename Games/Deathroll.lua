@@ -135,12 +135,12 @@ local function Quiet(d)
     return d and d.kind == "party" and d.turn == "them" and GetTime() - (d.heard or 0) > QUIET_LIMIT
 end
 
--- The intro screen (IntroKit.lua), up between duels: Vs the dealer (stake,
+-- The intro screen (Intro.lua), up between duels: Vs the dealer (stake,
 -- starting number, Duel) and the group (the same two, Challenge, and the open
 -- challenges to accept).
 local function RefreshIntro()
     local intro = ui.intro
-    intro:SetShown(S.duel == nil and not S.over)
+    ns:UpdateIntro(Deathroll)
     for _, p in ipairs(ui.pickers) do p:Refresh() end
     intro.soloGo:SetText("Duel " .. DealerName() .. " for " .. Fmt(db.stake))
     ns.SetEnabled(intro.soloGo, ns.db.chips >= db.stake and not S.posted and not S.accepting)
@@ -198,9 +198,7 @@ local function Refresh()
     -- the field's buttons: Roll in a duel; Play again and Setup after one
     ui.forfeit:Hide()
     ns.SetShown(ui.go, d ~= nil)
-    local over = d == nil and S.over
-    ns.SetShown(ui.back, over)
-    ns.SetShown(ui.again, over and S.over.kind == "solo")
+    ns.SetShown(ui.again, d == nil and S.over and S.over.kind == "solo")
     ui.again:SetText("Again for " .. Fmt(db.stake))
     ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
     if d then
@@ -584,9 +582,9 @@ function Deathroll:Build(panel)
     })
 
 
-    -- the intro screen: setting up a duel (IntroKit.lua)
-    local intro = ns.Intro.New(panel, {
-        title = "Deathroll", felt = { 0.18, 0.04, 0.04, 0.94 },
+    -- the intro screen: setting up a duel (Intro.lua)
+    local intro = ns:AddIntro(Deathroll, panel, {
+        felt = { 0.18, 0.04, 0.04, 0.94 },
         solo = "Vs the dealer", party = "Duel your group",
     })
     ui.intro = intro
@@ -648,17 +646,8 @@ function Deathroll:Build(panel)
         DuelDealer()
         Refresh()
     end, 26)
-    ui.again:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
+    ui.again:SetPoint("BOTTOM", panel, "BOTTOM", 0, 19)
     ui.again:Hide()
-    ui.back = MakeButton(panel, "< Setup", 110, function()
-        S.over = nil
-        ns:Sound("IG_MAINMENU_OPTION")
-        SetStatus("")
-        Net:Send(Msg({ "Q" }))
-        Refresh()
-    end, 26)
-    ui.back:SetPoint("BOTTOMLEFT", panel, "BOTTOM", 4, 19)
-    ui.back:Hide()
 
     ui.options = BuildOptions(panel)
 
@@ -714,6 +703,9 @@ function Deathroll:ResetStats()
     Fill(d.stats, DEFAULT_STATS)
     if ui.stats and db then Refresh() end
 end
+
+-- For the core's intro (Intro.lua): a duel on is "busy".
+function Deathroll:IntroState() return S.duel ~= nil and "busy" or "idle" end
 
 -- Exposed for tests.
 Deathroll.S, Deathroll.ui, Deathroll.ParseRoll = S, ui, ParseRoll

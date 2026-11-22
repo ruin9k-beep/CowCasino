@@ -140,9 +140,9 @@ local function Find(c, text, prefix)
 end
 local function Press(c, text, prefix)
   local b = Find(c, text, prefix)
-  -- after a duel the field shows Setup: the intro's buttons are behind it
-  if not b and Find(c, "< Setup") then
-    c.env.Fire(Find(c, "< Setup"), "OnClick", "LeftButton")
+  -- after a duel the field stays up: the window's back button goes to the intro
+  if not b and not c.G.ui.intro:IsShown() then
+    c.ns:Back()
     b = Find(c, text, prefix)
   end
   assert(b, c.name .. ": no button " .. text)
@@ -191,8 +191,8 @@ Check("a duel against the dealer survives a reload", host2.S.duel ~= nil and hos
 table.remove(clients)   -- (just checking; play on in the first one)
 Run(1.5)
 Check("the dealer rolls a 1: you win both stakes (200)", host.S.duel == nil and host.ns.db.chips == 1100, host.ns.db.chips)
-Check("after the duel the rolls stay up, with Again and Setup", Find(host, "Again for 100") ~= nil
-  and Find(host, "< Setup") ~= nil and not host.G.ui.intro:IsShown())
+Check("after the duel the rolls stay up, with Again (and < Setup on the window)", Find(host, "Again for 100") ~= nil
+  and host.ns.frame.back.text == "< Setup" and not host.G.ui.intro:IsShown())
 Check("stats: a duel won", D.stats.duels == 1 and D.stats.wins == 1 and D.stats.won == 200 and D.stats.wagered == 100)
 local logText = table.concat(D.lastLog, " / ")
 Check("the log shows every roll", string.find(logText, "400", 1, true) and string.find(logText, "120", 1, true)
@@ -229,7 +229,7 @@ GroupChanged()
 Run(0.5)
 for _, c in ipairs({ host, bob, cid }) do
   c.ns.db.chips = 1000
-  if Find(c, "< Setup") then Press(c, "< Setup") end
+  if not c.G.ui.intro:IsShown() then c.ns:Back() end
 end
 Run(1)
 Check("the intro: Challenge the group", Enabled(host, "Challenge the group"))

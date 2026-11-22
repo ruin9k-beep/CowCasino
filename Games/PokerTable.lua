@@ -995,7 +995,7 @@ function Refresh()
     if not ui.table then return end
     local seated = T.seats[1] ~= nil
     ns.SetShown(ui.table, seated)
-    ns.SetShown(ui.lobby, not seated)
+    ns:UpdateIntro(Poker)
     if not seated then
         RefreshLobby()
         return
@@ -2348,12 +2348,12 @@ local function MakeSeat(parent, width, height, cardW, cardH)
     return s
 end
 
--- The intro screen (IntroKit.lua), up while you're not at a table: buy in
+-- The intro screen (Intro.lua), up while you're not at a table: buy in
 -- at a table against the computer, or play with your group (host a table on
 -- the party page, or join one listed here).
 local function BuildLobby(panel)
-    local intro = ns.Intro.New(panel, {
-        title = V.name, felt = { 0.05, 0.30, 0.12, 0.9 },
+    local intro = ns:AddIntro(Poker, panel, {
+        felt = { 0.05, 0.30, 0.12, 0.9 },
         solo = "Vs the computer: buy in for", party = "Play with your group", rows = 3,
     })
     ui.intro = intro
@@ -2995,6 +2995,10 @@ function Poker:ResetStats()
     d.stats = {}
     for k, v in pairs(DEFAULT_STATS) do d.stats[k] = v end
 end
+
+-- For the core's intro (Intro.lua): at a table it's "busy"; away from one,
+-- the intro is all there is.
+function Poker:IntroState() return T.seats[1] ~= nil and "busy" or "intro" end
 
 -- The lobby hub (Lobby.lua): pop-ups, badges and invites.
 ns.Lobby:Register(V.id, {

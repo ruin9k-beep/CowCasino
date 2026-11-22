@@ -37,7 +37,7 @@ Kit.__index = Kit
 ns.BoardKit = Kit
 
 -- Board games use the whole game area (380 x 380: the window's "wide" layout).
--- Setting up a game happens on the intro screen (IntroKit.lua), so the board
+-- Setting up a game happens on the intro screen (Intro.lua), so the board
 -- has the field from the top down to the Resign row.
 local PANEL_W      = 380
 local SQ, BX, BY   = 35, 13, -8        -- square size; the board's top-left in the panel
@@ -1028,13 +1028,13 @@ function Kit:Refresh()
     end
 end
 
--- The intro screen (IntroKit.lua): up between games. Vs the computer (stake,
+-- The intro screen (Intro.lua): up between games. Vs the computer (stake,
 -- level, side, Play), and the group (your side, Challenge, and the open
 -- challenges to accept).
 function Kit:RefreshIntro()
     local ui, S, R, db = self.ui, self.S, self.def.rules, self.db
     local intro = ui.intro
-    intro:SetShown(S.game == nil and S.over == nil)
+    ns:UpdateIntro(self)
     for _, p in ipairs(ui.pickers) do p:Refresh() end
     if intro.soloGo then
         intro.soloGo:SetText("Play for " .. Fmt(db.stake))
@@ -1068,21 +1068,16 @@ function Kit:RefreshIntro()
     intro:SetStats(self:StatsText())
 end
 
--- After a game, on the field: Play again (vs the computer), or back to the intro.
+-- For the core's intro (Intro.lua): a game on is "busy"; otherwise the intro
+-- shows when the game is opened, and the back button (< Setup) returns to it.
+function Kit:IntroState() return self.S.game ~= nil and "busy" or "idle" end
+
+-- After a game vs the computer, on the field: Play again.
 function Kit:RefreshAfter()
     local ui, S, db = self.ui, self.S, self.db
-    local over = S.game == nil and S.over ~= nil
-    ns.SetShown(ui.back, over)
-    ns.SetShown(ui.again, over and S.over.kind == "solo")
+    ns.SetShown(ui.again, S.game == nil and S.over ~= nil and S.over.kind == "solo")
     ui.again:SetText("Play again for " .. Fmt(db.stake))
     ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
-end
-
-function Kit:BackToIntro()
-    self.S.over = nil
-    ns:Sound("IG_MAINMENU_OPTION")
-    self:Welcome()
-    self:Refresh()
 end
 
 function Kit:Mode()
@@ -1272,11 +1267,12 @@ function Kit:BuildSide(panel)
 end
 
 -- The intro screen's settings and buttons, and the field's own buttons
--- (Resign and Offer draw in a game; Play again and Setup after one).
+-- (Resign and Offer draw in a game; Play again after one; the window's
+-- back button goes to the intro).
 function Kit:BuildBottom(panel)
     local ui, game, R, def = self.ui, self, self.def.rules, self.def
-    local intro = ns.Intro.New(panel, {
-        title = def.name, felt = def.felt,
+    local intro = ns:AddIntro(self, panel, {
+        felt = def.felt,
         solo = R.ChooseMove and "Vs the computer" or nil,
         party = "Play with your group",
     })
@@ -1353,11 +1349,8 @@ function Kit:BuildBottom(panel)
         game:PlaySolo()
         game:Refresh()
     end, 26)
-    ui.again:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
+    ui.again:SetPoint("BOTTOM", panel, "BOTTOM", 0, 19)
     ui.again:Hide()
-    ui.back = MakeButton(panel, "< Setup", 110, function() game:BackToIntro() end, 26)
-    ui.back:SetPoint("BOTTOMLEFT", panel, "BOTTOM", 4, 19)
-    ui.back:Hide()
 end
 
 function Kit:Build(panel)

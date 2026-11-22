@@ -47,7 +47,8 @@ for _ = 1, 20 do
   inRound = (Find("Stand") ~= nil and Find("Stand").enabled ~= nil) or Find("No thanks") ~= nil
   if inRound then break end
 end
-Check("...and disabled during a round", inRound and not Find("< Setup").enabled)
+Check("...and during a round the back button goes to the games instead", inRound and Find("< Setup") == nil
+  and Find("< Games") ~= nil)
 for _ = 1, 20 do
   if Find("No thanks") then Press("No thanks") elseif Find("Stand") and Find("Stand").enabled then Press("Stand") end
   Tick(1)
