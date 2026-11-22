@@ -190,7 +190,8 @@ function ns.PartyKit(K)
                 local out = {}
                 for name, o in pairs(T.offers) do
                     if GetTime() - o.heard < OFFER_TIMEOUT and (o.open or 0) > 0 and not Net:VersionProblem(o.ver) then
-                        table.insert(out, { host = name, key = o.tid })
+                        table.insert(out, { host = name, key = o.tid,
+                            text = string.format("%s: %d seated, %d open", name, o.players or 0, o.open or 0) })
                     end
                 end
                 return out
@@ -287,7 +288,7 @@ function ns.PartyKit(K)
         })
         ui.buyIn:SetPoint("TOPRIGHT", l, "TOPRIGHT", -16, -108)
 
-        local back = MakeButton(l, "< Solo table", 90, function()
+        local back = MakeButton(l, "< Back", 90, function()
             if Game.onBack then Game.onBack() end
         end)
         back:SetPoint("TOPLEFT", l, "TOPLEFT", 0, -2)

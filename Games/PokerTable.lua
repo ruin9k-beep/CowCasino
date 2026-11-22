@@ -794,7 +794,7 @@ function SetStatus(text, r, g, b)
 end
 
 local function SetLobbyMessage(text)
-    ui.lobbyMsg:SetText(text or "")
+    ui.intro:SetStatus(text)
 end
 
 local function StatsText()
@@ -812,9 +812,28 @@ local function RefreshLobby()
         b:SetText(Fmt(buyIns[i]))
         ns.SetEnabled(b, chips >= buyIns[i])
     end
-    ui.lobbyInfo:SetText(string.format(V.lobbyText .. "\n"
-        .. "Buy in from your chips. Whatever is in front of you goes back to your chips when you leave the table.", Fmt(sb), Fmt(bb)))
-    ui.lobbyStats:SetText(StatsText())
+    ui.lobbyInfo:SetText(string.format(V.lobbyText, Fmt(sb), Fmt(bb))
+        .. " Your stack goes back to your chips when you leave.")
+    -- the party tables open in the group
+    local intro, inGroup = ui.intro, Net:InGroup()
+    local list = {}
+    for name, offer in pairs(T.offers) do
+        if GetTime() - offer.heard < OFFER_TIMEOUT and Net:IsMember(name) then
+            local host, o = name, offer
+            table.insert(list, {
+                host = host,
+                text = string.format("%s: blinds %s/%s, %d seated, %d open", host, Fmt(o.sb), Fmt(o.bb), o.players, o.open)
+                    .. Net:VersionNote(o.ver),
+                enabled = o.open > 0 and not T.joining and not Net:VersionProblem(o.ver),
+                click = function() ui.onJoin(host, o.tid) end,
+            })
+        end
+    end
+    table.sort(list, function(a, b) return a.host < b.host end)
+    intro:SetOffers(list)
+    intro:SetNote(list[1] and "Party tables in your group:"
+        or (inGroup and "No party tables yet. Host one, or wait for someone to." or "Join a party or raid to play your friends."))
+    intro:SetStats(StatsText())
     ns:UpdateChipsDisplay()
 end
 
@@ -2020,6 +2039,7 @@ local function OnMessage(sender, f)
             players = tonumber(f[6]) or 0, open = tonumber(f[7]) or 0, buyin = tonumber(f[8]), ver = tonumber(f[9]),
             heard = GetTime() }
         if ui.party and ui.party:IsShown() then ui.party:Refresh() end
+        if ui.lobby and ui.lobby:IsShown() then ui.refreshLobby() end   -- (through ui: upvalues)
         return
     end
 
@@ -2328,43 +2348,33 @@ local function MakeSeat(parent, width, height, cardW, cardH)
     return s
 end
 
+-- The intro screen (IntroKit.lua), up while you're not at a table: buy in
+-- at a table against the computer, or play with your group (host a table on
+-- the party page, or join one listed here).
 local function BuildLobby(panel)
-    local l = ns.CreateFrame("Frame", nil, panel)
-    l:SetAllPoints(panel)
-    ui.lobby = l
-
-    local title = ns:BigFont(l:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 22)
-    title:SetPoint("TOP", l, "TOP", 0, -20)
-    title:SetText(V.name)
-
-    ui.lobbyInfo = l:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    ui.lobbyInfo:SetPoint("TOP", title, "BOTTOM", 0, -12)
-    ui.lobbyInfo:SetWidth(AREA_W - 30)
-
-    local pick = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pick:SetPoint("TOP", l, "TOP", 0, -130)
-    pick:SetText("Buy in for")
-
+    local intro = ns.Intro.New(panel, {
+        title = V.name, felt = { 0.05, 0.30, 0.12, 0.9 },
+        solo = "Vs the computer: buy in for", party = "Play with your group", rows = 3,
+    })
+    ui.intro = intro
+    ui.lobby = intro.frame
+    ui.refreshLobby = RefreshLobby
     ui.buyIns = {}
     local w, gap = 100, 10
-    local x0 = (AREA_W - (ns.getn(BUY_IN_BB) * w + (ns.getn(BUY_IN_BB) - 1) * gap)) / 2
+    local x0 = (340 - (ns.getn(BUY_IN_BB) * w + (ns.getn(BUY_IN_BB) - 1) * gap)) / 2
     for i = 1, ns.getn(BUY_IN_BB) do
         local i = i   -- own copy for closures (Lua 5.0)
-        local b = MakeButton(l, "", w, function() BuyIn(i) end, 26)
-        b:SetPoint("TOPLEFT", l, "TOPLEFT", x0 + (i - 1) * (w + gap), -150)
+        local b = MakeButton(intro.soloRow, "", w, function() BuyIn(i) end, 24)
+        b:SetPoint("LEFT", intro.soloRow, "LEFT", x0 + (i - 1) * (w + gap), 0)
         ui.buyIns[i] = b
     end
-
-    ui.lobbyMsg = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.lobbyMsg:SetPoint("TOP", l, "TOP", 0, -220)
-    ui.lobbyMsg:SetWidth(AREA_W - 20)
-
-    local party = MakeButton(l, "Play with your party", 170, function() ui.party:Show() end, 26)
-    party:SetPoint("TOP", l, "TOP", 0, -262)
-
-    ui.lobbyStats = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ui.lobbyStats:SetPoint("BOTTOM", l, "BOTTOM", 0, 16)
-    ui.lobbyStats:SetWidth(AREA_W - 20)
+    -- (the buy-ins start the game, so the solo Start button gives way to a word on the table)
+    intro.soloGo:Hide()
+    ui.lobbyInfo = intro.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.lobbyInfo:SetPoint("TOP", intro.soloRow, "BOTTOM", 0, -8)
+    ui.lobbyInfo:SetWidth(330)
+    intro.hostGo:SetText("Play with your party")
+    intro.onHost = function() ui.party:Show() end
 end
 
 local function BuildTableDraw(panel)
@@ -2891,6 +2901,10 @@ function Poker:Build(panel)
 
     ui.options = BuildOptions(panel)
     ui.party = BuildParty(panel)
+    ui.onJoin = function(host, tid)
+        if not ui.party:IsShown() then ui.party:Show() end
+        JoinTable(host, tid)
+    end
 
     ResetToLobby()
     local message

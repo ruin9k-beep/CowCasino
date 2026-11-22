@@ -90,7 +90,7 @@ local env2, ns2 = Start(nil)
 env, ns = env2, ns2
 page = ns.rebuyPage
 ns:OpenGame("blackjack")
-Press("Party play")
+Press("Play with your party")
 Press("Host a table")
 ns.db.chips = 0
 Tick(5)

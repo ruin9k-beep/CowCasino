@@ -37,9 +37,11 @@ Kit.__index = Kit
 ns.BoardKit = Kit
 
 -- Board games use the whole game area (380 x 380: the window's "wide" layout).
+-- Setting up a game happens on the intro screen (IntroKit.lua), so the board
+-- has the field from the top down to the Resign row.
 local PANEL_W      = 380
-local SQ, BX, BY   = 32, 18, -32       -- square size; the board's top-left in the panel
-local SIDE_X       = BX + 8 * SQ + 10  -- the column to the right of the board
+local SQ, BX, BY   = 35, 13, -8        -- square size; the board's top-left in the panel
+local SIDE_X       = BX + 8 * SQ + 8   -- the column to the right of the board
 local SIDE_W       = PANEL_W - SIDE_X - 4
 local LOG_LINES    = 9       -- move list lines (5 when the captured pieces show too)
 local TAKEN_SIZE, TAKEN_PER_ROW = 12, 5   -- the captured-piece icons (def.taken)
@@ -150,6 +152,10 @@ function Kit:SetStatus(text, r, g, b)
     if not self.ui.status then return end
     self.ui.status:SetText(text or "")
     self.ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
+    if self.ui.intro then
+        self.ui.intro:SetStatus(text)
+        self.ui.intro.status:SetTextColor(r or 1, g or 0.82, b or 0)
+    end
 end
 
 function Kit:SideName(side)
@@ -267,7 +273,7 @@ function Kit:Finish(winner, why)
         self:Say(self.id .. "Lose", { name = opp }, "You lose.")
     end
     if ns.Dealer and not solo then ns.Dealer:SetImage(self, nil) end
-    self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me, taken = g.taken }
+    self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me, taken = g.taken, kind = g.kind }
     self.db.stake = ns:FitList(STAKES, self.db.stake)
     self:SetStatus(text, r, gr, b)
     self:Refresh()
@@ -926,13 +932,7 @@ function Kit:Refresh()
     if not ui.board then return end
     ns:UpdateChipsDisplay()
     local g = S.game
-    local solo = self:Mode() == "solo"
-    if ui.soloTab then
-        ns.SetEnabled(ui.soloTab, g == nil and not S.posted and not solo)
-        ns.SetEnabled(ui.partyTab, g == nil and solo)
-        ui.soloTab:SetText((solo and "|cffffff00" or "") .. "Vs the computer")
-        ui.partyTab:SetText((not solo and "|cffffff00" or "") .. "Party game")
-    end
+    self:RefreshIntro()
 
     -- the board: the game, the one just finished, or the starting position
     local targets
@@ -1009,21 +1009,10 @@ function Kit:Refresh()
     ns.SetShown(ui.logBg, n > 0)
     if ui.taken then self:DrawTaken(g or S.over) end
 
-    -- the party lobby, over the board between games
-    self:RefreshLobby(not solo and not g)
-
-    -- the pickers
-    for _, p in ipairs(ui.pickers) do p:Refresh() end
-    -- (hidden during a game: the column says what it's for)
-    ns.SetShown(ui.side, g == nil)
-    if ui.stake then
-        ns.SetShown(ui.stake, solo and g == nil)
-        ns.SetShown(ui.level, solo and g == nil)
-    end
-
     -- the buttons
+    ui.go:Hide()
+    self:RefreshAfter()
     if g then
-        ui.go:Hide()
         ui.resign:Show()
         self:ResignButton()
         ns.SetShown(ui.draw, g.kind == "party")
@@ -1036,42 +1025,64 @@ function Kit:Refresh()
     else
         ui.resign:Hide()
         ui.draw:Hide()
-        ui.go:Show()
-        if solo then
-            ui.go:SetText("Play for " .. Fmt(db.stake))
-            ns.SetEnabled(ui.go, ns.db.chips >= db.stake)
-        elseif S.posted then
-            ui.go:SetText("Withdraw challenge")
-            ns.SetEnabled(ui.go, true)
-        else
-            ui.go:SetText("Challenge the group")
-            ns.SetEnabled(ui.go, Net:InGroup() and not S.accepting)
-        end
     end
-    ui.stats:SetText(self:StatsText())
 end
 
--- The party lobby over the board (shown between party games).
-function Kit:RefreshLobby(shown)
-    local ui, S, R = self.ui, self.S, self.def.rules
-    ns.SetShown(ui.lobby, shown)
-    if not shown then return end
-    local list = self:OpenOffers()
-    for r = 1, 4 do
-        local row, offer = ui.rows[r], list[r]
-        row.offer = offer
-        if offer then
-            local side = offer.side == "?" and "random sides" or
-                (R.OfferText and R.OfferText(offer.side) or ("plays " .. self:SideName(offer.side)))
-            row.text:SetText(offer.host .. " (" .. side .. ")" .. Net:VersionNote(offer.ver))
-            row:Show()
-            ns.SetEnabled(row.accept, not S.accepting and not S.posted and not Net:VersionProblem(offer.ver))
-        else
-            row:Hide()
-        end
+-- The intro screen (IntroKit.lua): up between games. Vs the computer (stake,
+-- level, side, Play), and the group (your side, Challenge, and the open
+-- challenges to accept).
+function Kit:RefreshIntro()
+    local ui, S, R, db = self.ui, self.S, self.def.rules, self.db
+    local intro = ui.intro
+    intro:SetShown(S.game == nil and S.over == nil)
+    for _, p in ipairs(ui.pickers) do p:Refresh() end
+    if intro.soloGo then
+        intro.soloGo:SetText("Play for " .. Fmt(db.stake))
+        ns.SetEnabled(intro.soloGo, ns.db.chips >= db.stake and not S.posted and not S.accepting)
     end
-    ui.lobbyTitle:SetText(S.posted and "Your challenge is open. Waiting..." or (list[1] and "Open challenges in your group:" or
-        (Net:InGroup() and "No open challenges yet.\nChallenge your group below." or "Join a party or raid to play\nyour friends.")))
+    if S.posted then
+        intro.hostGo:SetText("Withdraw challenge")
+        ns.SetEnabled(intro.hostGo, true)
+    else
+        intro.hostGo:SetText("Challenge the group")
+        ns.SetEnabled(intro.hostGo, Net:InGroup() and not S.accepting)
+    end
+    local game, list, rows = self, self:OpenOffers(), {}
+    for _, offer in ipairs(list) do
+        local o = offer
+        local side = o.side == "?" and "random sides" or
+            (R.OfferText and R.OfferText(o.side) or ("plays " .. self:SideName(o.side)))
+        table.insert(rows, {
+            text = o.host .. " (" .. side .. ")" .. Net:VersionNote(o.ver), label = "Accept", host = o.host,
+            enabled = not S.accepting and not S.posted and not Net:VersionProblem(o.ver),
+            click = function()
+                if game:Mode() ~= "party" then game:SetMode("party") end
+                game:Accept(o)
+            end,
+        })
+    end
+    intro:SetOffers(rows)
+    intro:SetNote(S.posted and "Your challenge is open. Waiting for someone to accept..."
+        or (list[1] and "Open challenges in your group:")
+        or (Net:InGroup() and "No open challenges yet." or "Join a party or raid to play your friends."))
+    intro:SetStats(self:StatsText())
+end
+
+-- After a game, on the field: Play again (vs the computer), or back to the intro.
+function Kit:RefreshAfter()
+    local ui, S, db = self.ui, self.S, self.db
+    local over = S.game == nil and S.over ~= nil
+    ns.SetShown(ui.back, over)
+    ns.SetShown(ui.again, over and S.over.kind == "solo")
+    ui.again:SetText("Play again for " .. Fmt(db.stake))
+    ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
+end
+
+function Kit:BackToIntro()
+    self.S.over = nil
+    ns:Sound("IG_MAINMENU_OPTION")
+    self:Welcome()
+    self:Refresh()
 end
 
 function Kit:Mode()
@@ -1089,12 +1100,8 @@ function Kit:SetMode(mode)
 end
 
 function Kit:Welcome()
-    if self:Mode() == "party" then
-        Net:Send(self:Msg({ "Q" }))
-        self:SetStatus(Net:InGroup() and "Challenge your group, or take a challenge." or "Join a party or raid to play your friends.")
-    else
-        self:SetStatus("Pick a stake, a level and your side, then Play.")
-    end
+    Net:Send(self:Msg({ "Q" }))
+    self:SetStatus("")
 end
 
 ---------------------------------------------------------------------------
@@ -1200,37 +1207,6 @@ function Kit:BuildBoard(panel)
     ui.choiceBox = box
 end
 
-function Kit:BuildLobby(panel)
-    local ui, game = self.ui, self
-    local lobby = ns.CreateFrame("Frame", nil, ui.board)
-    lobby:SetAllPoints(ui.board)
-    lobby:SetFrameLevel(ui.board:GetFrameLevel() + 8)
-    lobby:EnableMouse(true)
-    local bg = lobby:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(lobby)
-    bg:SetTexture(0, 0, 0, 0.72)
-    ui.lobbyTitle = lobby:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.lobbyTitle:SetPoint("TOP", lobby, "TOP", 0, -12)
-    ui.lobbyTitle:SetWidth(8 * SQ - 12)
-    ui.rows = {}
-    for r = 1, 4 do
-        local r = r
-        local row = ns.CreateFrame("Frame", nil, lobby)
-        row:SetWidth(8 * SQ - 16); row:SetHeight(36)
-        row:SetPoint("TOP", lobby, "TOP", 0, -44 - (r - 1) * 40)
-        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.text:SetPoint("LEFT", row, "LEFT", 0, 0)
-        row.text:SetWidth(8 * SQ - 90)
-        row.text:SetJustifyH("LEFT")
-        row.accept = MakeButton(row, "Accept", 66, function() game:Accept(game.ui.rows[r].offer) end)
-        row.accept:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        row:Hide()
-        ui.rows[r] = row
-    end
-    lobby:Hide()
-    ui.lobby = lobby
-end
-
 -- The column beside the board, top to bottom: whose move, who against,
 -- what's happening, the captured pieces (def.taken), and the moves so far
 -- (at the foot, level with the board's bottom). Each piece hangs from the
@@ -1295,32 +1271,48 @@ function Kit:BuildSide(panel)
     end
 end
 
+-- The intro screen's settings and buttons, and the field's own buttons
+-- (Resign and Offer draw in a game; Play again and Setup after one).
 function Kit:BuildBottom(panel)
-    local ui, game, R = self.ui, self, self.def.rules
+    local ui, game, R, def = self.ui, self, self.def.rules, self.def
+    local intro = ns.Intro.New(panel, {
+        title = def.name, felt = def.felt,
+        solo = R.ChooseMove and "Vs the computer" or nil,
+        party = "Play with your group",
+    })
+    intro.onSolo = function()
+        if game:Mode() ~= "solo" then game:SetMode("solo") end
+        game:Go()
+    end
+    intro.onHost = function()
+        if game:Mode() ~= "party" then game:SetMode("party") end
+        game:Go()
+    end
+    ui.intro = intro
     local function Locked() return game.S.game ~= nil or game.S.posted ~= nil end
     local function Refresh() game:Refresh() end
-    local row = ns.CreateFrame("Frame", nil, panel)
-    row:SetWidth(PANEL_W - 8); row:SetHeight(24)
-    row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 50)
     ui.pickers = {}
-    ui.side = ns.UI.Stepper(row, {
-        list = { R.sides[1], R.sides[2], "?" }, width = 60,
-        label = function(v) return v == "?" and "|cffffffffRandom|r" or ("|cffffffff" .. game:SideName(v) .. "|r") end,
-        get = function() return game.db.side end,
-        set = function(v) game.db.side = v end,
-        locked = Locked, onChange = Refresh,
-    })
-    table.insert(ui.pickers, ui.side)
+    local function SideStep(parent)
+        local st = ns.UI.Stepper(parent, {
+            list = { R.sides[1], R.sides[2], "?" }, width = 60,
+            label = function(v) return v == "?" and "|cffffffffRandom|r" or ("|cffffffff" .. game:SideName(v) .. "|r") end,
+            get = function() return game.db.side end,
+            set = function(v) game.db.side = v end,
+            locked = Locked, onChange = Refresh,
+        })
+        table.insert(ui.pickers, st)
+        return st
+    end
     if R.ChooseMove then
-        ui.stake = ns.UI.Stepper(row, {
+        ui.stake = ns.UI.Stepper(intro.soloRow, {
             list = STAKES, width = 66,
             label = function(v) return "Stake |cffffffff" .. Fmt(v) .. "|r" end,
             get = function() return game.db.stake end,
             set = function(v) game.db.stake = v end,
             locked = Locked, onChange = Refresh,
         })
-        ui.stake:SetPoint("LEFT", row, "LEFT", 0, 0)
-        ui.level = ns.UI.Stepper(row, {
+        ui.stake:SetPoint("LEFT", intro.soloRow, "LEFT", 0, 0)
+        ui.level = ns.UI.Stepper(intro.soloRow, {
             list = { 1, 2, 3 }, width = 52,
             label = function(v) return "|cffffffff" .. R.LEVELS[v].name .. "|r" end,
             get = function() return game.db.level end,
@@ -1330,13 +1322,18 @@ function Kit:BuildBottom(panel)
         ui.level:SetPoint("LEFT", ui.stake, "RIGHT", 4, 0)
         table.insert(ui.pickers, ui.stake)
         table.insert(ui.pickers, ui.level)
-        ui.side:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-    else
-        ui.side:SetPoint("CENTER", row, "CENTER", 0, 0)
+        ui.side = SideStep(intro.soloRow)
+        ui.side:SetPoint("RIGHT", intro.soloRow, "RIGHT", 0, 0)
     end
+    ui.partySide = SideStep(intro.partyRow)
+    ui.partySide:SetPoint("CENTER", intro.partyRow, "CENTER", 0, 0)
+    ui.side = ui.side or ui.partySide
+    ui.stats = intro.stats
 
+    -- the field: one action button for a game's own steps (Battleship's Ready)
     ui.go = MakeButton(panel, "Play", 180, function() game:Go() end, 28)
     ui.go:SetPoint("BOTTOM", panel, "BOTTOM", 0, 18)
+    ui.go:Hide()
     ui.resign = MakeButton(panel, "Resign", 110, function() game:ResignClick() end, 26)
     ui.resign:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
     -- a red wash, so it never looks like the Play button
@@ -1349,8 +1346,18 @@ function Kit:BuildBottom(panel)
     ui.draw = MakeButton(panel, "Offer draw", 110, function() game:Draw() end, 26)
     ui.draw:SetPoint("BOTTOMLEFT", panel, "BOTTOM", 4, 19)
     ui.draw:Hide()
-    ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
+    -- after a game
+    ui.again = MakeButton(panel, "Play again", 150, function()
+        game.S.over = nil
+        if game:Mode() ~= "solo" then game:SetMode("solo") end
+        game:PlaySolo()
+        game:Refresh()
+    end, 26)
+    ui.again:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
+    ui.again:Hide()
+    ui.back = MakeButton(panel, "< Setup", 110, function() game:BackToIntro() end, 26)
+    ui.back:SetPoint("BOTTOMLEFT", panel, "BOTTOM", 4, 19)
+    ui.back:Hide()
 end
 
 function Kit:Build(panel)
@@ -1361,18 +1368,7 @@ function Kit:Build(panel)
         sounds = EXTRA_SOUNDS,
         felt = def.felt,
     })
-    if R.ChooseMove then
-        self.ui.soloTab = MakeButton(panel, "Vs the computer", 150, function() game:SetMode("solo") end)
-        self.ui.soloTab:SetPoint("TOPRIGHT", panel, "TOP", -4, -4)
-        self.ui.partyTab = MakeButton(panel, "Party game", 150, function() game:SetMode("party") end)
-        self.ui.partyTab:SetPoint("TOPLEFT", panel, "TOP", 4, -4)
-    else
-        local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        title:SetPoint("TOP", panel, "TOP", 0, -10)
-        title:SetText("Party " .. string.lower(def.name) .. " - play anyone in your group")
-    end
     self:BuildBoard(panel)
-    self:BuildLobby(panel)
     self:BuildSide(panel)
     self:BuildBottom(panel)
     self.ui.options = ns:GameOptions(self, panel, {

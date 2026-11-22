@@ -26,7 +26,7 @@
 local ns = CowCasino.ns
 local Net = ns.Net
 
-local Lobby = { specs = {}, order = {}, seen = {}, invited = {}, queue = {}, pending = {} }
+local Lobby = { specs = {}, order = {}, seen = {}, invited = {}, queue = {}, pending = {}, intros = {} }
 ns.Lobby = Lobby
 
 Lobby.TOAST_TIME  = 20      -- seconds a pop-up stays up
@@ -497,6 +497,9 @@ function Lobby:Poll()
     end
     self:TryJoin()
     self:CheckPending()
+    for _, intro in ipairs(self.intros) do
+        if intro:IsShown() then intro:ShowLobby() end
+    end
     local open, total = self:Open()
     self:UpdateBadges(open, total)
     self:UpdateWindow()

@@ -21,7 +21,7 @@ local Net = ns.Net
 local AREA_W       = 352
 local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
 local STARTS       = { 100, 1000, 10000, 100000 }
-local LOG_LINES    = 8
+local LOG_LINES    = 12      -- (setting up a duel happens on the intro screen, so the rolls get the room)
 local DEALER_PAUSE = 1.1     -- seconds before the dealer rolls back
 local ROLL_WAIT    = 3       -- seconds to wait for a /roll to show before rolling here
 local OFFER_EVERY  = 20      -- an open challenge is sent again this often
@@ -95,6 +95,10 @@ end
 local function SetStatus(text, r, g, b)
     ui.status:SetText(text or "")
     ui.status:SetTextColor(r or 1, g or 0.82, b or 0)
+    if ui.intro then
+        ui.intro:SetStatus(text)
+        ui.intro.status:SetTextColor(r or 1, g or 0.82, b or 0)
+    end
 end
 
 local function StatsText()
@@ -131,15 +135,44 @@ local function Quiet(d)
     return d and d.kind == "party" and d.turn == "them" and GetTime() - (d.heard or 0) > QUIET_LIMIT
 end
 
+-- The intro screen (IntroKit.lua), up between duels: Vs the dealer (stake,
+-- starting number, Duel) and the group (the same two, Challenge, and the open
+-- challenges to accept).
+local function RefreshIntro()
+    local intro = ui.intro
+    intro:SetShown(S.duel == nil and not S.over)
+    for _, p in ipairs(ui.pickers) do p:Refresh() end
+    intro.soloGo:SetText("Duel " .. DealerName() .. " for " .. Fmt(db.stake))
+    ns.SetEnabled(intro.soloGo, ns.db.chips >= db.stake and not S.posted and not S.accepting)
+    if S.posted then
+        intro.hostGo:SetText("Withdraw challenge")
+        ns.SetEnabled(intro.hostGo, true)
+    else
+        intro.hostGo:SetText("Challenge the group")
+        ns.SetEnabled(intro.hostGo, Net:InGroup() and not S.accepting)
+    end
+    local list, rows = OpenOffers(), {}
+    for _, offer in ipairs(list) do
+        local o = offer
+        table.insert(rows, {
+            text = string.format("%s: for %s, from %s (free)", o.host, Fmt(o.stake), Fmt(o.start)) .. Net:VersionNote(o.ver),
+            label = "Accept", host = o.host, stake = o.stake,
+            enabled = not S.accepting and not S.posted and not Net:VersionProblem(o.ver),
+            click = function() ui.onAccept(o) end,
+        })
+    end
+    intro:SetOffers(rows)
+    intro:SetNote(S.posted and "Your challenge is open. Waiting for someone to accept..."
+        or (list[1] and "Open challenges in your group:")
+        or (Net:InGroup() and "No open challenges in your group yet." or "Join a party or raid to duel your friends."))
+    intro:SetStats(StatsText())
+end
+
 local function Refresh()
     if not ui.range then return end
     ns:UpdateChipsDisplay()
     local d = S.duel
-    local party = db.mode == "party"
-    ns.SetEnabled(ui.soloTab, d == nil and not S.posted and party)
-    ns.SetEnabled(ui.partyTab, d == nil and not party)
-    ui.soloTab:SetText((not party and "|cffffff00" or "") .. "Vs " .. DealerName())
-    ui.partyTab:SetText((party and "|cffffff00" or "") .. "Party duel")
+    RefreshIntro()
 
     -- the range and whose roll it is
     if d then
@@ -157,42 +190,19 @@ local function Refresh()
         ui.whose:SetText("")
     end
 
-    -- the rolls so far, or the open challenges in the party lobby
-    local showLobby = party and not d
+    -- the rolls so far
     local log = (d and d.log) or db.lastLog or {}
-    for i = 1, LOG_LINES do ui.log[i]:SetText("") end
-    if not showLobby then
-        local n = ns.getn(log)
-        for i = 1, LOG_LINES do
-            local line = log[n - LOG_LINES + i]
-            ui.log[i]:SetText(line or "")
-        end
-    end
-    local list = showLobby and OpenOffers() or {}
-    for r = 1, 3 do
-        local row, offer = ui.rows[r], list[r]
-        row.offer = offer
-        if offer then
-            row.text:SetText(string.format("%s: for %s, from %s (free)", offer.host, Fmt(offer.stake), Fmt(offer.start))
-                .. Net:VersionNote(offer.ver))
-            row:Show()
-            ns.SetEnabled(row.accept, not S.accepting and not S.posted and not Net:VersionProblem(offer.ver))
-        else
-            row:Hide()
-        end
-    end
-    ns.SetShown(ui.lobbyTitle, showLobby)
-    if showLobby then
-        ui.lobbyTitle:SetText(list[1] and "Open challenges in your group:" or
-            (Net:InGroup() and "No open challenges in your group yet." or "Join a party or raid to duel your friends."))
-    end
+    local n = ns.getn(log)
+    for i = 1, LOG_LINES do ui.log[i]:SetText(log[n - LOG_LINES + i] or "") end
 
-    -- stake and starting number
-    ui.stake:Refresh()
-    ui.start:Refresh()
-
-    -- the main button
+    -- the field's buttons: Roll in a duel; Play again and Setup after one
     ui.forfeit:Hide()
+    ns.SetShown(ui.go, d ~= nil)
+    local over = d == nil and S.over
+    ns.SetShown(ui.back, over)
+    ns.SetShown(ui.again, over and S.over.kind == "solo")
+    ui.again:SetText("Again for " .. Fmt(db.stake))
+    ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
     if d then
         if d.turn == "me" then
             ui.go:SetText(d.pending and "Rolling..." or ("Roll 1-" .. Fmt(d.max)))
@@ -205,19 +215,7 @@ local function Refresh()
             ui.forfeit:SetText(Quiet(d) and "Call it off" or "Forfeit")
             ui.forfeit:Show()
         end
-    elseif party then
-        if S.posted then
-            ui.go:SetText("Withdraw challenge")
-            ns.SetEnabled(ui.go, true)
-        else
-            ui.go:SetText("Challenge the group")
-            ns.SetEnabled(ui.go, Net:InGroup() and not S.accepting)
-        end
-    else
-        ui.go:SetText("Duel " .. DealerName() .. " for " .. Fmt(db.stake))
-        ns.SetEnabled(ui.go, ns.db.chips >= db.stake)
     end
-    ui.stats:SetText(StatsText())
 end
 
 ---------------------------------------------------------------------------
@@ -256,6 +254,7 @@ local function EndDuel(loser, how)
     local d = S.duel
     if not d then return end
     S.duel = nil
+    S.over = { kind = d.kind }
     db.duel, db.partyDuel = nil, nil
     local s = db.stats
     local opp = OppName(d)
@@ -553,14 +552,7 @@ end
 local function SetMode(mode)
     if S.duel or S.posted or db.mode == mode then return end
     db.mode = mode
-    ns:Sound("IG_MAINMENU_OPTION")
-    if mode == "party" then
-        Net:Send(Msg({ "Q" }))
-        SetStatus(Net:InGroup() and "Challenge your group, or take a challenge below."
-            or "Join a party or raid to duel your friends.")
-    else
-        SetStatus("Pick a stake and a starting number, then duel " .. DealerName() .. ".")
-    end
+    if mode == "party" then Net:Send(Msg({ "Q" })) end
     Refresh()
 end
 
@@ -592,72 +584,81 @@ function Deathroll:Build(panel)
     })
 
 
-    ui.soloTab = MakeButton(panel, "Vs the dealer", 150, function() SetMode("solo") end)
-    ui.soloTab:SetPoint("TOPRIGHT", panel, "TOP", -4, -6)
-    ui.partyTab = MakeButton(panel, "Party duel", 150, function() SetMode("party") end)
-    ui.partyTab:SetPoint("TOPLEFT", panel, "TOP", 4, -6)
+    -- the intro screen: setting up a duel (IntroKit.lua)
+    local intro = ns.Intro.New(panel, {
+        title = "Deathroll", felt = { 0.18, 0.04, 0.04, 0.94 },
+        solo = "Vs the dealer", party = "Duel your group",
+    })
+    ui.intro = intro
+    intro.onSolo = function()
+        SetMode("solo")
+        DuelDealer()
+    end
+    intro.onHost = function()
+        SetMode("party")
+        if S.posted then Withdraw() else PostChallenge() end
+    end
+    ui.onAccept = function(o)
+        SetMode("party")
+        Accept(o)
+    end
+    ui.pickers = {}
+    for _, row in ipairs({ intro.soloRow, intro.partyRow }) do
+        local stake = Picker(row, STAKES, "stake", "Stake")
+        stake:SetPoint("LEFT", row, "LEFT", 6, 0)
+        local start = Picker(row, STARTS, "start", "From")
+        start:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+        table.insert(ui.pickers, stake)
+        table.insert(ui.pickers, start)
+        ui.stake, ui.start = ui.stake or stake, ui.start or start
+    end
+    ui.stats = intro.stats
 
     ui.range = ns:BigFont(panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"), 30)
-    ui.range:SetPoint("TOP", panel, "TOP", 0, -40)
+    ui.range:SetPoint("TOP", panel, "TOP", 0, -14)
     ui.range:SetTextColor(1, 0.85, 0.1)
     ui.whose = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    ui.whose:SetPoint("TOP", panel, "TOP", 0, -78)
+    ui.whose:SetPoint("TOP", panel, "TOP", 0, -52)
 
     -- the rolls so far
     local logBg = panel:CreateTexture(nil, "BORDER")
-    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, -98)
+    logBg:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, -72)
     logBg:SetWidth(AREA_W - 40); logBg:SetHeight(LOG_LINES * 14 + 8)
     logBg:SetTexture(0, 0, 0, 0.4)
     ui.log = {}
     for i = 1, LOG_LINES do
         local t = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        t:SetPoint("TOP", panel, "TOP", 0, -102 - (i - 1) * 14)
+        t:SetPoint("TOP", panel, "TOP", 0, -76 - (i - 1) * 14)
         ui.log[i] = t
     end
 
-    -- open challenges (party mode, between duels), over the log
-    ui.lobbyTitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    ui.lobbyTitle:SetPoint("TOPLEFT", panel, "TOPLEFT", 28, -104)
-    ui.rows = {}
-    for r = 1, 3 do
-        local r = r
-        local row = ns.CreateFrame("Frame", nil, panel)
-        row:SetWidth(AREA_W - 56); row:SetHeight(24)
-        row:SetPoint("TOPLEFT", panel, "TOPLEFT", 28, -122 - (r - 1) * 28)
-        row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.text:SetPoint("LEFT", row, "LEFT", 0, 0)
-        row.accept = MakeButton(row, "Accept", 70, function() Accept(ui.rows[r].offer) end)
-        row.accept:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        row:Hide()
-        ui.rows[r] = row
-    end
-
     ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    ui.status:SetPoint("TOP", panel, "TOP", 0, -98 - LOG_LINES * 14 - 16)
+    ui.status:SetPoint("TOP", panel, "TOP", 0, -72 - LOG_LINES * 14 - 18)
     ui.status:SetWidth(AREA_W - 8)
 
-    -- stake and starting number
-    local row = ns.CreateFrame("Frame", nil, panel)
-    row:SetWidth(AREA_W - 8); row:SetHeight(24)
-    row:SetPoint("BOTTOM", panel, "BOTTOM", 0, 52)
-    ui.stake = Picker(row, STAKES, "stake", "Stake")
-    ui.stake:SetPoint("LEFT", row, "LEFT", 6, 0)
-    ui.start = Picker(row, STARTS, "start", "From")
-    ui.start:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-
-    ui.go = MakeButton(panel, "Duel", 170, function()
-        if S.duel then Roll()
-        elseif db.mode == "party" then
-            if S.posted then Withdraw() else PostChallenge() end
-        else DuelDealer() end
-    end, 28)
+    -- the field's buttons: Roll (and Forfeit) in a duel; Play again and Setup after one
+    ui.go = MakeButton(panel, "Roll", 170, function() if S.duel then Roll() end end, 28)
     ui.go:SetPoint("BOTTOM", panel, "BOTTOM", 0, 18)
     ui.forfeit = MakeButton(panel, "Forfeit", 72, Forfeit, 24)
     ui.forfeit:SetPoint("LEFT", ui.go, "RIGHT", 6, 0)
     ui.forfeit:Hide()
-
-    ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 3)
+    ui.again = MakeButton(panel, "Again", 150, function()
+        S.over = nil
+        SetMode("solo")
+        DuelDealer()
+        Refresh()
+    end, 26)
+    ui.again:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 19)
+    ui.again:Hide()
+    ui.back = MakeButton(panel, "< Setup", 110, function()
+        S.over = nil
+        ns:Sound("IG_MAINMENU_OPTION")
+        SetStatus("")
+        Net:Send(Msg({ "Q" }))
+        Refresh()
+    end, 26)
+    ui.back:SetPoint("BOTTOMLEFT", panel, "BOTTOM", 4, 19)
+    ui.back:Hide()
 
     ui.options = BuildOptions(panel)
 
@@ -671,12 +672,8 @@ function Deathroll:Build(panel)
         S.duel = db.duel
         S.duel.pending = nil
         SetStatus("Your duel with " .. DealerName() .. " is still on.")
-    elseif db.mode == "party" then
-        Net:Send(Msg({ "Q" }))
-        SetStatus(Net:InGroup() and "Challenge your group, or take a challenge below."
-            or "Join a party or raid to duel your friends.")
     else
-        SetStatus("Pick a stake and a starting number, then duel " .. DealerName() .. ".")
+        Net:Send(Msg({ "Q" }))
     end
     Refresh()
 end

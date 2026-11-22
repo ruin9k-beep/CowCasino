@@ -7,7 +7,7 @@ local Check = H.Check
 local party = H.Party({
   game = "blackjack",
   object = function(ns) return ns.PartyBlackjack end,
-  button = "Party play",
+  button = "Play with your party",
   prep = function(ns)
     if PREP then PREP(ns) end
   end,

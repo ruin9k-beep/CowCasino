@@ -173,14 +173,16 @@ Check("sinking the whole fleet wins and pays double", G.S.game == nil and G.db.s
   and ns.db.chips == before + 100, ns.db.chips - before)
 Check("...and the computer's fleet is shown", G.S.over.theirFleet ~= nil and Parts() == 17)
 
-H.Press("Play for 50")
+Check("after the battle: Play again and Setup under the boards", H.Find("Play again for 50") ~= nil
+  and H.Find("< Setup") ~= nil and not G.ui.intro:IsShown())
+H.Press("Play again for 50")
 H.Press("Resign"); H.Tick(3.1); H.Press("Confirm")
 Check("Resign (even while placing) loses the stake", G.S.game == nil and G.db.stats.losses == 1)
 
 ---------------------------------------------------------------------------
 -- Party games
 ---------------------------------------------------------------------------
-local party = H.Party({ game = "battleship", object = function(ns) return ns.games.battleship end, button = "Party game" })
+local party = H.Party({ game = "battleship", object = function(ns) return ns.games.battleship end })
 local clients = party.clients
 local NewClient, GroupChanged, Run = party.NewClient, party.GroupChanged, party.Run
 
@@ -210,7 +212,13 @@ party.group = { "Host", "Guest" }
 local host = NewClient("Host")
 local guest = NewClient("Guest")
 GroupChanged()
+local function HasButton(c, text)
+  for _, o in ipairs(c.env.all) do
+    if o.kind == "Button" and InPanel(c, o) and o.text == text then return true end
+  end
+end
 local function NewGame()
+  for _, c in ipairs({ host, guest }) do if HasButton(c, "< Setup") then PressIn(c, "< Setup") end end
   PressIn(host, "Challenge the group")
   Run(1)
   PressIn(guest, "Accept")

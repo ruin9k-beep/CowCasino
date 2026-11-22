@@ -61,4 +61,28 @@ env2.CowCasinoFrame:Show()
 ns2:ShowMenu()
 Check("the filter you picked is kept after a reload", ns2.db.menuFilter == "recent" and ns2.frame.menu.filters.recent.mark.shown)
 
+-- more than a page of games: the page buttons
+local env3, ns3 = H.Start(nil, nil, function(e)
+  for i = 1, 6 do
+    e.CowCasino.ns:RegisterGame({ id = "extra" .. i, name = "Extra " .. i, description = "A test game.",
+      icon = "Interface\\Icons\\INV_Misc_QuestionMark", Build = function() end })
+  end
+end)
+ns3:ShowMenu()
+local m3 = ns3.frame.menu
+local function Shown3() local n = 0 for _, t in pairs(ns3.menuRows) do if t.shown then n = n + 1 end end return n end
+local total = table.getn(ns3.gameOrder)
+Check("with more than 20 games, the page buttons show", total > 20 and m3.pager.shown
+  and m3.pageText.text == "Page 1 of 2" and not m3.prevPage.enabled and m3.nextPage.enabled, m3.pageText.text)
+Check("...page 1 holds 20", Shown3() == 20, Shown3())
+env3.Fire(m3.nextPage, "OnClick", "LeftButton")
+Check("...Next shows the rest", m3.pageText.text == "Page 2 of 2" and Shown3() == total - 20
+  and m3.prevPage.enabled and not m3.nextPage.enabled and ns3.menuRows.extra6.shown, Shown3())
+env3.Fire(m3.prevPage, "OnClick", "LeftButton")
+Check("...Previous goes back", m3.pageText.text == "Page 1 of 2" and Shown3() == 20)
+env3.Fire(m3.filters.cards, "OnClick", "LeftButton")
+Check("a filter that fits on one page hides the page buttons", not m3.pager.shown and Shown3() == 6)
+env3.Fire(m3.filters.all, "OnClick", "LeftButton")
+Check("...and All brings them back, from page 1", m3.pager.shown and m3.pageText.text == "Page 1 of 2")
+
 H.Done("MENU")

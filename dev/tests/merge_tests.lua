@@ -35,8 +35,11 @@ ns.db.order = nil
 
 ns:OpenGame("blackjack")
 local party = ns.PartyBlackjack
-Check("Blackjack opens at your solo table", Find("Deal 25") ~= nil and not party.panel:IsShown())
-Check("Party play button, enabled between rounds", Find("Party play") ~= nil and Find("Party play").enabled)
+Check("Blackjack opens on its intro: Play solo, or Play with your party", Find("Sit down at the table") ~= nil
+  and Find("Play with your party") ~= nil and not party.panel:IsShown())
+Press("Sit down at the table")
+Check("Sit down goes to your solo table", Find("Sit down at the table") == nil and Find("Deal 25") ~= nil)
+Check("Setup button, enabled between rounds", Find("< Setup") ~= nil and Find("< Setup").enabled)
 -- deal until a round is actually in progress (a dealt blackjack ends it at once)
 local inRound = false
 for _ = 1, 20 do
@@ -44,18 +47,19 @@ for _ = 1, 20 do
   inRound = (Find("Stand") ~= nil and Find("Stand").enabled ~= nil) or Find("No thanks") ~= nil
   if inRound then break end
 end
-Check("...and disabled during a round", inRound and not Find("Party play").enabled)
+Check("...and disabled during a round", inRound and not Find("< Setup").enabled)
 for _ = 1, 20 do
   if Find("No thanks") then Press("No thanks") elseif Find("Stand") and Find("Stand").enabled then Press("Stand") end
   Tick(1)
   if Find("Deal 25") and Find("Deal 25").enabled then break end
 end
-Press("Party play")
-Check("Party play shows the party lobby in the Blackjack window", party.panel:IsVisible() and Find("Host a table") ~= nil
+Press("< Setup")
+Press("Play with your party")
+Check("Play with your party shows the party lobby in the Blackjack window", party.panel:IsVisible() and Find("Host a table") ~= nil
   and ns.currentGame == "blackjack")
 local soloShown = false
 for _, o in ipairs(env.all) do
-  if (o.kind == "Button" and (o.text == "Deal 25" or o.text == "Hit" or o.text == "Party play")) or o.kind == "PlayerModel" then
+  if (o.kind == "Button" and (o.text == "Deal 25" or o.text == "Hit" or o.text == "< Setup" or o.text == "Sit down at the table")) or o.kind == "PlayerModel" then
     if Visible(o) and o.parent ~= party.panel then soloShown = soloShown or o.text or o.kind end
   end
 end
@@ -64,14 +68,16 @@ Press("Options")
 local opts = Find("Sounds")
 Check("Blackjack's Options open over the party screen", opts ~= nil)
 Press("Done")
-Press("< Solo table")
+Press("< Back")
+Check("< Back goes back to the intro", not party.panel:IsShown() and Find("Sit down at the table") ~= nil)
+Press("Sit down at the table")
 local bjPortrait
 for _, o in ipairs(env.all) do if o.kind == "PlayerModel" and o.unit == "player" and Visible(o) then bjPortrait = o end end
-Check("< Solo table goes back to your solo table", not party.panel:IsShown() and Find("Deal 25") ~= nil
-  and Find("Party play") ~= nil and bjPortrait ~= nil)
+Check("...and from there to your solo table", Find("Deal 25") ~= nil and Find("< Setup") ~= nil and bjPortrait ~= nil)
 
 -- Host, leave the window, come back: straight to the party table.
-Press("Party play")
+Press("< Setup")
+Press("Play with your party")
 ns.db.blackjack.sounds.newHand = "raidWarn"
 Press("Host a table")
 Check("hosting from inside Blackjack", party.T.mode == "host")
@@ -92,7 +98,7 @@ end
 local leave = Find("Close table") or Find("Close after round")
 Press(leave.text)
 Tick(10)
-Check("closing the table goes back to the party lobby", party.T.mode == "lobby" and Find("< Solo table") ~= nil)
+Check("closing the table goes back to the party lobby", party.T.mode == "lobby" and Find("< Back") ~= nil)
 
 -- A reload while seated clears the seat when Blackjack opens (party stacks are free).
 local env2, ns2 = Start(nil, function(n)

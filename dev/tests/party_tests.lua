@@ -285,7 +285,9 @@ do
     for e in pairs(kinds) do n = n + 1; table.insert(list, e) end
     table.sort(list)
     Check("Fizzlecog talks " .. who .. "'s table through the hands", kinds.holdemDeal and (kinds.holdemWin or kinds.holdemYouWin
-      or kinds.holdemFoldWin or kinds.holdemYouFoldWin or kinds.holdemSplit) and n >= 5, table.concat(list, ","))
+      or kinds.holdemFoldWin or kinds.holdemYouFoldWin or kinds.holdemSplit
+      -- (which lines come up depends on how the hands fall: a knockout is a hand's result too)
+      or kinds.holdemKnockout or kinds.holdemYouBust) and n >= 5, table.concat(list, ","))
   end
 end
 for _, c in ipairs({ bob, cid }) do

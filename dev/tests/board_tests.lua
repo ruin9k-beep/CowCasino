@@ -136,7 +136,14 @@ H.Press("Resign")
 H.Tick(3.1)
 H.Press("Confirm")
 Check("Resign loses the game (and the stake)", G.S.game == nil and G.db.stats.losses == 1 and ns.db.chips == before - 50)
-Check("...and the last position stays on the board", G.S.over ~= nil and H.Find("Play for 50") ~= nil)
+Check("...and the last position stays on the board, with Play again and Setup", G.S.over ~= nil
+  and not G.ui.intro:IsShown() and H.Find("Play again for 50") ~= nil and H.Find("< Setup") ~= nil)
+H.Press("< Setup")
+Check("Setup goes back to the intro: stake, level, side and Play", G.ui.intro:IsShown() and G.S.over == nil
+  and H.Find("Play for 50") ~= nil and G.ui.stake.shown and H.Find("Challenge the group") ~= nil)
+H.Press("Play for 50")
+H.Press("Resign"); H.Tick(3.1); H.Press("Confirm")
+before = ns.db.chips + 0
 
 -- a double jump, clicked square by square, wins the game and pays double
 local function Board(list, turn)
@@ -146,7 +153,8 @@ local function Board(list, turn)
   return { sq = sq, turn = turn, quiet = 0 }
 end
 before = ns.db.chips
-H.Press("Play for 50")
+H.Press("Play again for 50")
+Check("Play again starts the next game straight from the field", G.S.game ~= nil and not G.ui.intro:IsShown())
 g = G.S.game
 g.pos = Board({ [14] = "bM", [18] = "rM", [26] = "rM" }, "b")
 G:Refresh()
@@ -201,7 +209,7 @@ Check("Resign ends it as a loss", CH.S.game == nil and CH.db.stats.losses == 1 a
 ---------------------------------------------------------------------------
 -- Party chess
 ---------------------------------------------------------------------------
-local party = H.Party({ game = "chess", object = function(ns) return ns.games.chess end, button = "Party game" })
+local party = H.Party({ game = "chess", object = function(ns) return ns.games.chess end })
 local clients, byName = party.clients, party.byName
 local NewClient, GroupChanged, Tick, Run = party.NewClient, party.GroupChanged, party.Tick, party.Run
 
@@ -235,13 +243,16 @@ party.group = { "Host", "Guest" }
 local host = NewClient("Host")
 local guest = NewClient("Guest")
 GroupChanged()
-Check("Chess's Party game tab shows the lobby (no stake or level)", host.P.ui.lobby.shown
-  and FindIn(host, "Challenge the group") ~= nil and not host.P.ui.stake.shown)
+Check("Chess opens on the intro: Vs the computer, and Challenge the group", host.P.ui.intro:IsShown()
+  and FindIn(host, "Challenge the group") ~= nil and FindIn(host, "Play for 50") ~= nil)
 local hostChips = host.ns.db.chips
 PressIn(host, "Challenge the group")
 Run(1)
-Check("a challenge shows in the other player's lobby", guest.P.ui.rows[1].shown
-  and string.find(guest.P.ui.rows[1].text.text, "Host (plays White)", 1, true) ~= nil, guest.P.ui.rows[1].text.text)
+local grow = guest.P.ui.intro.rows[1]
+Check("a challenge shows on the other player's intro", grow.shown
+  and string.find(grow.text.text, "Host (plays White)", 1, true) ~= nil, grow.text.text)
+Check("...while it's open, the host can't start a solo game", not FindIn(host, "Play for 50").enabled
+  and FindIn(host, "Withdraw challenge") ~= nil)
 PressIn(guest, "Accept")
 Run(1)
 local hg, gg = host.P.S.game, guest.P.S.game
@@ -262,6 +273,7 @@ Check("...the move list ends in Qh4#", string.find(guest.P.S.over.log[2], "Qh4#"
 
 -- capture paths in chess
 local function NewGame()
+  for _, c in ipairs({ host, guest }) do if FindIn(c, "< Setup") then PressIn(c, "< Setup") end end
   PressIn(host, "Challenge the group")
   Run(1)
   PressIn(guest, "Accept")

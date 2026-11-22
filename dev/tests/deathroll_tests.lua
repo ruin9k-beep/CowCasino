@@ -140,6 +140,11 @@ local function Find(c, text, prefix)
 end
 local function Press(c, text, prefix)
   local b = Find(c, text, prefix)
+  -- after a duel the field shows Setup: the intro's buttons are behind it
+  if not b and Find(c, "< Setup") then
+    c.env.Fire(Find(c, "< Setup"), "OnClick", "LeftButton")
+    b = Find(c, text, prefix)
+  end
   assert(b, c.name .. ": no button " .. text)
   assert(b.enabled, c.name .. ": button disabled: " .. b.text)
   c.env.Fire(b, "OnClick", "LeftButton")
@@ -186,6 +191,8 @@ Check("a duel against the dealer survives a reload", host2.S.duel ~= nil and hos
 table.remove(clients)   -- (just checking; play on in the first one)
 Run(1.5)
 Check("the dealer rolls a 1: you win both stakes (200)", host.S.duel == nil and host.ns.db.chips == 1100, host.ns.db.chips)
+Check("after the duel the rolls stay up, with Again and Setup", Find(host, "Again for 100") ~= nil
+  and Find(host, "< Setup") ~= nil and not host.G.ui.intro:IsShown())
 Check("stats: a duel won", D.stats.duels == 1 and D.stats.wins == 1 and D.stats.won == 200 and D.stats.wagered == 100)
 local logText = table.concat(D.lastLog, " / ")
 Check("the log shows every roll", string.find(logText, "400", 1, true) and string.find(logText, "120", 1, true)
@@ -222,19 +229,19 @@ GroupChanged()
 Run(0.5)
 for _, c in ipairs({ host, bob, cid }) do
   c.ns.db.chips = 1000
-  Press(c, "Party duel")
+  if Find(c, "< Setup") then Press(c, "< Setup") end
 end
 Run(1)
-Check("party mode: Challenge the group", Enabled(host, "Challenge the group"))
-Check("...and the dealer tab switches back", Enabled(host, "Vs", true))
+Check("the intro: Challenge the group", Enabled(host, "Challenge the group"))
+Check("...beside the dealer duel", Enabled(host, "Duel", true))
 Press(host, "Challenge the group")
 Run(1)
-Check("the challenge shows for the others", bob.G.ui.rows[1].shown ~= false and bob.G.ui.rows[1].offer
-  and bob.G.ui.rows[1].offer.host == "Host" and bob.G.ui.rows[1].offer.stake == 100)
+Check("the challenge shows for the others", bob.G.ui.intro.rows[1].shown ~= false and bob.G.ui.intro.rows[1].offer
+  and bob.G.ui.intro.rows[1].offer.host == "Host" and bob.G.ui.intro.rows[1].offer.stake == 100)
 Check("...and the challenger can withdraw it", Enabled(host, "Withdraw challenge"))
 -- Bob and Cid both accept; Bob is first
-bob.env.Fire(bob.G.ui.rows[1].accept, "OnClick", "LeftButton")
-cid.env.Fire(cid.G.ui.rows[1].accept, "OnClick", "LeftButton")
+bob.env.Fire(bob.G.ui.intro.rows[1].join, "OnClick", "LeftButton")
+cid.env.Fire(cid.G.ui.intro.rows[1].join, "OnClick", "LeftButton")
 Run(1)
 Check("the first to accept gets the duel", host.S.duel and host.S.duel.opp == "Bob" and bob.S.duel and bob.S.duel.opp == "Host")
 Check("...the other is told someone was quicker", cid.S.duel == nil and cid.S.accepting == nil
@@ -290,10 +297,10 @@ Check("...and both saw the same rolls", Rolls(host.ns.db.deathroll.lastLog) == R
 for _, c in ipairs({ host, bob, cid }) do c.ns.db.chips = 1000 end
 Press(cid, "Challenge the group")
 Run(1)
-host.env.Fire(host.G.ui.rows[1].accept, "OnClick", "LeftButton")
+host.env.Fire(host.G.ui.intro.rows[1].join, "OnClick", "LeftButton")
 Run(1)
 Check("Host takes Cid's challenge", host.S.duel and host.S.duel.opp == "Cid" and cid.S.duel and cid.S.duel.opp == "Host")
-Check("...Bob can't take it any more", bob.G.ui.rows[1].offer == nil or bob.G.ui.rows[1].shown == false)
+Check("...Bob can't take it any more", bob.G.ui.intro.rows[1].offer == nil or bob.G.ui.intro.rows[1].shown == false)
 Press(host, "Forfeit")
 Run(1)
 Check("a forfeit gives Cid the win, and no chips move", host.S.duel == nil and cid.S.duel == nil and host.ns.db.chips == 1000
@@ -303,16 +310,16 @@ Check("a forfeit gives Cid the win, and no chips move", host.S.duel == nil and c
 -- Withdrawing a challenge
 Press(bob, "Challenge the group")
 Run(1)
-Check("Bob's challenge is up", host.G.ui.rows[1].offer and host.G.ui.rows[1].offer.host == "Bob")
+Check("Bob's challenge is up", host.G.ui.intro.rows[1].offer and host.G.ui.intro.rows[1].offer.host == "Bob")
 Press(bob, "Withdraw challenge")
 Run(1)
-Check("...and gone when withdrawn", not (host.G.ui.rows[1].offer) and bob.S.posted == nil)
+Check("...and gone when withdrawn", not (host.G.ui.intro.rows[1].offer) and bob.S.posted == nil)
 
 -- Leaving the group calls a duel off
 for _, c in ipairs({ host, bob, cid }) do c.ns.db.chips = 1000 end
 Press(bob, "Challenge the group")
 Run(1)
-cid.env.Fire(cid.G.ui.rows[1].accept, "OnClick", "LeftButton")
+cid.env.Fire(cid.G.ui.intro.rows[1].join, "OnClick", "LeftButton")
 Run(1)
 Check("Bob and Cid are dueling", bob.S.duel and cid.S.duel and bob.ns.db.chips == 1000)
 Check("a free party duel holds no chips", not bob.ns:ChipsInPlay() and not cid.ns:ChipsInPlay())
@@ -329,7 +336,7 @@ Run(0.5)
 for _, c in ipairs({ host, bob, cid }) do c.ns.db.chips = 1000 end
 Press(host, "Challenge the group")
 Run(1)
-bob.env.Fire(bob.G.ui.rows[1].accept, "OnClick", "LeftButton")
+bob.env.Fire(bob.G.ui.intro.rows[1].join, "OnClick", "LeftButton")
 Run(1)
 ROLLS = { 500 }
 Press(host, "Roll 1-1,000")
@@ -345,7 +352,7 @@ Check("...and Host's duel is called off", host.S.duel == nil and host.ns.db.chip
 for _, c in ipairs(clients) do c.ns.db.chips = 1000 end
 Press(host, "Challenge the group")
 Run(1)
-cid.env.Fire(cid.G.ui.rows[1].accept, "OnClick", "LeftButton")
+cid.env.Fire(cid.G.ui.intro.rows[1].join, "OnClick", "LeftButton")
 Run(1)
 ROLLS = { 300 }
 Press(host, "Roll 1-1,000")

@@ -218,6 +218,7 @@ local function Refresh()
     ns.SetEnabled(ui.deal, betting and db.bet >= MIN_BET and db.bet <= ns.db.chips)
 
     if ui.partyButton then ns.SetEnabled(ui.partyButton, betting) end
+    if ui.refreshIntro then ui.refreshIntro() end
     if ui.options and ui.options:IsShown() then ui.options:Refresh() end
 end
 
@@ -736,6 +737,7 @@ local function BuildParty(panel)
     partyFrame:SetScript("OnShow", function()
         for _, f in ipairs(solo) do f:Hide() end
         ui.partyButton:Hide()
+        ui.intro:Hide()
     end)
     partyFrame:SetScript("OnHide", function()
         ui.dealerGroup.frame:Show()
@@ -743,21 +745,39 @@ local function BuildParty(panel)
         ui.betRow:Show()
         ui.portrait:Show()
         ui.partyButton:Show()
+        ui.introUp = true        -- back from party play: the intro
         Refresh()
     end)
-    ui.partyButton = MakeButton(panel, "Party play", 80, function()
-        if S.phase ~= "betting" then return end
+
+    -- the intro screen (IntroKit.lua): sit down at the solo table, or play
+    -- with your group (host on the party page, or join a table listed here)
+    local intro = ns.Intro.New(panel, { title = "Blackjack", felt = { 0.05, 0.25, 0.10, 0.92 },
+        solo = "Play solo", party = "Play with your group", rows = 3 })
+    ui.intro, ui.introUp = intro, true
+    intro.soloGo:SetText("Sit down at the table")
+    intro.onSolo = function()
+        ui.introUp = false
+        ns:Sound("IG_MAINMENU_OPTION")
+        Refresh()
+    end
+    intro.hostGo:SetText("Play with your party")
+    intro.onHost = function()
         partyFrame:Show()
         party:OnShow()
+    end
+    intro:WatchLobby("blackjack")
+    ui.refreshIntro = function()
+        intro:SetShown(ui.introUp and not partyFrame:IsShown())
+    end
+
+    -- on the table, between hands: back to the intro
+    ui.partyButton = MakeButton(panel, "< Setup", 80, function()
+        if S.phase ~= "betting" then return end
+        ui.introUp = true
+        ns:Sound("IG_MAINMENU_OPTION")
+        Refresh()
     end)
     ui.partyButton:SetPoint("TOPLEFT", panel, "TOPLEFT", 2, -2)
-    ui.partyButton:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_BOTTOM")
-        GameTooltip:SetText("Party play")
-        GameTooltip:AddLine("Host or join a blackjack table with your party or raid.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    ui.partyButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
 -- Party play on screen (a lobby pop-up was clicked), or why it can't be.
@@ -894,6 +914,7 @@ end
 
 function Blackjack:OnShow()
     if db and S.phase == "betting" then db.bet = ns:FreshBet(db.bet, MIN_BET) end
+    if S.phase == "betting" then ui.introUp = true end     -- opening the game between hands: the intro
     if ui.status then Refresh() end
     -- Back at your party table, if you're at one.
     local party = ns.PartyBlackjack

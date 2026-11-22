@@ -10,7 +10,7 @@ local BLOCKED = { select = true, print = true }
 local party = H.Party({
   game = "craps",
   object = function(ns) return ns.PartyCraps end,
-  button = "Party play",
+  button = "Play with your party",
   dealer = true,
   prep = function(ns)
     if PREP then PREP(ns) end

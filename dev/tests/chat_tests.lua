@@ -211,8 +211,8 @@ host.ns:OpenGame("blackjack"); bob.ns:OpenGame("blackjack")
 local function PressAny(c, text)
   for _, o in ipairs(c.env.all) do if o.kind == "Button" and o.text == text and Vis(o) and o.enabled then c.env.Fire(o, "OnClick", "LeftButton") return true end end
 end
-PressAny(host, "Party play"); PressAny(host, "Host a table"); Run(2)
-PressAny(bob, "Party play"); Run(2)
+PressAny(host, "Play with your party"); PressAny(host, "Host a table"); Run(2)
+PressAny(bob, "Play with your party"); Run(2)
 PressAny(bob, "Join"); Run(8)
 Check("blackjack party table: both have the chat arrow", bob.ns.PartyBlackjack.T.mode == "client" and Vis(Arrow(host)) and Vis(Arrow(bob)))
 Check("a new table starts with a fresh chat", string.find(Lines(bob), "hello table", 1, true) == nil)

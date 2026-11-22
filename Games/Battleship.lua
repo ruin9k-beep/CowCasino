@@ -29,7 +29,7 @@ B.__index = B
 
 local SIZE, FLEET = R.SIZE, R.FLEET
 local L = Kit.LAYOUT
-local SQ = 25                                -- 10 x 25: a 250 board
+local SQ = 28                                -- 10 x 28: a 280 board
 local BOARD = SIZE * SQ
 local SIDE_X = L.BX + BOARD + 10             -- the column beside it
 local SIDE_W = L.PANEL_W - SIDE_X - 4
@@ -574,11 +574,7 @@ function B:Refresh()
     if not ui.board then return end
     ns:UpdateChipsDisplay()
     local g = S.game
-    local solo = self:Mode() == "solo"
-    ns.SetEnabled(ui.soloTab, g == nil and not S.posted and not solo)
-    ns.SetEnabled(ui.partyTab, g == nil and solo)
-    ui.soloTab:SetText((solo and "|cffffff00" or "") .. "Vs the computer")
-    ui.partyTab:SetText((not solo and "|cffffff00" or "") .. "Party game")
+    self:RefreshIntro()
     self:DrawBoards()
 
     -- the side column
@@ -611,14 +607,9 @@ function B:Refresh()
     for i = 1, LOG_LINES do ui.log[i]:SetText(list[n - LOG_LINES + i] or "") end
     ns.SetShown(ui.logBg, n > 0)
 
-    self:RefreshLobby(not solo and not g)
-
-    -- the bottom: pickers between games; Turn / Shuffle while placing
+    -- the bottom: Turn / Shuffle while placing; Play again / Setup after a game
     local placing = g and g.phase == "place" and not g.ready
-    for _, p in ipairs(ui.pickers) do p:Refresh() end
-    ns.SetShown(ui.side, g == nil)
-    ns.SetShown(ui.stake, solo and g == nil)
-    ns.SetShown(ui.level, solo and g == nil)
+    self:RefreshAfter()
     ns.SetShown(ui.turn90, placing)
     ns.SetShown(ui.shuffle, placing)
     if placing then ns.SetEnabled(ui.turn90, S.pick ~= nil) end
@@ -642,22 +633,8 @@ function B:Refresh()
         end
     else
         ui.resign:Hide()
-        ui.go:Show()
-        ui.go:ClearAllPoints()
-        ui.go:SetWidth(180)
-        ui.go:SetPoint("BOTTOM", self.panel, "BOTTOM", 0, 18)
-        if solo then
-            ui.go:SetText("Play for " .. Fmt(db.stake))
-            ns.SetEnabled(ui.go, ns.db.chips >= db.stake)
-        elseif S.posted then
-            ui.go:SetText("Withdraw challenge")
-            ns.SetEnabled(ui.go, true)
-        else
-            ui.go:SetText("Challenge the group")
-            ns.SetEnabled(ui.go, Net:InGroup() and not S.accepting)
-        end
+        ui.go:Hide()
     end
-    ui.stats:SetText(self:StatsText())
 end
 
 ---------------------------------------------------------------------------
@@ -725,10 +702,6 @@ function B:Build(panel)
         felt = def.felt,
     })
     local ui = self.ui
-    ui.soloTab = ns.UI.Button(panel, "Vs the computer", 150, function() game:SetMode("solo") end)
-    ui.soloTab:SetPoint("TOPRIGHT", panel, "TOP", -4, -4)
-    ui.partyTab = ns.UI.Button(panel, "Party game", 150, function() game:SetMode("party") end)
-    ui.partyTab:SetPoint("TOPLEFT", panel, "TOP", 4, -4)
     self:BuildBoard(panel)
     -- a second layer on each square, for the hit and miss markers
     for s = 1, SIZE * SIZE do
@@ -746,7 +719,6 @@ function B:Build(panel)
         ui.files[i]:SetText(i)
         ui.ranks[i]:SetText(string.sub("ABCDEFGHIJ", i, i))
     end
-    self:BuildLobby(panel)
     self:BuildSide(panel)
     self:BuildBottom(panel)
     ui.turn90 = ns.UI.Button(panel, "Turn", 80, function() game:Turn90() end)

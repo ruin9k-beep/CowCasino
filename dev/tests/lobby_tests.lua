@@ -120,7 +120,7 @@ Check("Done closes the invite page", not page.shown)
 ---------------------------------------------------------------------------
 guest.ns.db.lobbyQuiet = nil
 host.ns:OpenGame("blackjack")
-Press(host, "Party play")
+Press(host, "Play with your party")
 Press(host, "Host a table")
 Run(2)
 Check("a party blackjack table pops up", Has(Toast(guest), "Host opened a") and Has(Toast(guest), "Blackjack"), Toast(guest))
@@ -141,6 +141,22 @@ ClickToast(stranger)
 Run(3)
 Check("clicking it opens Five-Card Draw's party tables and takes a seat", stranger.ns.currentGame == "draw"
   and stranger.ns.Lobby:Busy("draw"))
+
+-- the poker intro lists the party tables, with Join
+host.ns:OpenGame("holdem")
+Press(host, "Play with your party")
+Press(host, "Host a table")
+Run(2)
+guest.ns:OpenGame("holdem")
+Run(1)
+local intro
+for _, o in ipairs(guest.env.all) do
+  if o.kind == "Button" and o.text == "Join" and Shown(o) then intro = o break end
+end
+Check("Hold'em's intro lists Host's party table with a Join button", intro ~= nil)
+guest.env.Fire(intro, "OnClick", "LeftButton")
+Run(3)
+Check("...and Join takes a seat there", guest.ns.Lobby:Busy("holdem"))
 
 -- a pop-up goes away on its own
 Run(25)
