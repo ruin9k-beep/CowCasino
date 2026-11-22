@@ -49,6 +49,7 @@ Games\HiLo.lua
 Games\VideoPoker.lua
 Games\ThreeCardPoker.lua
 Games\Keno.lua
+Games\ChallengeKit.lua
 Games\Deathroll.lua
 Games\BoardKit.lua
 Games\CheckersRules.lua

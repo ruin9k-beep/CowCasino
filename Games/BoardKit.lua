@@ -50,7 +50,6 @@ Kit.ATLAS = ATLAS
 local STAKES       = { 10, 25, 50, 100, 250, 500, 1000, 5000 }
 local THINK_PAUSE  = 0.6     -- seconds before the computer starts thinking
 local THINK_STEPS  = 3       -- search slices per frame
-local OFFER_EVERY  = 20
 local PING_EVERY   = 30      -- a party game says "still here" this often
 local QUIET_LIMIT  = 90      -- nothing heard this long: the game can be called off
 local RESIGN_DELAY = 3       -- Resign asks again; the second click only counts after this (the default; Settings)
@@ -422,51 +421,20 @@ end
 ---------------------------------------------------------------------------
 -- Party games
 ---------------------------------------------------------------------------
-function Kit:OpenOffers() return Net:OpenOffers(self.S.offers) end
-
-function Kit:SendOffer()
-    local p = self.S.posted
-    if not p then return end
-    p.sentAt = GetTime()
-    Net:Send(self:Msg({ "O", p.id, p.side, Net.PARTY_VERSION }), self.def.tag .. "-O")
-end
+-- The challenges themselves are the challenge kit's (Games\ChallengeKit.lua,
+-- self.ch, made in Kit.New): posting, taking, withdrawing, the lobby hub.
+function Kit:OpenOffers() return self.ch:OpenOffers() end
+function Kit:SendOffer() self.ch:SendOffer() end
 
 function Kit:Post()
-    if self.S.game or self.S.posted or not Net:InGroup() then return end
-    self.S.posted = { id = NewId(), side = self.db.side }
-    self:SendOffer()
+    if self.S.game or not self.ch:Post({ side = self.db.side }) then return end
     self:SetStatus("Challenge sent. Waiting for someone in your group to take it...")
     self:Refresh()
 end
 
-function Kit:Withdraw(quiet)
-    if not self.S.posted then return end
-    Net:Send(self:Msg({ "X", self.S.posted.id }), self.def.tag .. "-O")
-    self.S.posted = nil
-    if not quiet then self:SetStatus("Challenge withdrawn.") end
-    self:Refresh()
-end
-
-function Kit:Accept(offer)
-    if self.S.game or self.S.posted or self.S.accepting or not offer then return end
-    self.S.accepting = { host = offer.host, id = offer.id, at = GetTime() }
-    Net:Send(self:Msg({ "A", offer.id, Net.PARTY_VERSION }))
-    self:SetStatus("Taking " .. offer.host .. "'s challenge...")
-    self:Refresh()
-end
-
--- Take host's challenge from a pop-up (Lobby.lua): switch to party games and accept.
-function Kit:LobbyJoin(host)
-    if self.S.game then return "You're already in a game of " .. self.name .. "." end
-    if self:Mode() ~= "party" then self:SetMode("party") end
-    for _, o in ipairs(self:OpenOffers()) do
-        if o.host == host then
-            self:Accept(o)
-            return
-        end
-    end
-    return host .. "'s challenge is gone."
-end
+function Kit:Withdraw(quiet) self.ch:Withdraw(quiet) end
+function Kit:Accept(offer) self.ch:Accept(offer) end
+function Kit:LobbyJoin(host) return self.ch:LobbyJoin(host) end
 
 function Kit:Quiet(g)
     return g and g.kind == "party" and GetTime() - (g.heard or 0) > QUIET_LIMIT
@@ -621,46 +589,10 @@ function Kit:Ping(g)
     Net:Send(self:Msg({ "Y", g.id, ns.getn(g.moves) }), self.def.tag .. "-Y")
 end
 
+-- A message that isn't about challenges (those are the challenge kit's).
 function Kit:OnMessage(sender, f)
     local kind, id = f[2], f[3]
     local S = self.S
-    if kind == "Q" then self:SendOffer() return end
-    if kind == "O" then
-        S.offers[sender] = { id = id, side = f[4], ver = tonumber(f[5]), heard = GetTime() }
-        if self:Shown() then self:Refresh() end
-        return
-    elseif kind == "X" then
-        S.offers[sender] = nil
-        if S.accepting and S.accepting.host == sender then
-            S.accepting = nil
-            self:SetStatus(sender .. " withdrew that challenge.")
-        end
-        if self:Shown() then self:Refresh() end
-        return
-    elseif kind == "A" then
-        local p = S.posted
-        if not p or p.id ~= id or S.game or not Net:IsMember(sender) or Net:VersionProblem(f[4]) then return end
-        S.posted = nil
-        local mine = self:PickSide(p.side)
-        Net:Send(self:Msg({ "S", p.id, sender, mine }), self.def.tag .. "-O")
-        self:Start("party", mine, sender, p.id)
-        return
-    elseif kind == "S" then
-        S.offers[sender] = nil
-        local a = S.accepting
-        if a and a.host == sender and a.id == id then
-            S.accepting = nil
-            if f[4] ~= Net:Me() then
-                self:SetStatus(f[4] .. " took " .. sender .. "'s challenge first.")
-            elseif f[5] == self.def.rules.sides[1] or f[5] == self.def.rules.sides[2] then
-                self:Start("party", self.def.rules.Other(f[5]), sender, id)
-                return
-            end
-        end
-        if self:Shown() then self:Refresh() end
-        return
-    end
-
     local g = S.game
     if not g or g.kind ~= "party" or g.id ~= id or sender ~= g.opp then
         self:OnLateMessage(sender, kind, f)
@@ -710,13 +642,9 @@ function Kit:OnGameMessage(sender, kind, f, g)
     end
 end
 
+-- (after the challenge kit's own tidying up)
 function Kit:GroupChanged()
     local S = self.S
-    for name in pairs(S.offers) do
-        if not Net:IsMember(name) then S.offers[name] = nil end
-    end
-    if S.accepting and not Net:IsMember(S.accepting.host) then S.accepting = nil end
-    if S.posted and not Net:InGroup() then S.posted = nil end
     local g = S.game
     if g and g.kind == "party" and not Net:IsMember(g.opp) then
         self:Finish(nil, g.opp .. " left the group, so the game is called off.")
@@ -735,14 +663,6 @@ function Kit:Tick()
         if self:Quiet(g) and not g.quietShown then
             g.quietShown = true
             if self:Shown() then self:Refresh() end
-        end
-    end
-    if S.posted and now - (S.posted.sentAt or 0) >= OFFER_EVERY then self:SendOffer() end
-    if S.accepting and now - S.accepting.at > 15 then
-        S.accepting = nil
-        if self.ui.board then
-            self:SetStatus("No answer to that challenge.")
-            self:Refresh()
         end
     end
 end
@@ -1436,22 +1356,26 @@ function Kit.New(def, class)
         def = def, ui = {}, S = { offers = {} }, wide = true,
         cols = def.cols or 8, rows = def.rows or 8, sq = def.sq or SQ,
     }, class or Kit)
-    Net.handlers[def.tag] = function(sender, f) game:OnMessage(sender, f) end
-    Net.groupHandlers[def.id] = function() game:GroupChanged() end
-    -- the lobby hub (Lobby.lua): pop-ups, badges and invites
-    ns.Lobby:Register(def.id, {
-        noun = "challenge",
-        offers = function()
-            local out = {}
-            for _, o in ipairs(game:OpenOffers()) do
-                if not Net:VersionProblem(o.ver) then table.insert(out, { host = o.host, key = o.id }) end
-            end
-            return out
+    local sides = def.rules.sides
+    game.ch = ns.ChallengeKit.New({
+        tag = def.tag, id = def.id, state = game.S,
+        busyText = "You're already in a game of " .. def.name .. ".",
+        fields = function(p) return { p.side } end,
+        read = function(f) return { side = f[4] }, 1 end,
+        accepted = function(sender, p) return { game:PickSide(p.side) } end,
+        begin = function(sender, p, extra) game:Start("party", extra[1], sender, p.id) end,
+        chosen = function(sender, id, offer, f)
+            if f[5] ~= sides[1] and f[5] ~= sides[2] then return false end
+            game:Start("party", def.rules.Other(f[5]), sender, id)
+            return true
         end,
-        ask = function() Net:Send(game:Msg({ "Q" })) end,
-        join = function(host) return game:LobbyJoin(host) end,
-        hosting = function() return game.S.posted ~= nil end,
-        busy = function() return game.S.game ~= nil or game.S.posted ~= nil or game.S.accepting ~= nil end,
+        inGame = function() return game.S.game ~= nil end,
+        onMessage = function(sender, kind, f) game:OnMessage(sender, f) end,
+        onGroup = function() game:GroupChanged() end,
+        status = function(text) if game.ui.board then game:SetStatus(text) end end,
+        refresh = function() if game.ui.board then game:Refresh() end end,
+        shown = function() return game:Shown() end,
+        enter = function() if game:Mode() ~= "party" then game:SetMode("party") end end,
     })
     local wait = 0
     ns:Every(0, function(dt)

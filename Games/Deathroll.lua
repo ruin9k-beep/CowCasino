@@ -26,7 +26,6 @@ local PIC          = 70      -- the two portraits at the top, facing each other
 local FACE         = 0.6     -- how far each turns toward the other (radians)
 local DEALER_PAUSE = 1.1     -- seconds before the dealer rolls back
 local ROLL_WAIT    = 3       -- seconds to wait for a /roll to show before rolling here
-local OFFER_EVERY  = 20      -- an open challenge is sent again this often
 local QUIET_LIMIT  = 60      -- after this long without the other player's roll, a duel can be called off
 local GAME_TAG     = "DT"
 
@@ -375,36 +374,17 @@ end
 ---------------------------------------------------------------------------
 -- Party duels
 ---------------------------------------------------------------------------
-local function SendOffer()
-    local p = S.posted
-    if not p then return end
-    p.sentAt = GetTime()
-    Net:Send(Msg({ "O", p.id, p.stake, p.start, Net.PARTY_VERSION }), "DT-O")
-end
+-- The challenges (Games\ChallengeKit.lua): posting, taking, withdrawing.
+local ch    -- (made below, once the duel's own messages are)
 
 local function PostChallenge()
-    if S.duel or S.posted or not Net:InGroup() then return end
-    S.posted = { id = NewId(), stake = db.stake, start = db.start }
-    SendOffer()
+    if S.duel or not ch:Post({ stake = db.stake, start = db.start }) then return end
     SetStatus("Challenge sent: for " .. Fmt(db.stake) .. ", from " .. Fmt(db.start) .. " (free). Waiting for someone to take it...")
     Refresh()
 end
 
-local function Withdraw(quiet)
-    if not S.posted then return end
-    Net:Send(Msg({ "X", S.posted.id }), "DT-O")
-    S.posted = nil
-    if not quiet then SetStatus("Challenge withdrawn.") end
-    Refresh()
-end
-
-local function Accept(offer)
-    if S.duel or S.posted or S.accepting or not offer then return end
-    S.accepting = { host = offer.host, id = offer.id, at = GetTime() }
-    Net:Send(Msg({ "A", offer.id, Net.PARTY_VERSION }))
-    SetStatus("Taking " .. offer.host .. "'s challenge...")
-    Refresh()
-end
+local function Withdraw(quiet) ch:Withdraw(quiet) end
+local function Accept(offer) ch:Accept(offer) end
 
 local function Forfeit()
     local d = S.duel
@@ -420,57 +400,9 @@ local function Forfeit()
     EndDuel("me", "You forfeit.")
 end
 
-local function OnMessage(sender, f)
-    local kind, id = f[2], f[3]
-    if kind == "Q" then
-        SendOffer()
-        return
-    elseif kind == "O" then
-        S.offers[sender] = { id = id, stake = tonumber(f[4]) or 0, start = tonumber(f[5]) or 0, ver = tonumber(f[6]),
-            heard = GetTime() }
-        if ns.currentGame == "deathroll" then Refresh() end
-        return
-    elseif kind == "X" then
-        S.offers[sender] = nil
-        if S.accepting and S.accepting.host == sender then
-            S.accepting = nil
-            SetStatus(sender .. " withdrew that challenge.")
-        end
-        if ns.currentGame == "deathroll" then Refresh() end
-        return
-    end
-
-    -- someone takes our challenge: the first one gets it
-    if kind == "A" then
-        local p = S.posted
-        if not p or p.id ~= id or S.duel or not Net:IsMember(sender) then return end
-        if Net:VersionProblem(f[4]) then return end        -- another version can't duel this one
-        S.posted = nil
-        Net:Send(Msg({ "S", p.id, sender }), "DT-O")
-        StartDuel("party", p.stake, p.start, "me", sender, p.id)
-        return
-    end
-
-    -- the challenger starts the duel (with us, or with someone quicker)
-    if kind == "S" then
-        local offer = S.offers[sender]
-        S.offers[sender] = nil
-        local a = S.accepting
-        if a and a.host == sender and a.id == id then
-            S.accepting = nil
-            if f[4] ~= Net:Me() then
-                SetStatus(f[4] .. " took " .. sender .. "'s challenge first.")
-            elseif not offer then
-                Net:Send(Msg({ "C", id }))
-            else
-                StartDuel("party", offer.stake, offer.start, "them", sender, id)
-                return
-            end
-        end
-        if ns.currentGame == "deathroll" then Refresh() end
-        return
-    end
-
+-- The duel's own messages (R a roll, F forfeit, C called off).
+local function DuelMessage(sender, kind, f)
+    local id = f[3]
     local d = S.duel
     if not d or d.kind ~= "party" or d.id ~= id or sender ~= d.opp then return end
     d.heard = GetTime()
@@ -486,14 +418,32 @@ local function OnMessage(sender, f)
     end
 end
 
-Net.handlers[GAME_TAG] = OnMessage
+-- (the group changed: a party duel with someone who left is off)
+local GroupChanged
 
-Net.groupHandlers.deathroll = function()
-    for name in pairs(S.offers) do
-        if not Net:IsMember(name) then S.offers[name] = nil end
-    end
-    if S.accepting and not Net:IsMember(S.accepting.host) then S.accepting = nil end
-    if S.posted and not Net:InGroup() then S.posted = nil end
+ch = ns.ChallengeKit.New({
+    tag = GAME_TAG, id = "deathroll", state = S, busyText = "You're already in a duel.",
+    fields = function(p) return { p.stake, p.start } end,
+    read = function(f) return { stake = tonumber(f[4]) or 0, start = tonumber(f[5]) or 0 }, 2 end,
+    begin = function(sender, p) StartDuel("party", p.stake, p.start, "me", sender, p.id) end,
+    chosen = function(sender, id, offer)
+        if not offer then
+            Net:Send(Msg({ "C", id }))
+            return false
+        end
+        StartDuel("party", offer.stake, offer.start, "them", sender, id)
+        return true
+    end,
+    inGame = function() return S.duel ~= nil end,
+    onMessage = DuelMessage,
+    onGroup = function() GroupChanged() end,
+    status = function(text) if ui.range then SetStatus(text) end end,
+    refresh = function() if ui.range then Refresh() end end,
+    shown = function() return ns.currentGame == "deathroll" end,
+    enter = function() if db and db.mode ~= "party" then Deathroll.SetMode("party") end end,
+})
+
+GroupChanged = function()
     local d = S.duel
     if d and d.kind == "party" and not Net:IsMember(d.opp) then
         EndDuel(nil, d.opp .. " left the group, so the duel is called off.")
@@ -533,14 +483,6 @@ ns:Every(0.1, function()
     elseif d and d.kind == "party" and Quiet(d) and not d.quietShown then
         d.quietShown = true
         if ns.currentGame == "deathroll" then Refresh() end
-    end
-    if S.posted and now - (S.posted.sentAt or 0) >= OFFER_EVERY then SendOffer() end
-    if S.accepting and now - S.accepting.at > 15 then
-        S.accepting = nil
-        if ui.range then
-            SetStatus("No answer to that challenge.")
-            Refresh()
-        end
     end
 end)
 
@@ -749,31 +691,8 @@ function Deathroll:IntroState() return S.duel ~= nil and "busy" or "idle" end
 
 -- Exposed for tests.
 Deathroll.S, Deathroll.ui, Deathroll.ParseRoll = S, ui, ParseRoll
+Deathroll.SetMode = SetMode
 
 ns:RegisterGame(Deathroll)
 
--- The lobby hub (Lobby.lua): pop-ups, badges and invites.
-ns.Lobby:Register("deathroll", {
-    noun = "challenge",
-    offers = function()
-        local out = {}
-        for _, o in ipairs(OpenOffers()) do
-            if not Net:VersionProblem(o.ver) then table.insert(out, { host = o.host, key = o.id }) end
-        end
-        return out
-    end,
-    ask = function() Net:Send(Msg({ "Q" })) end,
-    join = function(host)
-        if S.duel then return "You're already in a duel." end
-        if db and db.mode ~= "party" then SetMode("party") end
-        for _, o in ipairs(OpenOffers()) do
-            if o.host == host then
-                Accept(o)
-                return
-            end
-        end
-        return host .. "'s challenge is gone."
-    end,
-    hosting = function() return S.posted ~= nil end,
-    busy = function() return S.duel ~= nil or S.posted ~= nil or S.accepting ~= nil end,
-})
+-- (the lobby hub's pop-ups and badges come with the challenges, above)
