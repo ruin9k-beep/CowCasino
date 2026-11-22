@@ -32,6 +32,7 @@ Games\BlackjackRules.lua
 Games\Blackjack.lua
 Games\Mines.lua
 Games\Slots.lua
+Games\SessionKit.lua
 Games\TableKit.lua
 Games\PokerTable.lua
 Games\Poker.lua

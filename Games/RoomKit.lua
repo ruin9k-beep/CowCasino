@@ -20,7 +20,7 @@
 --       fields   = { "score" },                           -- numbers each roster row carries (default score)
 --   })
 --   room:Restore(db)        (in Build: remembers db, and cleans up a game a reload ended)
---   room:Tick(now)          (every so often: heartbeats and timeouts)
+--   (heartbeats and timeouts run on their own: Games\SessionKit.lua)
 --   room:BuildLobby(panel, opts)  /  room:RefreshLobby()   (the lobby is the game's intro: Intro.lua)
 --
 -- Messages (tag, then): Q (who's hosting?), O;tid;players;phase;ver, J;tid;ver,
@@ -32,7 +32,7 @@
 local ns = CowCasino.ns
 local Net = ns.Net
 
-local RK = { HEARTBEAT = 8, HOST_TIMEOUT = 35 }   -- (offers time out in Net:OpenOffers)
+local RK = { HEARTBEAT = 8, HOST_TIMEOUT = 35, JOIN_TIMEOUT = 15 }   -- (offers time out in Net:OpenOffers)
 ns.RoomKit = RK
 
 local Room = {}
@@ -44,8 +44,28 @@ local function Call(f, a, b) if f then return f(a, b) end end
 function RK.New(spec)
     local r = setmetatable({ spec = spec, tag = spec.tag, max = spec.max or 10, fields = spec.fields or { "score" },
         mode = "lobby", players = {}, offers = {} }, Room)
-    Net.handlers[spec.tag] = function(sender, f) r:OnMessage(sender, f) end
-    Net.groupHandlers[spec.id] = function() r:GroupChanged() end
+    -- the session (Games\SessionKit.lua): heartbeat, a quiet host, an
+    -- unanswered join, the group changing
+    r.sess = ns.SessionKit.New({
+        tag = spec.tag, id = spec.id, state = r, handle = function(sender, f) r:OnMessage(sender, f) end,
+        heartbeat = RK.HEARTBEAT, hostTimeout = RK.HOST_TIMEOUT, joinTimeout = RK.JOIN_TIMEOUT,
+        beat = function()
+            r:Broadcast()
+            r:Offer()
+        end,
+        hostGone = function(message) r:ToLobby(message) end,
+        joinLost = function(message)
+            r.lobbyMsg = message
+            r:Refresh()
+        end,
+        hostGroup = function()
+            local gone = {}
+            for _, p in ipairs(r.players) do if not Net:IsMember(p.name) then table.insert(gone, p.name) end end
+            for _, name in ipairs(gone) do r:Drop(name) end
+            if not Net:InGroup() then r:Close("You left the group, so your game closed.") end
+        end,
+        changed = function() if r.mode == "lobby" then r:Refresh() end end,
+    })
     return r
 end
 
@@ -160,7 +180,7 @@ end
 -- The roster and the state (and, by heartbeat, the offer).
 function Room:Broadcast()
     if self.mode ~= "host" then return end
-    self.nextBeat = GetTime() + RK.HEARTBEAT
+    self.sess:BeatSent()
     self:SendRoster()
     self:SendState()
     Call(self.spec.onBroadcast)
@@ -225,7 +245,7 @@ end
 
 function Room:Join(host, tid)
     if self.mode ~= "lobby" then return end
-    self.joining = { host = host, tid = tid }
+    self.joining = { host = host, tid = tid, at = GetTime() }
     self.lobbyMsg = "Asking " .. host .. " to join..."
     self:Send({ "J", tid, Net.PARTY_VERSION })
     self:Refresh()
@@ -236,7 +256,7 @@ end
 -- returns why it can't.
 function Room:RegisterLobby(id, enter)
     local room = self
-    ns.Lobby:Register(id, {
+    self.sess:RegisterLobby(id, {
         noun = "game",
         offers = function()
             local out = {}
@@ -245,7 +265,6 @@ function Room:RegisterLobby(id, enter)
             end
             return out
         end,
-        ask = function() room:Send({ "Q" }) end,
         join = function(host)
             if room.mode ~= "lobby" then return "You're already in a game." end
             local why = enter and enter()
@@ -254,8 +273,6 @@ function Room:RegisterLobby(id, enter)
             if not o then return host .. "'s game is gone." end
             room:Join(host, o.tid)
         end,
-        hosting = function() return room.mode == "host" end,
-        busy = function() return room.mode ~= "lobby" or room.joining ~= nil end,
     })
 end
 
@@ -315,7 +332,8 @@ function Room:OnMessage(sender, f)
             for _, p in ipairs(roster) do if p.name == Net:Me() then mine = true end end
             if not mine then return end
             self.mode, self.host, self.tid, self.joining, self.lobbyMsg = "client", sender, tid, nil, nil
-            self.players, self.heard, self.fresh = roster, GetTime(), true
+            self.players, self.fresh = roster, true
+            self.sess:Heard()
             if self.db then self.db.joined = { host = sender, tid = tid } end
             ns:Sound("IG_MAINMENU_OPTION")
             self:Refresh()
@@ -324,7 +342,7 @@ function Room:OnMessage(sender, f)
     end
 
     if self.mode ~= "client" or sender ~= self.host or tid ~= self.tid then return end
-    self.heard = GetTime()
+    self.sess:Heard()
     if kind == "R" then
         local roster = self:RosterPart(f)
         if not roster then return end
@@ -342,43 +360,15 @@ function Room:OnMessage(sender, f)
     end
 end
 
-function Room:GroupChanged()
-    if self.mode == "host" then
-        local gone = {}
-        for _, p in ipairs(self.players) do if not Net:IsMember(p.name) then table.insert(gone, p.name) end end
-        for _, name in ipairs(gone) do self:Drop(name) end
-        if not Net:InGroup() then self:Close("You left the group, so your game closed.") end
-    elseif self.mode == "client" and not Net:IsMember(self.host) then
-        self:ToLobby((self.host or "The host") .. " left the group.")
-    end
-    for name in pairs(self.offers) do
-        if not Net:IsMember(name) then self.offers[name] = nil end
-    end
-    if self.mode == "lobby" then self:Refresh() end
-end
+function Room:GroupChanged() self.sess:GroupChanged() end
 
-function Room:Tick(now)
-    now = now or GetTime()
-    if self.mode == "host" and now >= (self.nextBeat or 0) then
-        self:Broadcast()
-        self:Offer()
-    elseif self.mode == "client" and now - (self.heard or now) > RK.HOST_TIMEOUT then
-        self:ToLobby("Lost touch with " .. (self.host or "the host") .. ".")
-    end
-end
+-- (the session keeps time itself; kept for the games that still call it)
+function Room:Tick(now) end
 
 -- In Build: a game can't survive a reload.
 function Room:Restore(db)
     self.db = db
-    if db.hosting then
-        db.hosting = nil
-        self.lobbyMsg = "Your game closed when the game reloaded."
-    end
-    if db.joined then
-        if Net:IsMember(db.joined.host) then self:Send({ "L", db.joined.tid }) end
-        self.lobbyMsg = "You left " .. (db.joined.host or "the") .. "'s game when the game reloaded."
-        db.joined = nil
-    end
+    self.lobbyMsg = self.sess:Restore(db, { host = "hosting", seat = "joined", noun = "game" })
 end
 
 -- Ask who's hosting (opening the lobby).

@@ -156,6 +156,51 @@ function UI.AddLog(list, text, max)
     while ns.getn(list) > (max or 30) do table.remove(list, 1) end
 end
 
+-- The tables open in your group, on a party page: a heading at y with
+-- Refresh beside it, then rows of "text  [Join]". opts: y, rows (3),
+-- title, onRefresh(), onJoin(offer). list:Set(offers, describe(offer),
+-- canJoin(offer), emptyText) fills it (list.rows[i].offer is that row's).
+function UI.OfferList(parent, opts)
+    local y, n = opts.y or -178, opts.rows or 3
+    local list = { rows = {} }
+    local header = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    header:SetPoint("TOPLEFT", parent, "TOPLEFT", 16, y)
+    header:SetText(opts.title or "Tables in your group")
+    list.header = header
+    local refresh = UI.Button(parent, "Refresh", 70, function() if opts.onRefresh then opts.onRefresh() end end)
+    refresh:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -16, y + 4)
+    list.refresh = refresh
+    for r = 1, n do
+        local r = r   -- own copy for closures (Lua 5.0)
+        local row = {}
+        row.text = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.text:SetPoint("TOPLEFT", parent, "TOPLEFT", 18, y - 28 - (r - 1) * 28)
+        row.text:SetWidth(250)
+        row.text:SetJustifyH("LEFT")
+        row.join = UI.Button(parent, "Join", 60, function()
+            local offer = list.rows[r].offer
+            if offer and opts.onJoin then opts.onJoin(offer) end
+        end)
+        row.join:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -16, y - 22 - (r - 1) * 28)
+        list.rows[r] = row
+    end
+    function list:Set(offers, describe, canJoin, emptyText)
+        for r, row in ipairs(self.rows) do
+            local offer = offers[r]
+            row.offer = offer
+            if offer then
+                row.text:SetText(describe(offer) .. ns.Net:VersionNote(offer.ver))
+                row.join:Show()
+                ns.SetEnabled(row.join, canJoin(offer) and not ns.Net:VersionProblem(offer.ver))
+            else
+                row.text:SetText((r == 1 and emptyText) and ("|cff888888" .. emptyText .. "|r") or "")
+                row.join:Hide()
+            end
+        end
+    end
+    return list
+end
+
 -- A frame that wears skins (a card, a slot symbol): hidden, skins = {}, and
 -- the given methods copied on.
 function UI.SkinFrame(parent, width, height, methods)

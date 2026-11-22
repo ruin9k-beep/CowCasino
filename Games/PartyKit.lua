@@ -26,7 +26,6 @@
 local ns = CowCasino.ns
 local Net = ns.Net
 
-local ROWS = 3                -- tables listed in the lobby
 local HEARTBEAT = 15          -- the host re-sends the table this often
 local HOST_TIMEOUT = 40       -- a client gives up on a silent host after this long
 local JOIN_TIMEOUT = 15       -- no answer to a seat request
@@ -35,6 +34,7 @@ function ns.PartyKit(K)
     local T, ui, H, Game = K.T, K.ui, K.hooks, K.game
     local TAG, NUM_SEATS = K.tag, K.seats
     local P = {}
+    local sess      -- the session (P.Watch)
 
     local Fmt = ns.Fmt
     local function Msg(parts) return TAG .. ";" .. table.concat(parts, ";") end
@@ -186,7 +186,7 @@ function ns.PartyKit(K)
     -- invites), under the menu game id it's shown in. show(): puts the party
     -- lobby on screen, or returns why it can't.
     function P.RegisterLobby(id, show)
-        ns.Lobby:Register(id, {
+        sess:RegisterLobby(id, {
             noun = "table",
             offers = function()
                 local out = {}
@@ -196,7 +196,6 @@ function ns.PartyKit(K)
                 end
                 return out
             end,
-            ask = function() Net:Send(Msg({ "Q" })) end,
             join = function(host)
                 if T.mode ~= "lobby" then return "You're already at a table." end
                 local why = show()
@@ -205,8 +204,6 @@ function ns.PartyKit(K)
                 if not o then return host .. "'s table is gone." end
                 P.JoinTable(host, o.tid)
             end,
-            hosting = function() return T.mode == "host" end,
-            busy = function() return T.mode ~= "lobby" or T.joining ~= nil end,
         })
     end
 
@@ -296,30 +293,13 @@ function ns.PartyKit(K)
         ui.host = MakeButton(l, "Host a table", 140, function() H.HostTable(T.partyBuyIn) end, 24)
         ui.host:SetPoint("TOP", l, "TOP", 0, -138)
 
-        local header = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        header:SetPoint("TOPLEFT", l, "TOPLEFT", 16, -178)
-        header:SetText("Tables in your group")
-        local refresh = MakeButton(l, "Refresh", 70, function()
-            Net:Send(Msg({ "Q" }))
-            H.Refresh()
-        end)
-        refresh:SetPoint("TOPRIGHT", l, "TOPRIGHT", -16, -174)
-
-        ui.rows = {}
-        for r = 1, ROWS do
-            local r = r   -- own copy for closures (Lua 5.0)
-            local row = {}
-            row.text = l:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            row.text:SetPoint("TOPLEFT", l, "TOPLEFT", 18, -206 - (r - 1) * 28)
-            row.text:SetWidth(250)
-            row.text:SetJustifyH("LEFT")
-            row.join = MakeButton(l, "Join", 60, function()
-                local offer = ui.rows[r].offer
-                if offer then P.JoinTable(offer.host, offer.tid) end
-            end)
-            row.join:SetPoint("TOPRIGHT", l, "TOPRIGHT", -16, -200 - (r - 1) * 28)
-            ui.rows[r] = row
-        end
+        ui.tables = ns.UI.OfferList(l, { y = -178,
+            onRefresh = function()
+                Net:Send(Msg({ "Q" }))
+                H.Refresh()
+            end,
+            onJoin = function(offer) P.JoinTable(offer.host, offer.tid) end })
+        ui.rows = ui.tables.rows
 
         ui.lobbyMsg = l:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         ui.lobbyMsg:SetPoint("TOP", l, "TOP", 0, -296)
@@ -337,21 +317,13 @@ function ns.PartyKit(K)
         ui.buyIn:Refresh()
         ns.SetEnabled(ui.host, inGroup)
 
-        local list = Net:OpenOffers(T.offers)
-        for r = 1, ROWS do
-            local row, offer = ui.rows[r], list[r]
-            row.offer = offer
-            if offer then
-                row.text:SetText(string.format("%s's table - %d playing, %d open", offer.host, offer.players, offer.open)
+        ui.tables:Set(Net:OpenOffers(T.offers),
+            function(offer)
+                return string.format("%s's table - %d playing, %d open", offer.host, offer.players, offer.open)
                     .. (offer.buyin and ("\n|cffccccccFree " .. Fmt(offer.buyin) .. " stack|r") or "")
-                    .. Net:VersionNote(offer.ver))
-                row.join:Show()
-                ns.SetEnabled(row.join, offer.open > 0 and not T.joining and not Net:VersionProblem(offer.ver))
-            else
-                row.text:SetText((r == 1 and inGroup) and "|cff888888No tables yet. Ask someone to host, or host one.|r" or "")
-                row.join:Hide()
-            end
-        end
+            end,
+            function(offer) return offer.open > 0 and not T.joining end,
+            inGroup and "No tables yet. Ask someone to host, or host one." or nil)
         ui.lobbyStats:SetText(H.LobbyStats())
     end
 
@@ -473,7 +445,7 @@ function ns.PartyKit(K)
             if kind == "X" and T.mode == "lobby" then H.Refresh() end    -- (a table gone from the list)
             return
         end
-        T.lastHeard = GetTime()
+        sess:Heard()
         if kind == "R" then
             if P.ClientRoster(f) then H.Refresh() end
         elseif kind == "Z" then
@@ -488,63 +460,46 @@ function ns.PartyKit(K)
         end
     end
 
-    -- The group changing, and the clock --------------------------------------
-    local function GroupChanged()
-        if T.mode == "host" then
-            for i = 2, NUM_SEATS do
-                local p = T.seats[i]
-                if p.kind == "remote" and not Net:IsMember(p.name) then H.DropPlayer(i) end
-            end
-            T.pending = Net:StillHere(T.pending)
-        elseif T.mode == "client" and not Net:IsMember(T.host) then
-            P.HostGone((T.host or "The host") .. " left the group.")
-        end
-        for name in pairs(T.offers) do
-            if not Net:IsMember(name) then T.offers[name] = nil end
-        end
-        if T.joining and not Net:IsMember(T.joining.host) then
-            T.joining = nil
-            P.SetLobbyMessage("The host left the group.")
-        end
-        if T.mode == "lobby" and ui.lobby then H.Refresh() end
-    end
-
-    -- Every half second: the countdown on screen, the host's heartbeat, a
-    -- host gone quiet, a seat request nobody answered.
-    local beatWait = 0
-    local function Tick(dt)
-        beatWait = beatWait + dt
-        -- the countdown: a redraw only when the seconds shown change
-        if T.deadline and ui.table and ui.table:IsVisible() then
-            local left = math.ceil(T.deadline - GetTime())
-            if left ~= T.shownLeft then
-                T.shownLeft = left
-                H.Refresh()
-            end
-        end
-        if T.mode == "host" and beatWait >= HEARTBEAT then
-            beatWait = 0
-            if P.HasRemote() then
-                P.SendRoster()
-                P.MarkAll()
-                P.Broadcast()
-            end
-        elseif T.mode == "client" and T.lastHeard and GetTime() - T.lastHeard > HOST_TIMEOUT then
-            P.HostGone((T.host or "The host") .. " stopped responding.")
-        end
-        if T.joining and not T.joining.waiting and GetTime() - T.joining.at > JOIN_TIMEOUT then
-            P.SetLobbyMessage("No answer from " .. T.joining.host .. ".")
-            T.joining = nil
-            H.Refresh()
-        end
-    end
+    -- The session (Games\SessionKit.lua): heartbeat, a quiet host, an
+    -- unanswered join, the group changing --------------------------------
 
     -- Hooks the table to the network: its messages, the group, the clock.
     -- id: the key the group handler goes under (the game's id).
     function P.Watch(id)
-        Net.handlers[TAG] = P.OnMessage
-        Net.groupHandlers[id] = GroupChanged
-        ns:Every(0.5, Tick)
+        sess = ns.SessionKit.New({
+            tag = TAG, id = id, state = T, handle = P.OnMessage,
+            heartbeat = HEARTBEAT, hostTimeout = HOST_TIMEOUT, joinTimeout = JOIN_TIMEOUT,
+            beat = function()
+                if P.HasRemote() then
+                    P.SendRoster()
+                    P.MarkAll()
+                    P.Broadcast()
+                end
+            end,
+            hostGone = P.HostGone,
+            joinLost = function(message)
+                P.SetLobbyMessage(message)
+                H.Refresh()
+            end,
+            hostGroup = function()
+                for i = 2, NUM_SEATS do
+                    local p = T.seats[i]
+                    if p.kind == "remote" and not Net:IsMember(p.name) then H.DropPlayer(i) end
+                end
+            end,
+            changed = function() if T.mode == "lobby" and ui.lobby then H.Refresh() end end,
+        })
+        P.session = sess
+        -- the countdown: a redraw only when the seconds shown change
+        ns:Every(0.5, function()
+            if T.deadline and ui.table and ui.table:IsVisible() then
+                local left = math.ceil(T.deadline - GetTime())
+                if left ~= T.shownLeft then
+                    T.shownLeft = left
+                    H.Refresh()
+                end
+            end
+        end)
     end
 
     -- Building: saved settings, the felt, the lobby, and a table that didn't
@@ -566,18 +521,7 @@ function ns.PartyKit(K)
     -- After the table's built: a party table can't survive a reload (its
     -- stacks are free, so nothing goes back to your chips).
     function P.Restore(noun)
-        local db = K.db()
-        local message
-        if db.host then
-            db.host = nil
-            message = "Your " .. noun .. " table closed when the game reloaded."
-        end
-        if db.seat then
-            if db.seat.host and Net:IsMember(db.seat.host) then Net:Send(Msg({ "L", db.seat.tid })) end
-            message = "You left " .. (db.seat.host or "the") .. "'s " .. noun .. " table when the game reloaded."
-            db.seat = nil
-        end
-        P.SetLobbyMessage(message)
+        P.SetLobbyMessage(sess:Restore(K.db(), { host = "host", seat = "seat", noun = noun .. " table" }))
         H.Refresh()
     end
 

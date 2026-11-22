@@ -815,7 +815,6 @@ function Game:OnStatsReset(d)
 end
 
 ns:Every(0.25, function(dt, now)
-    room:Tick(now)
     if room:IsHost() then
         HostTick(now)
         -- the deal again with each heartbeat, for anyone who missed it

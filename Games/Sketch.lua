@@ -444,7 +444,6 @@ end
 ns:Every(0, function() if ui.sync then ui.sync:Tick() end end)
 ns:Every(0.5, function() if ui.room and ui.room:IsShown() then Game.RefreshClock() end end)
 ns:Every(0.2, function(dt, now)
-    room:Tick(now)
     if room:IsHost() then
         HostTick(now)
         if S.phase == "o" and S.wasOver ~= true then

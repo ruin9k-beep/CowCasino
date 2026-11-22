@@ -2002,7 +2002,7 @@ local function JoinTable(host, tid)
     local sb, bb = (offer and offer.sb) or 5, (offer and offer.bb) or 10
     local buyin = offer and OfferBuyIn(offer) or 50 * bb
     if T.seats[1] then return end
-    T.joining = { host = host, tid = tid, buyin = buyin, sb = sb, bb = bb }
+    T.joining = { host = host, tid = tid, buyin = buyin, sb = sb, bb = bb, at = GetTime() }
     Net:Send(Msg({ "J", tid, buyin, Net.PARTY_VERSION }))
     ui.partyMsg:SetText("Asking " .. host .. " for a seat...")
 end
@@ -2113,6 +2113,7 @@ local function OnMessage(sender, f)
             Refresh()
         elseif kind == "N" and f[4] == Net:Me() then
             if f[5] == "wait" then
+                T.joining.waiting = true
                 ui.partyMsg:SetText(sender .. " will seat you after this hand.")
             else
                 T.joining = nil
@@ -2169,48 +2170,39 @@ local function OnMessage(sender, f)
     end
 end
 
-Net.handlers[GAME_TAG] = OnMessage
-
-Net.groupHandlers[V.id] = function()
-    if T.mode == "host" then
+-- The session (Games\SessionKit.lua): heartbeat, a quiet host, an
+-- unanswered seat request, the group changing.
+local sess = ns.SessionKit.New({
+    tag = GAME_TAG, id = V.id, state = T, handle = OnMessage,
+    heartbeat = HEARTBEAT, hostTimeout = HOST_TIMEOUT, joinTimeout = 15,
+    beat = function()
+        if HasRemote() then
+            SendRoster()
+            Broadcast()
+        end
+    end,
+    hostGone = function(message) HostGone(message) end,
+    joinLost = function(message)
+        if ui.partyMsg then ui.partyMsg:SetText(message) end
+        if ui.party and ui.party:IsShown() then ui.party:Refresh() end
+    end,
+    hostGroup = function()
         for i = 2, NUM_SEATS do
             local p = T.seats[i]
             if p.kind == "remote" and not Net:IsMember(p.name) then HostDropPlayer(i) end
         end
-        local still = {}
-        for _, w in ipairs(T.pending) do
-            if Net:IsMember(w.name) then table.insert(still, w) end
-        end
-        T.pending = still
-    elseif T.mode == "client" and not Net:IsMember(T.host) then
-        HostGone((T.host or "The host") .. " left the group.")
-    end
-    for name in pairs(T.offers) do
-        if not Net:IsMember(name) then T.offers[name] = nil end
-    end
-    if ui.party and ui.party:IsShown() then ui.party:Refresh() end
-end
+    end,
+    changed = function() if ui.party and ui.party:IsShown() then ui.party:Refresh() end end,
+})
 
--- Countdown, host heartbeat, and noticing a host that went quiet.
-local beatWait = 0
-ns:Every(0.5, function(dt)
-    beatWait = beatWait + dt
-    -- the countdown: a redraw only when the seconds shown change
+-- the countdown: a redraw only when the seconds shown change
+ns:Every(0.5, function()
     if T.deadline and ui.table and ui.table:IsShown() then
         local left = math.ceil(T.deadline - GetTime())
         if left ~= T.shownLeft then
             T.shownLeft = left
             Refresh()
         end
-    end
-    if T.mode == "host" and beatWait >= HEARTBEAT then
-        beatWait = 0
-        if HasRemote() then
-            SendRoster()
-            Broadcast()
-        end
-    elseif T.mode == "client" and T.lastHeard and GetTime() - T.lastHeard > HOST_TIMEOUT then
-        HostGone((T.host or "The host") .. " stopped responding.")
     end
 end)
 
@@ -2758,30 +2750,13 @@ local function BuildParty(panel)
     end, 24)
     leaveSolo:SetPoint("TOP", o, "TOP", 0, -118)
 
-    local header = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    header:SetPoint("TOPLEFT", o, "TOPLEFT", 16, -180)      -- (below the host line, which runs to two lines)
-    header:SetText("Tables in your group")
-    local refresh = MakeButton(o, "Refresh", 70, function()
-        Net:Send(Msg({ "Q" }))
-        o:Refresh()
-    end)
-    refresh:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -176)
-
-    local rows = {}
-    for r = 1, 3 do
-        local r = r   -- own copy for closures (Lua 5.0)
-        local row = {}
-        row.text = o:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.text:SetPoint("TOPLEFT", o, "TOPLEFT", 18, -208 - (r - 1) * 28)
-        row.text:SetWidth(250)
-        row.text:SetJustifyH("LEFT")
-        row.join = MakeButton(o, "Join", 60, function()
-            local offer = rows[r].offer
-            if offer then JoinTable(offer.host, offer.tid) end
-        end)
-        row.join:SetPoint("TOPRIGHT", o, "TOPRIGHT", -16, -202 - (r - 1) * 28)
-        rows[r] = row
-    end
+    local tables = ns.UI.OfferList(o, { y = -180,      -- (below the host line, which runs to two lines)
+        onRefresh = function()
+            Net:Send(Msg({ "Q" }))
+            o:Refresh()
+        end,
+        onJoin = function(offer) JoinTable(offer.host, offer.tid) end })
+    o.tables = tables
 
     ui.partyMsg = o:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ui.partyMsg:SetPoint("TOP", o, "TOP", 0, -296)
@@ -2824,21 +2799,13 @@ local function BuildParty(panel)
         end
         ns.SetEnabled(host, inGroup and not problem and not T.seats[1])
 
-        local list = Net:OpenOffers(T.offers)
-        for r = 1, 3 do
-            local offer = list[r]
-            rows[r].offer = offer
-            if offer then
-                local need = OfferBuyIn(offer)
-                rows[r].text:SetText(string.format("%s: blinds %s/%s, free %s stack\n%d seated, %d open",
-                    offer.host, Fmt(offer.sb), Fmt(offer.bb), Fmt(need), offer.players, offer.open) .. Net:VersionNote(offer.ver))
-                rows[r].join:Show()
-                ns.SetEnabled(rows[r].join, offer.open > 0 and not T.joining and not T.seats[1] and not Net:VersionProblem(offer.ver))
-            else
-                rows[r].text:SetText(r == 1 and (inGroup and "|cff888888No tables yet. Ask someone to host, or host one.|r" or "") or "")
-                rows[r].join:Hide()
-            end
-        end
+        tables:Set(Net:OpenOffers(T.offers),
+            function(offer)
+                return string.format("%s: blinds %s/%s, free %s stack\n%d seated, %d open",
+                    offer.host, Fmt(offer.sb), Fmt(offer.bb), Fmt(OfferBuyIn(offer)), offer.players, offer.open)
+            end,
+            function(offer) return offer.open > 0 and not T.joining and not T.seats[1] end,
+            inGroup and "No tables yet. Ask someone to host, or host one." or nil)
     end
     o:SetScript("OnShow", function()
         if Net:InGroup() then Net:Send(Msg({ "Q" })) end
@@ -2961,7 +2928,7 @@ Poker.dbKey = DB_KEY
 function Poker:IntroState() return T.seats[1] ~= nil and "busy" or "intro" end
 
 -- The lobby hub (Lobby.lua): pop-ups, badges and invites.
-ns.Lobby:Register(V.id, {
+sess:RegisterLobby(V.id, {
     noun = "table",
     offers = function()
         local out = {}
@@ -2970,7 +2937,6 @@ ns.Lobby:Register(V.id, {
         end
         return out
     end,
-    ask = function() Net:Send(Msg({ "Q" })) end,
     join = function(host)
         if T.seats[1] then
             return T.mode == "solo" and "Leave your solo table first (your stack goes back to your chips), then join."

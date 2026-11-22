@@ -826,7 +826,6 @@ end
 
 -- The clock: the host's turns and reveals, heartbeats, the countdown.
 ns:Every(0.25, function(dt, now)
-    room:Tick(now)
     if room:IsHost() then HostTick(now) end
     if ui.clock and ui.table:IsShown() and not InSolo() then ui.clock:SetText(Clock()) end
 end)
