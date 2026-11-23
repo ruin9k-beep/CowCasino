@@ -105,17 +105,24 @@ local deck
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, VideoPoker) end
+local Refresh   -- (below)
 
-local function StatsText()
-    local s = db.stats
-    local net = s.won - s.wagered
-    local netText = ns.UI.Net(net)
-    return string.format("Hands %d  Wins %d  Royals %d  Biggest win %s  Net %s|r",
-        s.hands, s.wins, s.royals, Fmt(s.biggestWin), netText)
-end
+-- The single-player kit (Games\SoloKit.lua): settings, stats, the felt, the
+-- status and stats lines.
+local kit = ns.SoloKit.New(VideoPoker, {
+    key = "videopoker", stats = DEFAULT_STATS, sounds = true, defaults = { coins = MAX_COINS, coin = 5 },
+    felt = { 0.04, 0.06, 0.22, 0.94 }, refresh = function() Refresh() end,
+    statsLine = {
+        { "Hands", "hands" }, { "Wins", "wins" }, { "Royals", "royals" }, { "Biggest win", "biggestWin", "chips" },
+        { "Net", function(s) return s.won - s.wagered end, "net" },
+    },
+})
 
-local function Refresh()
+local function SetStatus(text, r, g, b) kit:SetStatus(text, r, g, b) end
+local function StatsText() return kit:StatsText() end
+
+
+Refresh = function()
     if not ui.cards then return end
     ns:UpdateChipsDisplay()
     local h = db.hand
@@ -224,11 +231,10 @@ local function DrawCards()
     local paid = Payout(row, h.coins, h.coin)
     local s = db.stats
     last = { cards = h.cards, row = row, paid = paid }
+    ns:RecordResult(s, h.coins * h.coin, paid, nil, true)     -- (wagered on the deal)
     if paid > 0 then
         ns:AddChips(paid)
         s.wins = s.wins + 1
-        s.won = s.won + paid
-        if paid > s.biggestWin then s.biggestWin = paid end
         if row == 1 then s.royals = s.royals + 1 end
         SetStatus(PAYS[row].name .. "! You win " .. Fmt(paid) .. ".", 0.25, 1, 0.25)
         ns:PlayGameSound(db, "win")
@@ -282,12 +288,7 @@ local function BuildOptions(panel)
 end
 
 function VideoPoker:Build(panel)
-    db = ns:SetupGame(panel, "videopoker", {
-        defaults = { coins = MAX_COINS, coin = 5 },
-        stats = DEFAULT_STATS,
-        sounds = true,
-        felt = { 0.04, 0.06, 0.22, 0.94 },
-    })
+    db = kit:Setup(panel)
 
 
     -- The pay table: hand names, then a column per number of coins
@@ -353,9 +354,8 @@ function VideoPoker:Build(panel)
         ui.held[k] = held
     end
 
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status = kit:Status(panel, AREA_W - 8)
     ui.status:SetPoint("TOP", panel, "TOP", 0, cardTop - CARD_H - 24)
-    ui.status:SetWidth(AREA_W - 8)
 
     -- Bet: coin size and number of coins
     ui.betInfo = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -417,16 +417,10 @@ function VideoPoker:Abandon()
     if ui.cards then Refresh() end
 end
 
-VideoPoker.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
-function VideoPoker:OnStatsReset(d)
-    if ui.stats and db then Refresh() end
-end
 
 -- Exposed for tests.
 VideoPoker.Classify, VideoPoker.Payout, VideoPoker.PAYS, VideoPoker.ui = Classify, Payout, PAYS, ui
 function VideoPoker.SetDeck(fn) NewDeck = fn end
 
--- The stats line on the game's intro (Intro.lua).
-function VideoPoker:IntroStats() return StatsText() end
 
 ns:RegisterGame(VideoPoker)

@@ -265,8 +265,7 @@ local function SettleRound()
     ns:AddChips(returned)
     if ns.db.chips > s.best then s.best = ns.db.chips end
 
-    local net = returned - wagered
-    s.net = (s.net or 0) + net
+    local net = ns:RecordResult(s, wagered, returned)
     local head
     if dealerTotal > 21 and not dBJ then table.insert(notes, 1, "Dealer busts.") end
     -- the dealer calls it: a plain call, or the chosen dealer's own line
@@ -846,36 +845,11 @@ function Blackjack:Build(panel)
     ui.insYes = insurance[1].button
     ui.insuranceRow:Hide()
 
-    -- Betting: left-click a chip to add it, right-click to take it back
-    local betSpecs = {}
-    for _, v in ipairs(CHIP_VALUES) do
-        local v = v   -- own copy for closures (Lua 5.0)
-        betSpecs[ns.getn(betSpecs) + 1] = {
-            text = tostring(v), width = 42,
-            onClick = function(_, button) AddBet(button == "RightButton" and -v or v) end,
-        }
-    end
-    betSpecs[ns.getn(betSpecs) + 1] = { text = "Clear", width = 52, onClick = function() AddBet(-db.bet) end }
-    betSpecs[ns.getn(betSpecs) + 1] = { text = "Deal", width = 100, onClick = Deal }
-    ui.betRow = MakeButtonRow(panel, betSpecs, 4)
+    -- Betting: left-click a chip to add it, right-click to take it back (UI.BetRow)
+    ui.betRow = ns.UI.BetRow(panel, { values = CHIP_VALUES, width = 42, gap = 4, clearWidth = 52,
+        onAdd = AddBet, extra = { { "Deal", 100, Deal } } })
     ui.betRow:SetPoint("BOTTOM", ui.betRow:GetParent(), "BOTTOM", 0, 38)
-
-    ui.chipButtons = {}
-    for i = 1, ns.getn(CHIP_VALUES) do
-        local i = i   -- own copy for closures (Lua 5.0)
-        local b = betSpecs[i].button
-        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        b:SetScript("OnEnter", function() local self = this
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText("Chip " .. CHIP_VALUES[i])
-            GameTooltip:AddLine("Left-click to add, right-click to take back.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        ui.chipButtons[i] = b
-    end
-    ui.clear = betSpecs[ns.getn(CHIP_VALUES) + 1].button
-    ui.deal = betSpecs[ns.getn(CHIP_VALUES) + 2].button
+    ui.chipButtons, ui.clear, ui.deal = ui.betRow.chips, ui.betRow.clear, ui.betRow.extra[1]
 
     ui.stats = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.stats:SetPoint("BOTTOM", panel, "BOTTOM", 0, 12)

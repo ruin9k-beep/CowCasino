@@ -143,19 +143,26 @@ local function NewDeck() return ns:NewShoe(1) end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, TCP) end
+local Refresh   -- (below)
 
-local function StatsText()
-    local s = db.stats
-    local net = s.won - s.wagered
-    local netText = ns.UI.Net(net)
-    return string.format("Hands %d  Wins %d  Folds %d  Pair Plus %d  Net %s|r",
-        s.hands, s.wins, s.folds, s.pairPlusWins, netText)
-end
+-- The single-player kit (Games\SoloKit.lua): settings, stats, the felt, the
+-- status and stats lines.
+local kit = ns.SoloKit.New(TCP, {
+    key = "threecard", stats = DEFAULT_STATS, sounds = true, defaults = { ante = 25, pp = 0 },
+    felt = { 0.05, 0.25, 0.12, 0.94 }, refresh = function() Refresh() end,
+    statsLine = {
+        { "Hands", "hands" }, { "Wins", "wins" }, { "Folds", "folds" }, { "Pair Plus", "pairPlusWins" },
+        { "Net", function(s) return s.won - s.wagered end, "net" },
+    },
+})
+
+local function SetStatus(text, r, g, b) kit:SetStatus(text, r, g, b) end
+local function StatsText() return kit:StatsText() end
+
 
 local function NeedFor(ante, pp) return ante * 2 + pp end
 
-local function Refresh()
+Refresh = function()
     if not ui.cards then return end
     ns:UpdateChipsDisplay()
     local h = db.hand
@@ -224,14 +231,10 @@ local function Finish(play)
     local out = Settle(h, play)
     local s = db.stats
     last = { cards = h.cards, dealer = h.dealer }
-    if out.paid > 0 then
-        ns:AddChips(out.paid)
-        s.won = s.won + out.paid
-    end
+    if out.paid > 0 then ns:AddChips(out.paid) end
     if out.pairPlus then s.pairPlusWins = s.pairPlusWins + 1 end
     local staked = h.ante + h.pp + (play and h.ante or 0)
-    local net = out.paid - staked
-    if net > s.biggestWin then s.biggestWin = net end
+    local net = ns:RecordResult(s, staked, out.paid, nil, true)     -- (wagered as each bet went down)
 
     local extras = {}
     if out.bonus then table.insert(extras, "Ante bonus " .. Fmt(out.bonus)) end
@@ -337,12 +340,7 @@ local function CardRow(panel, top)
 end
 
 function TCP:Build(panel)
-    db = ns:SetupGame(panel, "threecard", {
-        defaults = { ante = 25, pp = 0 },
-        stats = DEFAULT_STATS,
-        sounds = true,
-        felt = { 0.05, 0.25, 0.12, 0.94 },
-    })
+    db = kit:Setup(panel)
 
 
     -- the dealer's cards on top, yours below
@@ -364,9 +362,8 @@ function TCP:Build(panel)
     ui.myHand = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     ui.myHand:SetPoint("TOP", panel, "TOP", 0, -210)
 
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status = kit:Status(panel, AREA_W - 8)
     ui.status:SetPoint("TOP", panel, "TOP", 0, -232)
-    ui.status:SetWidth(AREA_W - 8)
 
     local pays = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     pays:SetPoint("BOTTOM", panel, "BOTTOM", 0, 78)
@@ -424,17 +421,11 @@ function TCP:Abandon()
     if ui.cards then Refresh() end
 end
 
-TCP.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
-function TCP:OnStatsReset(d)
-    if ui.stats and db then Refresh() end
-end
 
 -- Exposed for tests.
 TCP.Evaluate, TCP.Qualifies, TCP.Compare, TCP.Settle, TCP.HandName, TCP.ui = Evaluate, Qualifies, Compare, Settle, HandName, ui
 TCP.CAT = { HIGH = HIGH, PAIR = PAIR, FLUSH = FLUSH, STRAIGHT = STRAIGHT, TRIPS = TRIPS, SFLUSH = SFLUSH }
 function TCP.SetDeck(fn) NewDeck = fn end
 
--- The stats line on the game's intro (Intro.lua).
-function TCP:IntroStats() return StatsText() end
 
 ns:RegisterGame(TCP)

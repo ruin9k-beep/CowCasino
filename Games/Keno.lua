@@ -98,15 +98,22 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Keno) end
+local Refresh   -- (below)
 
-local function StatsText()
-    local s = db.stats
-    local net = s.won - s.wagered
-    local netText = ns.UI.Net(net)
-    return string.format("Games %d  Wins %d  Best catch %d  Biggest win %s  Net %s|r",
-        s.games, s.wins, s.bestHits, Fmt(s.biggestWin), netText)
-end
+-- The single-player kit (Games\SoloKit.lua): settings, stats, the felt, the
+-- status and stats lines.
+local kit = ns.SoloKit.New(Keno, {
+    key = "keno", stats = DEFAULT_STATS, sounds = true, defaults = { bet = 10, picks = {}, autoCount = 10, quickSpots = 6 },
+    felt = { 0.12, 0.08, 0.2, 0.94 }, refresh = function() Refresh() end,
+    statsLine = {
+        { "Games", "games" }, { "Wins", "wins" }, { "Best catch", "bestHits" }, { "Biggest win", "biggestWin", "chips" },
+        { "Net", function(s) return s.won - s.wagered end, "net" },
+    },
+})
+
+local function SetStatus(text, r, g, b) kit:SetStatus(text, r, g, b) end
+local function StatsText() return kit:StatsText() end
+
 
 -- Which numbers are drawn so far in the game on screen.
 local function DrawnSet()
@@ -149,7 +156,7 @@ local function RefreshPays()
     end
 end
 
-local function Refresh()
+Refresh = function()
     if not ui.cells then return end
     ns:UpdateChipsDisplay()
     local drawn = DrawnSet()
@@ -208,11 +215,10 @@ local function Finish()
     db.last = g
     db.game = nil
     AddRecent(paid - g.bet)
+    ns:RecordResult(s, g.bet, paid, nil, true)     -- (wagered when the draw started)
     if paid > 0 then
         ns:AddChips(paid)
-        s.won = s.won + paid
         if paid > g.bet then s.wins = s.wins + 1 end
-        if paid - g.bet > s.biggestWin then s.biggestWin = paid - g.bet end
         local m = PAYS[g.spots][hits]
         SetStatus(string.format("Caught %d of %d! Pays %sx: %s.", hits, g.spots, FmtMult(m), Fmt(paid)), 0.25, 1, 0.25)
         ns:PlayGameSound(db, "win")
@@ -409,12 +415,7 @@ local function BuildOptions(panel)
 end
 
 function Keno:Build(panel)
-    db = ns:SetupGame(panel, "keno", {
-        defaults = { bet = 10, picks = {}, autoCount = 10, quickSpots = 6 },
-        stats = DEFAULT_STATS,
-        sounds = true,
-        felt = { 0.12, 0.08, 0.2, 0.94 },
-    })
+    db = kit:Setup(panel)
 
 
     -- The board: 80 numbers, ten to a row
@@ -452,9 +453,8 @@ function Keno:Build(panel)
         ui.payHits[i], ui.payMults[i] = h, m
     end
 
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status = kit:Status(panel, AREA_W - 8)
     ui.status:SetPoint("TOP", panel, "TOP", 0, boardBottom - 52)
-    ui.status:SetWidth(AREA_W - 8)
 
     -- Bet, Quick pick and Clear
     local row = ns.CreateFrame("Frame", nil, panel)
@@ -536,17 +536,15 @@ function Keno:Abandon()
     end
 end
 
-Keno.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
-function Keno:OnStatsReset(d)
+-- A stats reset clears the recent results too.
+function Keno:OnStatsReset()
     ns.UI.ClearHistory(recent)
-    if ui.stats and db then Refresh() end
+    if ui.status then Refresh() end
 end
 
 -- Exposed for tests.
 Keno.PAYS, Keno.Payout, Keno.DrawNumbers, Keno.S, Keno.ui, Keno.recent = PAYS, Payout, DrawNumbers, S, ui, recent
 function Keno.SetDraw(fn) DrawNumbers = fn end
 
--- The stats line on the game's intro (Intro.lua).
-function Keno:IntroStats() return StatsText() end
 
 ns:RegisterGame(Keno)

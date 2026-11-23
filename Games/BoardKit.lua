@@ -253,8 +253,7 @@ function Kit:Finish(winner, why)
         s.wins = s.wins + 1
         if solo then
             ns:AddChips(g.stake * 2)
-            s.won = s.won + g.stake * 2
-            if g.stake > s.biggestWin then s.biggestWin = g.stake end
+            ns:RecordResult(s, g.stake, g.stake * 2, nil, true)     -- (wagered when the game started)
         end
         text, r, gr, b = "You win" .. (why and (": " .. why) or "") .. "!" .. (solo and (" You take " .. Fmt(g.stake * 2) .. ".") or ""), 0.25, 1, 0.25
         ns:PlayGameSound(self.db, "win")

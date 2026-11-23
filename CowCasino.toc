@@ -2,7 +2,7 @@
 ## Title: |cffffd100CowCasino|r
 ## Notes: A just-for-fun casino. No real gold is ever wagered. Type /casino to open.
 ## Author: ruin9k
-## Version: 0.31.2
+## Version: 0.32.0
 ## SavedVariables: CowCasinoDB
 Compat112.lua
 Core.lua
@@ -30,6 +30,7 @@ Lobby.lua
 Intro.lua
 Games\BlackjackRules.lua
 Games\Blackjack.lua
+Games\SoloKit.lua
 Games\Mines.lua
 Games\Slots.lua
 Games\SessionKit.lua

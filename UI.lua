@@ -156,6 +156,71 @@ function UI.AddLog(list, text, max)
     while ns.getn(list) > (max or 30) do table.remove(list, 1) end
 end
 
+-- A row of chip buttons for betting: left-click adds the chip, right-click
+-- takes it back, and Clear (unless clear = false) takes the bet to 0.
+-- opts: values ({ 5, 25, 100, 500 }), onAdd(amount), width (38 a chip),
+-- gap (3), clearWidth (46), height (24), extra ({ { text, width, onClick } }:
+-- more buttons after Clear, as row.extra[i]). Returns the row (sized to fit)
+-- with row.chips[i] and row.clear; the caller places it.
+function UI.BetRow(parent, opts)
+    local width, gap, height = opts.width or 38, opts.gap or 3, opts.height or 24
+    local row = ns.CreateFrame("Frame", nil, parent)
+    row:SetHeight(height)
+    row.chips = {}
+    local x = 0
+    for i, v in ipairs(opts.values or { 5, 25, 100, 500 }) do
+        local v = v   -- own copy for closures (Lua 5.0)
+        local b = UI.ClickButton(row, tostring(v), width, function(_, button)
+            opts.onAdd(button == "RightButton" and -v or v)
+        end, height)
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetPoint("LEFT", row, "LEFT", x, 0)
+        b:SetScript("OnEnter", function()
+            GameTooltip:SetOwner(this, "ANCHOR_TOP")
+            GameTooltip:SetText("Chip " .. v)
+            GameTooltip:AddLine("Left-click to add, right-click to take back.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row.chips[i] = b
+        x = x + width + gap
+    end
+    if opts.clear ~= false then
+        -- (all of it: Lua 5.0 has no math.huge)
+        row.clear = UI.ClickButton(row, "Clear", opts.clearWidth or 46, function() opts.onAdd(-1e15) end, height)
+        row.clear:SetPoint("LEFT", row, "LEFT", x, 0)
+        x = x + (opts.clearWidth or 46) + gap
+    end
+    row.extra = {}
+    for i, e in ipairs(opts.extra or {}) do
+        local b = UI.ClickButton(row, e[1], e[2], e[3], height)
+        b:SetPoint("LEFT", row, "LEFT", x, 0)
+        row.extra[i] = b
+        x = x + e[2] + gap
+    end
+    row:SetWidth(math.max(1, x - gap))
+    return row
+end
+
+-- A stats line from a game's stats: { label, key or function(s), kind }...
+-- kind: nil a count, "chips", "net" (green or red, signed), or a function
+-- (value -> text). spec.empty: the line when spec.first (a key) is still 0.
+function UI.StatsLine(s, spec)
+    if spec.empty and (s[spec.first] or 0) == 0 then return spec.empty end
+    local parts = {}
+    for _, item in ipairs(spec) do
+        local v = item[2]
+        if type(v) == "function" then v = v(s) else v = s[v] or 0 end
+        local kind, text = item[3], nil
+        if kind == "chips" then text = Fmt(v)
+        elseif kind == "net" then text = UI.Net(v) .. "|r"
+        elseif type(kind) == "function" then text = kind(v)
+        else text = tostring(v) end
+        table.insert(parts, item[1] .. " " .. text)
+    end
+    return table.concat(parts, "  ")
+end
+
 -- The tables open in your group, on a party page: a heading at y with
 -- Refresh beside it, then rows of "text  [Join]". opts: y, rows (3),
 -- title, onRefresh(), onJoin(offer). list:Set(offers, describe(offer),

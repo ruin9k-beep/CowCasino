@@ -95,13 +95,11 @@ end
 ---------------------------------------------------------------------------
 local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Deathroll) end
 
-local function StatsText()
-    local s = db.stats
-    local net = s.won - s.wagered
-    local netText = ns.UI.Net(net)
-    return string.format("Duels %d  Won %d  Lost %d  Biggest win %s  Net %s|r",
-        s.duels, s.wins, s.losses, Fmt(s.biggestWin), netText)
-end
+local STATS_LINE = {
+    { "Duels", "duels" }, { "Won", "wins" }, { "Lost", "losses" }, { "Biggest win", "biggestWin", "chips" },
+    { "Net", function(s) return s.won - s.wagered end, "net" },
+}
+local function StatsText() return ns.UI.StatsLine(db.stats, STATS_LINE) end
 
 local function OppName(d)
     if d.kind == "solo" then return DealerName() end
@@ -292,8 +290,7 @@ local function EndDuel(loser, how)
             SetStatus((how or (opp .. " rolled a 1!")) .. " You win the duel!", 0.25, 1, 0.25)
         else
             ns:AddChips(paid)
-            s.won = s.won + paid
-            if d.stake > s.biggestWin then s.biggestWin = d.stake end
+            ns:RecordResult(s, d.stake, paid, nil, true)     -- (wagered when the duel started)
             SetStatus((how or (opp .. " rolled a 1!")) .. " You win " .. Fmt(paid) .. ".", 0.25, 1, 0.25)
         end
         ns:PlayGameSound(db, "win")

@@ -52,7 +52,7 @@ local ART = {
     felt         = { 0.06, 0.08, 0.13, 0.92 },
 }
 
-local DEFAULT_STATS = { games = 0, cashouts = 0, losses = 0, bestMultiplier = 0, biggestWin = 0 }
+local DEFAULT_STATS = { games = 0, cashouts = 0, losses = 0, bestMultiplier = 0, biggestWin = 0, net = 0 }
 
 local Mines = {
     id = "mines",
@@ -88,6 +88,7 @@ local last     -- the board that just ended: { board, revealed, hit }
 
 local function Sound(key) ns:Sound(key) end
 
+
 local Fill = ns.UI.Fill
 
 local function Round2(n)
@@ -120,14 +121,26 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Mines) end
+local Refresh   -- (below)
 
-local function StatsText()
-    local s = db.stats
-    if s.games == 0 then return "Pick how many mines, place a bet and start." end
-    return string.format("Played %d   Cashed out %d   Best %s   Biggest win %s",
-        s.games, s.cashouts, FmtMult(math.max(1, s.bestMultiplier)), Fmt(s.biggestWin))
-end
+-- The single-player kit (Games\SoloKit.lua): settings, stats, the felt, the
+-- status and stats lines, the bet row.
+local kit = ns.SoloKit.New(Mines, {
+    key = "mines", defaults = { bet = 25, mines = 3 }, stats = DEFAULT_STATS,
+    felt = ART.felt, minBet = MIN_BET, maxBet = MAX_BET,
+    canBet = function() return not db.active end,
+    refresh = function() Refresh() end,
+    statsLine = {
+        empty = "Pick how many mines, place a bet and start.", first = "games",
+        { "Played", "games" }, { "Cashed out", "cashouts" },
+        { "Best", "bestMultiplier", function(v) return FmtMult(math.max(1, v)) end },
+        { "Biggest win", "biggestWin", "chips" }, { "Net", "net", "net" },
+    },
+})
+
+local function SetStatus(text, r, g, b) kit:SetStatus(text, r, g, b) end
+
+local function StatsText() return kit:StatsText() end
 
 local function Color(tex, c) tex:SetTexture(c[1], c[2], c[3], c[4] or 1) end
 
@@ -144,7 +157,7 @@ local function DrawTile(t, state, icon)
     end
 end
 
-local function Refresh()
+Refresh = function()
     local game = db.active
 
     for i, t in ipairs(ui.tiles) do
@@ -225,10 +238,8 @@ local function CashOut(auto)
     local payout = Payout(game)
     ns:AddChips(payout)
 
-    local s = db.stats
-    s.cashouts = s.cashouts + 1
-    if mult > s.bestMultiplier then s.bestMultiplier = mult end
-    if payout - game.bet > s.biggestWin then s.biggestWin = payout - game.bet end
+    db.stats.cashouts = db.stats.cashouts + 1
+    kit:Record(game.bet, payout, mult)
 
     EndGame(nil)
     Sound("LOOT_WINDOW_COIN_SOUND")
@@ -244,6 +255,7 @@ local function Reveal(i)
 
     if game.board[i] then
         db.stats.losses = db.stats.losses + 1
+        kit:Record(game.bet, 0)
         EndGame(i)
         Sound("RAID_WARNING")
         SetStatus("Boom! You lose " .. Fmt(game.bet) .. ".", 1, 0.35, 0.35)
@@ -304,11 +316,7 @@ local function StartGame()
     Refresh()
 end
 
-local function AddBet(amount)
-    if db.active then return end
-    db.bet = math.max(0, math.min(db.bet + amount, MAX_BET, ns.db.chips))
-    Refresh()
-end
+local function AddBet(amount) kit:AddBet(amount) end
 
 local function ChangeMines(delta)
     if db.active then return end
@@ -416,17 +424,8 @@ local function BuildOptions(panel)
 end
 
 function Mines:Build(panel)
-    ns.db.mines = ns.db.mines or {}
-    db = ns.db.mines
-    if db.bet == nil then db.bet = 25 end
-    if db.mines == nil then db.mines = 3 end
-    db.stats = db.stats or {}
-    Fill(db.stats, DEFAULT_STATS)
+    db = kit:Setup(panel)
     db.icons = db.icons or {}
-
-    local felt = panel:CreateTexture(nil, "BACKGROUND")
-    felt:SetAllPoints(panel)
-    Color(felt, ART.felt)
 
 
     ui.info = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -446,36 +445,17 @@ function Mines:Build(panel)
         ui.tiles[i] = t
     end
 
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status = kit:Status(panel, AREA_W - 8)
     ui.status:SetPoint("TOP", grid, "BOTTOM", 0, -6)
-    ui.status:SetWidth(AREA_W - 8)
 
     -- Row 1: bet chips and mine count
     local row1 = ns.CreateFrame("Frame", nil, panel)
     row1:SetWidth(AREA_W); row1:SetHeight(24)
     row1:SetPoint("BOTTOM", row1:GetParent(), "BOTTOM", 0, 40)
 
-    ui.chipButtons = {}
-    local x = 0
-    for i, v in ipairs(CHIP_VALUES) do
-        local i, v = i, v   -- own copy for closures (Lua 5.0)
-        local b = MakeButton(row1, tostring(v), 38, function(_, button)
-            AddBet(button == "RightButton" and -v or v)
-        end)
-        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        b:SetPoint("LEFT", b:GetParent(), "LEFT", x, 0)
-        b:SetScript("OnEnter", function() local self = this
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText("Chip " .. v)
-            GameTooltip:AddLine("Left-click to add, right-click to take back.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        ui.chipButtons[i] = b
-        x = x + 38 + 3
-    end
-    ui.clear = MakeButton(row1, "Clear", 46, function() AddBet(-db.bet) end)
-    ui.clear:SetPoint("LEFT", ui.clear:GetParent(), "LEFT", x, 0)
+    local bets = kit:BetRow(row1)
+    bets:SetPoint("LEFT", row1, "LEFT", 0, 0)
+    ui.chipButtons, ui.clear = bets.chips, bets.clear
 
     ui.more = MakeButton(row1, "+", 24, function() ChangeMines(1) end)
     ui.more:SetPoint("RIGHT", ui.more:GetParent(), "RIGHT", 0, 0)
@@ -518,7 +498,7 @@ function Mines:OnHide()
 end
 
 function Mines:OnShow()
-    if db and not db.active then db.bet = ns:FreshBet(db.bet, MIN_BET) end
+    if db and not db.active then kit:FreshBet() end
     if ui.status then
         if not db.active and not last then SetStatus(StatsText()) end
         Refresh()
@@ -539,10 +519,6 @@ function Mines:Abandon()
     if ui.status then Refresh() end
 end
 
--- A fresh stack after running out (Core.lua): stats start over.
-Mines.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
-
--- The stats line on the game's intro (Intro.lua).
-function Mines:IntroStats() return StatsText() end
+-- (stats, their reset and the intro's stats line: the kit, above)
 
 ns:RegisterGame(Mines)

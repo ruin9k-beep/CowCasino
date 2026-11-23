@@ -22,7 +22,7 @@ local CURVE_DOTS  = 70
 -- Graph area
 local GX, GY, GW, GH = 34, -16, 300, 196
 
-local DEFAULT_STATS = { runs = 0, cashouts = 0, busts = 0, bestCashout = 0, biggestWin = 0, net = 0 }
+local DEFAULT_STATS = { runs = 0, cashouts = 0, busts = 0, bestMultiplier = 0, biggestWin = 0, net = 0 }
 
 local Crash = {
     id = "crash",
@@ -61,14 +61,23 @@ local function SecondsFor(mult) return math.log(mult) / GROWTH end
 -- Whole chips: half a chip or more rounds up.
 local function Pay(bet, mult) return math.floor(bet * mult + 0.5) end
 
-local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Crash) end
+local Refresh   -- (below)
 
-local function StatsText()
-    local s = db.stats
-    local net = s.net
-    local netText = ns.UI.Net(net)
-    return string.format("Runs %d  Cashed %d  Best %s  Net %s|r", s.runs, s.cashouts, FmtMult(s.bestCashout), netText)
-end
+-- The single-player kit (Games\SoloKit.lua): settings, stats, the felt, the
+-- status and stats lines, the bet row.
+local kit = ns.SoloKit.New(Crash, {
+    key = "crash", stats = DEFAULT_STATS, sounds = true, defaults = { bet = 25, auto = 0 },
+    felt = { 0.05, 0.07, 0.12, 0.94 }, minBet = MIN_BET, maxBet = MAX_BET,
+    canBet = function() return not (run and not run.over) end,
+    refresh = function() Refresh() end,
+    statsLine = {
+        { "Runs", "runs" }, { "Cashed", "cashouts" }, { "Best", "bestMultiplier", FmtMult },
+        { "Biggest win", "biggestWin", "chips" }, { "Net", "net", "net" },
+    },
+})
+
+local function SetStatus(text, r, g, b) kit:SetStatus(text, r, g, b) end
+local function StatsText() return kit:StatsText() end
 
 local function AutoText()
     if db.auto == 0 then return "Off" end
@@ -104,7 +113,7 @@ local function DrawGraph(now, mult, crashed)
     ui.xRight:SetText(math.floor(spanT + 0.5) .. "s")
 end
 
-local function Refresh()
+Refresh = function()
     if not ui.graph then return end
     ns:UpdateChipsDisplay()
     local live = run and not run.over
@@ -133,11 +142,7 @@ local function Refresh()
     ui.stats:SetText(StatsText())
 end
 
-local function AddBet(amount)
-    db.bet = ns:NudgeBet(db.bet, amount, MAX_BET)
-    ns:Sound("IG_MAINMENU_OPTION")
-    Refresh()
-end
+local function AddBet(amount) kit:AddBet(amount) end
 
 local function StepAuto(dir)
     local idx = 1
@@ -154,11 +159,8 @@ local function CashOut(mult)
     run.cashed = mult
     db.live = nil
     ns:AddChips(win)
-    local s = db.stats
-    s.cashouts = s.cashouts + 1
-    s.net = s.net + win - run.bet
-    if mult > s.bestCashout then s.bestCashout = mult end
-    if win - run.bet > s.biggestWin then s.biggestWin = win - run.bet end
+    db.stats.cashouts = db.stats.cashouts + 1
+    kit:Record(run.bet, win, mult)
     SetStatus("Cashed out at " .. FmtMult(mult) .. ": " .. Fmt(win) .. " (+" .. Fmt(win - run.bet) .. ").", 0.25, 1, 0.25)
     ns:PlayGameSound(db, "win")
     Refresh()
@@ -175,7 +177,7 @@ local function EndRun()
     if not run.cashed then
         db.live = nil
         s.busts = s.busts + 1
-        s.net = s.net - run.bet
+        kit:Record(run.bet, 0)
         SetStatus("Crashed at " .. FmtMult(run.crash) .. ". You lose " .. Fmt(run.bet) .. ".", 1, 0.35, 0.35)
         ns:PlayGameSound(db, "lose")
     else
@@ -263,12 +265,12 @@ local function BuildOptions(panel)
 end
 
 function Crash:Build(panel)
-    db = ns:SetupGame(panel, "crash", {
-        defaults = { bet = 25, auto = 0 },
-        stats = DEFAULT_STATS,
-        sounds = true,
-        felt = { 0.05, 0.07, 0.12, 0.94 },
-    })
+    db = kit:Setup(panel)
+    -- (the best cash-out was once kept as bestCashout)
+    if db.stats.bestCashout then
+        db.stats.bestMultiplier = math.max(db.stats.bestMultiplier, db.stats.bestCashout)
+        db.stats.bestCashout = nil
+    end
 
 
     -- the graph: axes, a curve of dots and the multiplier
@@ -309,35 +311,16 @@ function Crash:Build(panel)
 
     ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.history:SetPoint("TOP", panel, "TOP", 0, -234)
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status = kit:Status(panel, AREA_W - 8)
     ui.status:SetPoint("TOP", panel, "TOP", 0, -252)
-    ui.status:SetWidth(AREA_W - 8)
 
     -- Row 1: bet chips and the auto cash-out
     local row1 = ns.CreateFrame("Frame", nil, panel)
     row1:SetWidth(AREA_W - 8); row1:SetHeight(24)
     row1:SetPoint("BOTTOM", panel, "BOTTOM", 0, 52)
-    ui.chipButtons = {}
-    local x = 0
-    for i, v in ipairs(CHIP_VALUES) do
-        local v = v   -- own copy for closures (Lua 5.0)
-        local b = MakeButton(row1, tostring(v), 38, function(_, button)
-            AddBet(button == "RightButton" and -v or v)
-        end)
-        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        b:SetPoint("LEFT", row1, "LEFT", x, 0)
-        b:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_TOP")
-            GameTooltip:SetText("Chip " .. v)
-            GameTooltip:AddLine("Left-click to add, right-click to take back.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        ui.chipButtons[i] = b
-        x = x + 41
-    end
-    ui.clear = MakeButton(row1, "Clear", 46, function() db.bet = 0; Refresh() end)
-    ui.clear:SetPoint("LEFT", row1, "LEFT", x, 0)
+    local bets = kit:BetRow(row1)
+    bets:SetPoint("LEFT", row1, "LEFT", 0, 0)
+    ui.chipButtons, ui.clear = bets.chips, bets.clear
     ui.autoNext = MakeButton(row1, ">", 24, function() StepAuto(1) end)
     ui.autoNext:SetPoint("RIGHT", row1, "RIGHT", 0, 0)
     ui.auto = row1:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -376,7 +359,7 @@ function Crash:Build(panel)
 end
 
 function Crash:OnShow()
-    if db and not (run and not run.over) then db.bet = ns:FreshBet(db.bet, MIN_BET) end
+    if db and not (run and not run.over) then kit:FreshBet() end
     if ui.graph then Refresh() end
 end
 
@@ -396,17 +379,11 @@ function Crash:Abandon()
     if ui.graph then Refresh() end
 end
 
-Crash.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
-function Crash:OnStatsReset(d)
-    if ui.stats and db then Refresh() end
-end
 
 -- Exposed for tests.
 function Crash.Run() return run end
 Crash.ui, Crash.history = ui, history
 Crash.MultAt, Crash.SecondsFor = MultAt, SecondsFor
 
--- The stats line on the game's intro (Intro.lua).
-function Crash:IntroStats() return StatsText() end
 
 ns:RegisterGame(Crash)

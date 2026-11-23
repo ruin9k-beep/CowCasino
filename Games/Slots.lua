@@ -429,11 +429,9 @@ local function Settle(quiet)
     for _, w in ipairs(wins) do
         if w.symbol == "seven" and w.count == REELS then jackpot = true end
     end
-    if win > 0 then
-        ns:AddChips(win)
-        s.won = s.won + win
-        if win > s.biggestWin then s.biggestWin = win end
-    end
+    if win > 0 then ns:AddChips(win) end
+    -- (wagered when the spin started; a free spin costs nothing)
+    ns:RecordResult(s, pending.free and 0 or totalBet, win, nil, true)
     if jackpot then s.jackpots = s.jackpots + 1 end
     ns.UI.AddHistory(S.recent, win - (pending.free and 0 or totalBet))   -- a free spin costs nothing
 

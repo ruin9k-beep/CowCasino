@@ -14,7 +14,7 @@
 
 local ns = CowCasino.ns
 
-local DEFAULT_STATS = { spins = 0, wagered = 0, returned = 0, bestWin = 0 }
+local DEFAULT_STATS = { spins = 0, wagered = 0, won = 0, biggestWin = 0 }
 
 local CHIP_VALUES = { 1, 5, 25, 100, 500 }
 local MAX_SPOT    = 1000         -- most you can put on one spot
@@ -322,12 +322,12 @@ end
 ---------------------------------------------------------------------------
 -- Spinning and paying
 ---------------------------------------------------------------------------
-local function StatsText()
-    local s = db.stats
-    if s.spins == 0 then return "Pick a chip, then click the table to bet." end
-    return string.format("Spins %d   Wagered %s   Returned %s   Best win %s",
-        s.spins, Fmt(s.wagered), Fmt(s.returned), Fmt(s.bestWin))
-end
+local STATS_LINE = {
+    empty = "Pick a chip, then click the table to bet.", first = "spins",
+    { "Spins", "spins" }, { "Wagered", "wagered", "chips" }, { "Biggest win", "biggestWin", "chips" },
+    { "Net", function(s) return s.won - s.wagered end, "net" },
+}
+local function StatsText() return ns.UI.StatsLine(db.stats, STATS_LINE) end
 
 local function Settle(afterReload)
     local p = db.pending
@@ -352,9 +352,7 @@ local function Settle(afterReload)
 
     local s = db.stats
     s.spins = s.spins + 1
-    s.wagered = s.wagered + staked
-    s.returned = s.returned + back
-    if back - staked > s.bestWin then s.bestWin = back - staked end
+    ns:RecordResult(s, staked, back)
     s.counts[n + 1] = (s.counts[n + 1] or 0) + 1
 
     table.insert(db.history, 1, n)
@@ -673,6 +671,10 @@ function Game:Build(panel)
         felt = { 0.05, 0.30, 0.12, 0.90 },
     })
     db.stats.counts = db.stats.counts or {}
+    -- (once kept as returned and bestWin)
+    local s = db.stats
+    if s.returned then s.won, s.returned = s.won + s.returned, nil end
+    if s.bestWin then s.biggestWin, s.bestWin = math.max(s.biggestWin, s.bestWin), nil end
     if db.chip then S.chip = db.chip end
 
     -- Wheel strip

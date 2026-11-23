@@ -68,22 +68,30 @@ end
 ---------------------------------------------------------------------------
 -- Display
 ---------------------------------------------------------------------------
-local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, HiLo) end
+local Refresh   -- (below)
+
+-- The single-player kit (Games\SoloKit.lua): settings, stats, the felt, the
+-- status and stats lines, the bet row.
+local kit = ns.SoloKit.New(HiLo, {
+    key = "hilo", stats = DEFAULT_STATS, sounds = true, defaults = { bet = 25 },
+    felt = { 0.06, 0.20, 0.26, 0.92 }, minBet = MIN_BET, maxBet = MAX_BET,
+    canBet = function() return not db.active end,
+    refresh = function() Refresh() end,
+    statsLine = {
+        { "Games", "games" }, { "Cashed", "cashouts" }, { "Best", "bestMultiplier", FmtMult },
+        { "Biggest win", "biggestWin", "chips" }, { "Net", "net", "net" },
+    },
+})
+
+local function SetStatus(text, r, g, b) kit:SetStatus(text, r, g, b) end
+local function StatsText() return kit:StatsText() end
 
 -- The last few games along a line, newest on the left: what each one won or
 -- lost after its bet.
 local recent = {}
 local function AddRecent(n) ns.UI.AddHistory(recent, n) end
 
-local function StatsText()
-    local s = db.stats
-    local net = s.net
-    local netText = ns.UI.Net(net)
-    return string.format("Games %d  Cashed %d  Best %s  Biggest win %s  Net %s|r", s.games, s.cashouts,
-        FmtMult(s.bestMultiplier), Fmt(s.biggestWin), netText)
-end
-
-local function Refresh()
+Refresh = function()
     if not ui.big then return end
     ns:UpdateChipsDisplay()
     local g = db.active
@@ -142,12 +150,7 @@ end
 ---------------------------------------------------------------------------
 -- Playing
 ---------------------------------------------------------------------------
-local function AddBet(amount)
-    if db.active then return end
-    db.bet = math.max(0, math.min(MAX_BET, db.bet + amount, math.max(0, ns.db.chips)))
-    ns:Sound("IG_MAINMENU_OPTION")
-    Refresh()
-end
+local function AddBet(amount) kit:AddBet(amount) end
 
 local function Start()
     if db.active or db.bet < MIN_BET then return end
@@ -170,12 +173,8 @@ local function CashOut(auto)
     local pay = Pay(g.bet, g.mult)
     db.active = nil
     ns:AddChips(pay)
-    local s = db.stats
-    s.cashouts = s.cashouts + 1
-    s.net = s.net + pay - g.bet
-    AddRecent(pay - g.bet)
-    if g.mult > s.bestMultiplier then s.bestMultiplier = g.mult end
-    if pay - g.bet > s.biggestWin then s.biggestWin = pay - g.bet end
+    db.stats.cashouts = db.stats.cashouts + 1
+    AddRecent(kit:Record(g.bet, pay, g.mult))
     last = { card = g.card, history = g.history, cashed = pay }
     SetStatus((auto and ("The multiplier hit its top, " .. FmtMult(MAX_MULT) .. ": cashed out for ") or "Cashed out: ")
         .. Fmt(pay) .. " (+" .. Fmt(pay - g.bet) .. ").", 0.25, 1, 0.25)
@@ -207,8 +206,7 @@ local function Guess(key)
         table.insert(g.history, { card = nextCard, bust = true })
         local s = db.stats
         s.busts = s.busts + 1
-        s.net = s.net - g.bet
-        AddRecent(-g.bet)
+        AddRecent(kit:Record(g.bet, 0))
         last = { card = nextCard, history = g.history, bust = true }
         SetStatus(ns.RANKS[nextCard.rank].name .. " - wrong guess. You lose " .. Fmt(g.bet) .. ".", 1, 0.35, 0.35)
         ns:PlayGameSound(db, "lose")
@@ -275,12 +273,7 @@ local function BuildOptions(panel)
 end
 
 function HiLo:Build(panel)
-    db = ns:SetupGame(panel, "hilo", {
-        defaults = { bet = 25 },
-        stats = DEFAULT_STATS,
-        sounds = true,
-        felt = { 0.06, 0.20, 0.26, 0.92 },
-    })
+    db = kit:Setup(panel)
 
 
     ui.info = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -314,35 +307,16 @@ function HiLo:Build(panel)
         ui.trail[k] = slot
     end
 
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status = kit:Status(panel, AREA_W - 8)
     ui.status:SetPoint("TOP", panel, "TOP", 0, -232)
-    ui.status:SetWidth(AREA_W - 8)
 
     -- Row 1: bet chips, and skip
     local row1 = ns.CreateFrame("Frame", nil, panel)
     row1:SetWidth(AREA_W - 8); row1:SetHeight(24)
     row1:SetPoint("BOTTOM", panel, "BOTTOM", 0, 54)
-    ui.chipButtons = {}
-    local x = 0
-    for i, v in ipairs(CHIP_VALUES) do
-        local v = v   -- own copy for closures (Lua 5.0)
-        local b = MakeButton(row1, tostring(v), 38, function(_, button)
-            AddBet(button == "RightButton" and -v or v)
-        end)
-        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        b:SetPoint("LEFT", row1, "LEFT", x, 0)
-        b:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_TOP")
-            GameTooltip:SetText("Chip " .. v)
-            GameTooltip:AddLine("Left-click to add, right-click to take back.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        ui.chipButtons[i] = b
-        x = x + 41
-    end
-    ui.clear = MakeButton(row1, "Clear", 46, function() db.bet = 0; Refresh() end)
-    ui.clear:SetPoint("LEFT", row1, "LEFT", x, 0)
+    local bets = kit:BetRow(row1)
+    bets:SetPoint("LEFT", row1, "LEFT", 0, 0)
+    ui.chipButtons, ui.clear = bets.chips, bets.clear
     ui.skip = MakeButton(row1, "Skip card", 90, Skip)
     ui.skip:SetPoint("RIGHT", row1, "RIGHT", 0, 0)
     ui.skip:SetScript("OnEnter", function()
@@ -377,7 +351,7 @@ function HiLo:Build(panel)
 end
 
 function HiLo:OnShow()
-    if db and not db.active then db.bet = ns:FreshBet(db.bet, MIN_BET) end
+    if db and not db.active then kit:FreshBet() end
     if ui.big then Refresh() end
 end
 
@@ -398,17 +372,16 @@ function HiLo:Abandon()
     if ui.big then Refresh() end
 end
 
-HiLo.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
-function HiLo:OnStatsReset(d)
-    ns.UI.ClearHistory(recent)
-    if ui.stats and db then Refresh() end
-end
 
 -- Exposed for tests.
 HiLo.Choices, HiLo.StepMult, HiLo.Pay, HiLo.ui, HiLo.recent = Choices, StepMult, Pay, ui, recent
 function HiLo.SetDraw(fn) Draw = fn end
 
--- The stats line on the game's intro (Intro.lua).
-function HiLo:IntroStats() return StatsText() end
+-- A stats reset clears the recent results too.
+function HiLo:OnStatsReset()
+    ns.UI.ClearHistory(recent)
+    if ui.status then Refresh() end
+end
+
 
 ns:RegisterGame(HiLo)

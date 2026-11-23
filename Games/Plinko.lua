@@ -97,15 +97,23 @@ local function BallPos(rows, row, rights)
     return (rights - row / 2) * dx, BOARD_TOP - 8 - row * dy
 end
 
-local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Plinko) end
+local Refresh   -- (below)
 
-local function StatsText()
-    local s = db.stats
-    local net = s.net
-    local netText = ns.UI.Net(net)
-    return string.format("Balls %d  Best %sx  Biggest win %s  Net %s|r", s.balls, FmtMult(s.bestMultiplier),
-        Fmt(s.biggestWin), netText)
-end
+-- The single-player kit (Games\SoloKit.lua): settings, stats, the felt, the
+-- status and stats lines, the bet row.
+local kit = ns.SoloKit.New(Plinko, {
+    key = "plinko", stats = DEFAULT_STATS, sounds = EXTRA_SOUNDS,
+    defaults = { bet = 25, rows = 16, risk = "Medium", speed = "normal", count = 1 },
+    felt = { 0.07, 0.06, 0.16, 0.94 }, minBet = MIN_BET, maxBet = MAX_BET,
+    refresh = function() Refresh() end,
+    statsLine = {
+        { "Balls", "balls" }, { "Best", "bestMultiplier", function(v) return FmtMult(v) .. "x" end },
+        { "Biggest win", "biggestWin", "chips" }, { "Net", "net", "net" },
+    },
+})
+
+local function SetStatus(text, r, g, b) kit:SetStatus(text, r, g, b) end
+local function StatsText() return kit:StatsText() end
 
 local function InFlight() return ns.getn(balls) end
 
@@ -144,7 +152,7 @@ local function DrawBoard()
     ui.drawnRows, ui.drawnRisk = rows, db.risk
 end
 
-local function Refresh()
+Refresh = function()
     if not ui.board then return end
     ns:UpdateChipsDisplay()
     if ui.drawnRows ~= db.rows or ui.drawnRisk ~= db.risk then DrawBoard() end
@@ -165,11 +173,7 @@ local function Refresh()
     ui.stats:SetText(StatsText())
 end
 
-local function AddBet(amount)
-    db.bet = ns:NudgeBet(db.bet, amount, MAX_BET)
-    ns:Sound("IG_MAINMENU_OPTION")
-    Refresh()
-end
+local function AddBet(amount) kit:AddBet(amount) end
 
 local function Step(list, current, dir)
     local idx = 1
@@ -189,11 +193,8 @@ local function Land(ball)
     local mult = mults[ball.slot]
     local win = Pay(ball.bet, mult)
     if win > 0 then ns:AddChips(win) end
-    local s = db.stats
-    s.balls = s.balls + 1
-    s.net = s.net + win - ball.bet
-    if mult > s.bestMultiplier then s.bestMultiplier = mult end
-    if win - ball.bet > s.biggestWin then s.biggestWin = win - ball.bet end
+    db.stats.balls = db.stats.balls + 1
+    kit:Record(ball.bet, win, mult)
     table.insert(last, 1, { mult = mult })
     if ns.getn(last) > 12 then table.remove(last) end
     if ball.rows == db.rows and ball.risk == db.risk and ui.slots[ball.slot] then
@@ -396,12 +397,7 @@ local function BuildOptions(panel)
 end
 
 function Plinko:Build(panel)
-    db = ns:SetupGame(panel, "plinko", {
-        defaults = { bet = 25, rows = 16, risk = "Medium", speed = "normal", count = 1 },
-        stats = DEFAULT_STATS,
-        sounds = EXTRA_SOUNDS,
-        felt = { 0.07, 0.06, 0.16, 0.94 },
-    })
+    db = kit:Setup(panel)
     if not PAYOUTS[db.rows] then db.rows = 16 end
     if not PAYOUTS[db.rows][db.risk] then db.risk = "Medium" end
     db.count = math.max(1, math.min(MAX_PER_DROP, db.count))
@@ -442,9 +438,8 @@ function Plinko:Build(panel)
 
     ui.history = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ui.history:SetPoint("TOP", panel, "TOP", 0, -251)
-    ui.status = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.status = kit:Status(panel, AREA_W - 8)
     ui.status:SetPoint("TOP", panel, "TOP", 0, -266)
-    ui.status:SetWidth(AREA_W - 8)
 
     ui.setup = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     ui.setup:SetPoint("TOPLEFT", panel, "TOPLEFT", 6, -4)
@@ -453,25 +448,9 @@ function Plinko:Build(panel)
     local row1 = ns.CreateFrame("Frame", nil, panel)
     row1:SetWidth(AREA_W - 8); row1:SetHeight(24)
     row1:SetPoint("BOTTOM", panel, "BOTTOM", 0, 52)
-    local x = 0
-    for _, v in ipairs(CHIP_VALUES) do
-        local v = v   -- own copy for closures (Lua 5.0)
-        local b = MakeButton(row1, tostring(v), 38, function(_, button)
-            AddBet(button == "RightButton" and -v or v)
-        end)
-        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        b:SetPoint("LEFT", row1, "LEFT", x, 0)
-        b:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(this, "ANCHOR_TOP")
-            GameTooltip:SetText("Chip " .. v)
-            GameTooltip:AddLine("Left-click to add, right-click to take back.", 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        x = x + 41
-    end
-    ui.clear = MakeButton(row1, "Clear", 46, function() db.bet = 0; Refresh() end)
-    ui.clear:SetPoint("LEFT", row1, "LEFT", x, 0)
+    local bets = kit:BetRow(row1)
+    bets:SetPoint("LEFT", row1, "LEFT", 0, 0)
+    ui.clear = bets.clear
     -- Row 2: drop, and how many balls it sends: +1 +5 +10 +50, or -1 -5 -10
     -- -50 after pressing +/- (right-click also takes away)
     ui.drop = MakeButton(panel, "Drop", 128, Drop, 26)
@@ -544,7 +523,7 @@ function Plinko:Build(panel)
 end
 
 function Plinko:OnShow()
-    if db and InFlight() == 0 then db.bet = ns:FreshBet(db.bet, MIN_BET) end
+    if db and InFlight() == 0 then kit:FreshBet() end
     if ui.board then Refresh() end
 end
 
@@ -567,15 +546,9 @@ function Plinko:Abandon()
     if ui.board then Refresh() end
 end
 
-Plinko.defaultStats = DEFAULT_STATS     -- (ns:ResetStats)
-function Plinko:OnStatsReset(d)
-    if ui.stats and db then Refresh() end
-end
 
 -- Exposed for tests.
 Plinko.PAYOUTS, Plinko.balls, Plinko.ui, Plinko.last = PAYOUTS, balls, ui, last
 
--- The stats line on the game's intro (Intro.lua).
-function Plinko:IntroStats() return StatsText() end
 
 ns:RegisterGame(Plinko)

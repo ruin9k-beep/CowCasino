@@ -339,12 +339,10 @@ local Fill = ns.UI.Fill
 
 local function SetStatus(text, r, g, b) ns.UI.SetStatus(ui.status, text, r, g, b, Craps) end
 
-local function StatsText()
-    local s = db.stats
-    local net = s.net
-    local netText = ns.UI.Net(net)
-    return string.format("Rolls %d  Points made %d  Seven-outs %d  Net %s|r", s.rolls, s.pointsMade, s.sevenOuts, netText)
-end
+local STATS_LINE = {
+    { "Rolls", "rolls" }, { "Points made", "pointsMade" }, { "Seven-outs", "sevenOuts" }, { "Net", "net", "net" },
+}
+local function StatsText() return ns.UI.StatsLine(db.stats, STATS_LINE) end
 
 -- Same bets: put back what was on each spot before the last roll, where
 -- that's allowed now (line bets only on a come-out, odds only behind Pass
@@ -469,11 +467,9 @@ local function Finish(d1, d2)
     end
     db.point = point
     if returned > 0 then ns:AddChips(returned) end
-    local net = returned - staked
     local s = db.stats
     s.rolls = s.rolls + 1
-    s.net = s.net + net
-    if net > s.biggestWin then s.biggestWin = net end
+    local net = ns:RecordResult(s, staked, returned)
     if event == "made" then s.pointsMade = s.pointsMade + 1 end
     if event == "sevenOut" then s.sevenOuts = s.sevenOuts + 1 end
     S.rolling = false

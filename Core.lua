@@ -265,6 +265,21 @@ function ns.IndexOf(list, value, default)
     return default or 1
 end
 
+-- One round's result into a game's stats: wagered, won (paid back), net,
+-- biggestWin (the best net win) and bestMultiplier, each where the game keeps
+-- it. payout: what came back (0 for a loss). staked: the bet was already
+-- counted in wagered when it was placed. Returns the win (payout - bet).
+function ns:RecordResult(s, bet, payout, mult, staked)
+    bet, payout = bet or 0, payout or 0
+    local win = payout - bet
+    if s.wagered and not staked then s.wagered = s.wagered + bet end
+    if s.won then s.won = s.won + payout end
+    if s.net then s.net = s.net + win end
+    if s.biggestWin and win > s.biggestWin then s.biggestWin = win end
+    if mult and s.bestMultiplier and mult > s.bestMultiplier then s.bestMultiplier = mult end
+    return win
+end
+
 -- A bet nudged by amount: from 0 up to maxBet and the chips you have.
 function ns:NudgeBet(bet, amount, maxBet)
     return math.max(0, math.min(maxBet, bet + amount, math.max(0, self.db.chips)))
