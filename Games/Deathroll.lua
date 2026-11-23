@@ -110,9 +110,10 @@ end
 
 local function OpenOffers() return ch:OpenOffers() end      -- (a rematch for someone else isn't open to us)
 
--- what's riding on a duel: chips against the dealer, bragging rights in a party
+-- what's riding on a duel: chips against the dealer, nothing in a party
+-- (party duels are free, so they have no stake)
 local function StakeText(d)
-    if d.kind == "party" then return "for " .. Fmt(d.stake) .. " (free)" end
+    if d.kind == "party" then return "from " .. Fmt(d.start) .. " (free)" end
     return Fmt(d.stake) .. " each"
 end
 
@@ -140,7 +141,7 @@ local function RefreshIntro()
     for _, offer in ipairs(list) do
         local o = offer
         table.insert(rows, {
-            text = string.format("%s: for %s, from %s (free)", o.host, Fmt(o.stake), Fmt(o.start)) .. Net:VersionNote(o.ver),
+            text = string.format("%s: from %s (free)", o.host, Fmt(o.start)) .. Net:VersionNote(o.ver),
             label = "Accept", host = o.host, stake = o.stake,
             enabled = not S.accepting and not S.posted and not Net:VersionProblem(o.ver),
             click = function() ui.onAccept(o) end,
@@ -261,7 +262,7 @@ local function StartDuel(kind, stake, start, first, opp, id)
     if kind == "party" then db.stats.partyDuels = db.stats.partyDuels + 1 end
     if kind == "solo" then db.stats.wagered = db.stats.wagered + stake end   -- party duels are free
     AddLog(d, string.format(kind == "solo" and "|cffffd100Deathroll from %s, %s each.|r"
-        or "|cffffd100Deathroll from %s, for %s (free).|r", Fmt(start), Fmt(stake)))
+        or "|cffffd100Deathroll from %s (free).|r", Fmt(start), Fmt(stake)))
     ns:PlayGameSound(db, "newHand")
     local who = first == "me" and "You roll" or (OppName(d) .. " rolls")
     SetStatus(who .. " first. Roll a 1 and you lose.")
@@ -386,8 +387,9 @@ end
 -- The challenges (Games\ChallengeKit.lua): posting, taking, withdrawing.
 
 local function PostChallenge()
-    if S.duel or not ch:Post({ stake = db.stake, start = db.start }) then return end
-    SetStatus("Challenge sent: for " .. Fmt(db.stake) .. ", from " .. Fmt(db.start) .. " (free). Waiting for someone to take it...")
+    -- (a party duel has no stake: the field goes out as 0)
+    if S.duel or not ch:Post({ stake = 0, start = db.start }) then return end
+    SetStatus("Challenge sent: from " .. Fmt(db.start) .. " (free). Waiting for someone to take it...")
     Refresh()
 end
 
@@ -520,11 +522,11 @@ end
 
 local function BuildOptions(panel)
     return ns:GameOptions(Deathroll, panel, {
-        rules = "How it plays: both players put up the stake. The first roll is 1 to the starting number; "
+        rules = "How it plays: against the dealer, both of you put up the stake. The first roll is 1 to the starting number; "
             .. "each roll after that is 1 to the last roll. Whoever rolls a 1 loses, and the other takes both "
             .. "stakes. It's an even game: neither side has the edge.\n\n"
             .. "Vs the dealer: you roll first and the dealer answers.\n\n"
-            .. "Party duel: free (your chips are never touched). Challenge the "
+            .. "Party duel: free, with no stake (your chips are never touched). Challenge the "
             .. "group, and the first player with CowCasino to accept is your opponent. The challenger rolls first. "
             .. "Party rolls are real /rolls everyone can see. Forfeit gives up the duel; if the other player goes "
             .. "quiet for a minute you can call it off instead. A reload calls a party duel off too.",
@@ -564,16 +566,15 @@ function Deathroll:Build(panel)
         SetMode("party")
         Accept(o)
     end
-    ui.pickers = {}
-    for _, row in ipairs({ intro.soloRow, intro.partyRow }) do
-        local stake = Picker(row, STAKES, "stake", "Stake")
-        stake:SetPoint("LEFT", row, "LEFT", 6, 0)
-        local start = Picker(row, STARTS, "start", "From")
-        start:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-        table.insert(ui.pickers, stake)
-        table.insert(ui.pickers, start)
-        ui.stake, ui.start = ui.stake or stake, ui.start or start
-    end
+    -- vs the dealer: the stake and the starting number; a party duel is
+    -- free, so only the starting number
+    ui.stake = Picker(intro.soloRow, STAKES, "stake", "Stake")
+    ui.stake:SetPoint("LEFT", intro.soloRow, "LEFT", 6, 0)
+    ui.start = Picker(intro.soloRow, STARTS, "start", "From")
+    ui.start:SetPoint("RIGHT", intro.soloRow, "RIGHT", -6, 0)
+    local partyStart = Picker(intro.partyRow, STARTS, "start", "From")
+    partyStart:SetPoint("CENTER", intro.partyRow, "CENTER", 0, 0)
+    ui.pickers = { ui.stake, ui.start, partyStart }
     ui.stats = intro.stats
 
     -- the two of you at the top, facing each other across the range: your
@@ -641,8 +642,8 @@ function Deathroll:Build(panel)
                 Accept(offer)
             elseif state == "sent" then
                 Withdraw()
-            elseif state == "offer" and ch:Rematch(over.opp, { stake = over.stake, start = over.start }) then
-                SetStatus("Rematch offered to " .. over.opp .. ": for " .. Fmt(over.stake) .. ", from " .. Fmt(over.start) .. ".")
+            elseif state == "offer" and ch:Rematch(over.opp, { stake = 0, start = over.start }) then
+                SetStatus("Rematch offered to " .. over.opp .. ": from " .. Fmt(over.start) .. ".")
             end
             Refresh()
             return

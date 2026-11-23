@@ -248,7 +248,7 @@ ns:RegisterDealer({ id = "whiskers", name = "Whiskers", title = "Whiskers", auth
             "Deathroll from {start}, {stake} each. Roll a 1 and you're cat food.",
         },
         deathrollParty = {
-            "{name} wants a deathroll from {start}! For {stake}. May the luckiest rat win.",
+            "{name} wants a deathroll from {start}! Just for glory. May the luckiest rat win.",
         },
         deathrollClose = {
             "{name} is down to {value}. Whiskers are twitching!",

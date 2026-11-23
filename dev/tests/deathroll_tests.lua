@@ -249,11 +249,23 @@ for _, c in ipairs({ host, bob, cid }) do
 end
 Run(1)
 Check("the intro: Challenge the group", Enabled(host, "Challenge the group"))
+local function StakePickers(c, row)
+  local n = 0
+  for _, o in ipairs(c.env.all) do
+    local up = o.parent
+    while up and up ~= row do up = up.parent end
+    if o.kind == "FontString" and up == row and string.find(o.text or "", "^Stake") then n = n + 1 end
+  end
+  return n
+end
+Check("a party duel is free: no stake to pick on the party row (the dealer row has one)",
+  StakePickers(host, host.G.ui.intro.partyRow) == 0 and StakePickers(host, host.G.ui.intro.soloRow) == 1)
 Check("...beside the dealer duel", Enabled(host, "Duel", true))
 Press(host, "Challenge the group")
 Run(1)
 Check("the challenge shows for the others", bob.G.ui.intro.rows[1].shown ~= false and bob.G.ui.intro.rows[1].offer
-  and bob.G.ui.intro.rows[1].offer.host == "Host" and bob.G.ui.intro.rows[1].offer.stake == 100)
+  and bob.G.ui.intro.rows[1].offer.host == "Host" and bob.G.ui.intro.rows[1].text.text == "Host: from 1,000 (free)",
+  bob.G.ui.intro.rows[1].text.text)
 Check("...and the challenger can withdraw it", Enabled(host, "Withdraw challenge"))
 -- Bob and Cid both accept; Bob is first
 bob.env.Fire(bob.G.ui.intro.rows[1].join, "OnClick", "LeftButton")
@@ -321,8 +333,8 @@ Check("...offered: the other sees Accept rematch, the offerer Cancel rematch", E
 Check("...and it isn't open to anyone else", cid.G.ui.intro.rows[1].offer == nil or cid.G.ui.intro.rows[1].shown == false)
 Press(bob, "Accept rematch")
 Run(1)
-Check("...accepted: the same two duel again, same stake", host.S.duel and host.S.duel.opp == "Bob" and bob.S.duel
-  and bob.S.duel.opp == "Host" and host.S.duel.stake == 100 and Enabled(host, "Roll 1-1,000"))
+Check("...accepted: the same two duel again, from the same number", host.S.duel and host.S.duel.opp == "Bob" and bob.S.duel
+  and bob.S.duel.opp == "Host" and host.S.duel.start == 1000 and Enabled(host, "Roll 1-1,000"))
 Press(host, "Forfeit")
 Run(1)
 Check("...and it can be offered again after", Enabled(bob, "Rematch") and host.S.duel == nil)

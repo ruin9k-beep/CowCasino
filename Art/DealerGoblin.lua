@@ -304,7 +304,7 @@ ns:RegisterDealer({ id = "goblin", name = "Goblin", title = "Fizzlecog", author 
             "Deathroll! The purest form of gamblin'. No skill, all greed. My favorite!",
         },
         deathrollParty = {
-            "A duel with {name}! {stake} each, from {start}. Fizzlecog's holdin' the pot. Totally safe.",
+            "A duel with {name}, from {start}! Just for the glory. Fizzlecog's keepin' score. Totally fair.",
             "{name} wants a deathroll! Place your bets, everybody. Well, them. Not you lot.",
         },
         deathrollClose = {
