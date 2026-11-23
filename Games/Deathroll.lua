@@ -47,6 +47,7 @@ local S = {
     offers = {},        -- other players' open challenges: [name] = { id, stake, start, heard }
     accepting = nil,    -- a challenge we asked to take: { host, id }
 }
+local ch    -- the challenges (Games\ChallengeKit.lua), made below once the duel's own messages are
 
 local Fmt = ns.Fmt
 local function Msg(parts) return GAME_TAG .. ";" .. table.concat(parts, ";") end
@@ -107,7 +108,7 @@ local function OppName(d)
     return d.opp or "?"
 end
 
-local function OpenOffers() return Net:OpenOffers(S.offers) end
+local function OpenOffers() return ch:OpenOffers() end      -- (a rematch for someone else isn't open to us)
 
 -- what's riding on a duel: chips against the dealer, bragging rights in a party
 local function StakeText(d)
@@ -215,9 +216,17 @@ local function Refresh()
     -- the field's buttons: Roll in a duel; Play again and Setup after one
     ui.forfeit:Hide()
     ns.SetShown(ui.go, d ~= nil)
-    ns.SetShown(ui.again, d == nil and S.over and S.over.kind == "solo")
-    ui.again:SetText("Again for " .. Fmt(db.stake))
-    ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
+    -- (after a party duel: a rematch with the same player)
+    local over = d == nil and S.over
+    ns.SetShown(ui.again, over and true or false)
+    if over and over.kind == "party" then
+        local state = ch:RematchState(over.opp)
+        ui.again:SetText(state == "accept" and "Accept rematch" or state == "sent" and "Cancel rematch" or "Rematch")
+        ns.SetEnabled(ui.again, state ~= "gone" and not S.accepting and (state ~= "offer" or not S.posted))
+    elseif over then
+        ui.again:SetText("Again for " .. Fmt(db.stake))
+        ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
+    end
     if d then
         if d.turn == "me" then
             ui.go:SetText(d.pending and "Rolling..." or ("Roll 1-" .. Fmt(d.max)))
@@ -270,7 +279,7 @@ local function EndDuel(loser, how)
     local d = S.duel
     if not d then return end
     S.duel = nil
-    S.over = { kind = d.kind }
+    S.over = { kind = d.kind, opp = d.opp, stake = d.stake, start = d.start }
     db.duel, db.partyDuel = nil, nil
     local s = db.stats
     local opp = OppName(d)
@@ -375,7 +384,6 @@ end
 -- Party duels
 ---------------------------------------------------------------------------
 -- The challenges (Games\ChallengeKit.lua): posting, taking, withdrawing.
-local ch    -- (made below, once the duel's own messages are)
 
 local function PostChallenge()
     if S.duel or not ch:Post({ stake = db.stake, start = db.start }) then return end
@@ -626,6 +634,19 @@ function Deathroll:Build(panel)
     ui.forfeit:SetPoint("LEFT", ui.go, "RIGHT", 6, 0)
     ui.forfeit:Hide()
     ui.again = MakeButton(panel, "Again", 150, function()
+        local over = S.over
+        if over and over.kind == "party" then
+            local state, offer = ch:RematchState(over.opp)
+            if state == "accept" then
+                Accept(offer)
+            elseif state == "sent" then
+                Withdraw()
+            elseif state == "offer" and ch:Rematch(over.opp, { stake = over.stake, start = over.start }) then
+                SetStatus("Rematch offered to " .. over.opp .. ": for " .. Fmt(over.stake) .. ", from " .. Fmt(over.start) .. ".")
+            end
+            Refresh()
+            return
+        end
         S.over = nil
         SetMode("solo")
         DuelDealer()

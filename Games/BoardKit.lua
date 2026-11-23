@@ -266,7 +266,7 @@ function Kit:Finish(winner, why)
         self:Say(self.id .. "Lose", { name = opp }, "You lose.")
     end
     if ns.Dealer and not solo then ns.Dealer:SetImage(self, nil) end
-    self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me, taken = g.taken, kind = g.kind }
+    self.S.over = { pos = g.pos, last = g.last, log = g.log, me = g.me, taken = g.taken, kind = g.kind, opp = g.opp }
     self.db.stake = ns:FitList(STAKES, self.db.stake)
     self:SetStatus(text, r, gr, b)
     self:Refresh()
@@ -978,12 +978,35 @@ end
 -- shows when the game is opened, and the back button (< Setup) returns to it.
 function Kit:IntroState() return self.S.game ~= nil and "busy" or "idle" end
 
--- After a game vs the computer, on the field: Play again.
+-- After a game, on the field: Play again (vs the computer) or a rematch
+-- with the same player (sides swapped).
 function Kit:RefreshAfter()
     local ui, S, db = self.ui, self.S, self.db
-    ns.SetShown(ui.again, S.game == nil and S.over ~= nil and S.over.kind == "solo")
-    ui.again:SetText("Play again for " .. Fmt(db.stake))
-    ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
+    local over = S.game == nil and S.over
+    ns.SetShown(ui.again, over and true or false)
+    if not over then return end
+    if over.kind == "party" then
+        local state = self.ch:RematchState(over.opp)
+        ui.again:SetText(state == "accept" and "Accept rematch" or state == "sent" and "Cancel rematch" or "Rematch")
+        ns.SetEnabled(ui.again, state ~= "gone" and not S.accepting and (state ~= "offer" or not S.posted))
+    else
+        ui.again:SetText("Play again for " .. Fmt(db.stake))
+        ns.SetEnabled(ui.again, ns.db.chips >= db.stake)
+    end
+end
+
+-- The field's button after a party game.
+function Kit:RematchClick()
+    local over = self.S.over
+    local state, offer = self.ch:RematchState(over.opp)
+    if state == "accept" then
+        self.ch:Accept(offer)
+    elseif state == "sent" then
+        self.ch:Withdraw()
+    elseif state == "offer" and over.me and self.ch:Rematch(over.opp, { side = self.def.rules.Other(over.me) }) then
+        self:SetStatus("Rematch offered to " .. over.opp .. ".")
+    end
+    self:Refresh()
 end
 
 function Kit:Mode()
@@ -1250,6 +1273,7 @@ function Kit:BuildBottom(panel)
     ui.draw:Hide()
     -- after a game
     ui.again = MakeButton(panel, "Play again", 150, function()
+        if game.S.over and game.S.over.kind == "party" then return game:RematchClick() end
         game.S.over = nil
         if game:Mode() ~= "solo" then game:SetMode("solo") end
         game:PlaySolo()

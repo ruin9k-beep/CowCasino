@@ -20,9 +20,10 @@
 --       busyText = "You're already in a duel.",
 --   })
 --   ch:Post(posted)  ch:Withdraw(quiet)  ch:Accept(offer)  ch:OpenOffers()  ch:Send(parts, key)
+--   ch:Rematch(opp, posted)  ch:RematchState(opp)   a challenge for one player only
 --
 -- Messages (tag;kind;id;...): Q who's offering, O an offer (id, fields,
--- version), X withdrawn, A I'll take it (id, version), S the host's pick (id,
+-- version, and who it's for when it's a rematch), X withdrawn, A I'll take it (id, version), S the host's pick (id,
 -- the taker, accepted fields). The game's own messages pass through.
 
 local ns = CowCasino.ns
@@ -57,7 +58,11 @@ function Kit:Refresh() Call(self.spec.refresh) end
 function Kit:RefreshIfShown() if Call(self.spec.shown) then self:Refresh() end end
 function Kit:InGame() return Call(self.spec.inGame) and true or false end
 
-function Kit:OpenOffers() return Net:OpenOffers(self.S.offers) end
+-- The challenges open to us (a rematch for someone else isn't).
+function Kit:OpenOffers()
+    local me = Net:Me()
+    return Net:OpenOffers(self.S.offers, function(o) return not o.to or o.to == me end)
+end
 
 function Kit:SendOffer()
     local p = self.S.posted
@@ -66,6 +71,7 @@ function Kit:SendOffer()
     local parts = { "O", p.id }
     for _, v in ipairs(Call(self.spec.fields, p) or {}) do table.insert(parts, v) end
     table.insert(parts, Net.PARTY_VERSION)
+    if p.to then table.insert(parts, p.to) end      -- (after the version: older versions ignore it)
     self:Send(parts, self.tag .. "-O")
 end
 
@@ -97,6 +103,23 @@ function Kit:Accept(offer)
     self:Refresh()
 end
 
+-- A rematch after a party game: the same challenge, for opp alone.
+function Kit:Rematch(opp, posted)
+    posted.to = opp
+    return self:Post(posted)
+end
+
+-- Where a rematch with opp stands: "accept" (they offered one: the offer
+-- comes too), "sent" (we did), "gone" (they've left the group), or "offer".
+function Kit:RematchState(opp)
+    if not opp or not Net:IsMember(opp) then return "gone" end
+    for _, o in ipairs(self:OpenOffers()) do
+        if o.host == opp and o.to == Net:Me() then return "accept", o end
+    end
+    if self.S.posted and self.S.posted.to == opp then return "sent" end
+    return "offer"
+end
+
 function Kit:OnMessage(sender, f)
     local kind, id = f[2], f[3]
     local S = self.S
@@ -106,6 +129,8 @@ function Kit:OnMessage(sender, f)
         local offer, n = Call(self.spec.read, f)
         offer = offer or {}
         offer.id, offer.ver, offer.heard = id, tonumber(f[4 + (n or 0)]), GetTime()
+        local to = f[5 + (n or 0)]
+        offer.to = (to and to ~= "") and to or nil
         S.offers[sender] = offer
         self:RefreshIfShown()
     elseif kind == "X" then
@@ -119,6 +144,7 @@ function Kit:OnMessage(sender, f)
         -- someone takes our challenge: the first one gets it
         local p = S.posted
         if not p or p.id ~= id or self:InGame() or not Net:IsMember(sender) or Net:VersionProblem(f[4]) then return end
+        if p.to and p.to ~= sender then return end      -- a rematch is for one player
         S.posted = nil
         local extra = Call(self.spec.accepted, sender, p) or {}
         local parts = { "S", p.id, sender }

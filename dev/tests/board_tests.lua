@@ -271,6 +271,23 @@ Check("fool's mate: Black wins on both sides", host.P.S.game == nil and guest.P.
 Check("...and party games are free: no chips move", host.ns.db.chips == hostChips)
 Check("...the move list ends in Qh4#", string.find(guest.P.S.over.log[2], "Qh4#", 1, true) ~= nil, guest.P.S.over.log[2])
 
+-- a rematch, sides swapped (its result left out of the counts the checks below use)
+local function Copy(t) local c = {} for k, v in pairs(t) do c[k] = v end return c end
+local hostStats, guestStats = Copy(host.P.db.stats), Copy(guest.P.db.stats)
+Check("after a party game: Rematch for both", FindIn(host, "Rematch") ~= nil and FindIn(guest, "Rematch") ~= nil)
+PressIn(host, "Rematch")
+Run(1)
+Check("...offered: Accept rematch for the other", FindIn(guest, "Accept rematch") ~= nil and FindIn(host, "Cancel rematch") ~= nil)
+PressIn(guest, "Accept rematch")
+Run(1)
+Check("...accepted: the same two again, sides swapped", host.P.S.game and guest.P.S.game and host.P.S.game.opp == "Guest"
+  and host.P.S.game.me == "b" and guest.P.S.game.me == "w")
+PressIn(guest, "Resign")
+Run(3.1)
+PressIn(guest, "Confirm")
+Run(1)
+host.P.db.stats, guest.P.db.stats = hostStats, guestStats
+
 -- capture paths in chess
 local function NewGame()
   for _, c in ipairs({ host, guest }) do if not c.P.ui.intro:IsShown() then c.ns:Back() end end

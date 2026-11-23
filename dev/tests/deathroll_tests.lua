@@ -312,6 +312,21 @@ end
 Check("...and both saw the same rolls", Rolls(host.ns.db.deathroll.lastLog) == Rolls(bob.ns.db.deathroll.lastLog),
   Rolls(host.ns.db.deathroll.lastLog))
 
+-- A rematch: either one offers it, only the other can take it
+Check("after a party duel: Rematch for both players", Enabled(host, "Rematch") and Enabled(bob, "Rematch"))
+Press(host, "Rematch")
+Run(1)
+Check("...offered: the other sees Accept rematch, the offerer Cancel rematch", Enabled(bob, "Accept rematch")
+  and Enabled(host, "Cancel rematch"))
+Check("...and it isn't open to anyone else", cid.G.ui.intro.rows[1].offer == nil or cid.G.ui.intro.rows[1].shown == false)
+Press(bob, "Accept rematch")
+Run(1)
+Check("...accepted: the same two duel again, same stake", host.S.duel and host.S.duel.opp == "Bob" and bob.S.duel
+  and bob.S.duel.opp == "Host" and host.S.duel.stake == 100 and Enabled(host, "Roll 1-1,000"))
+Press(host, "Forfeit")
+Run(1)
+Check("...and it can be offered again after", Enabled(bob, "Rematch") and host.S.duel == nil)
+
 -- A forfeit
 for _, c in ipairs({ host, bob, cid }) do c.ns.db.chips = 1000 end
 Press(cid, "Challenge the group")
